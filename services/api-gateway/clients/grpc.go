@@ -1,0 +1,64 @@
+package clients
+
+import (
+	"context"
+	"fmt"
+
+	authpb "github.com/aliirah/task-flow/shared/proto/auth/v1"
+	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+type Config struct {
+	AuthAddr string
+	UserAddr string
+}
+
+type Connections struct {
+	Auth     authpb.AuthServiceClient
+	User     userpb.UserServiceClient
+	closeFns []func() error
+}
+
+func (c Connections) Close() error {
+	var firstErr error
+	for i := len(c.closeFns) - 1; i >= 0; i-- {
+		if err := c.closeFns[i](); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func Dial(ctx context.Context, cfg Config) (Connections, error) {
+	dial := func(addr string) (*grpc.ClientConn, error) {
+		conn, err := grpc.DialContext(ctx, addr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("dial %s: %w", addr, err)
+		}
+		return conn, nil
+	}
+
+	authConn, err := dial(cfg.AuthAddr)
+	if err != nil {
+		return Connections{}, err
+	}
+
+	userConn, err := dial(cfg.UserAddr)
+	if err != nil {
+		_ = authConn.Close()
+		return Connections{}, err
+	}
+
+	return Connections{
+		Auth: authpb.NewAuthServiceClient(authConn),
+		User: userpb.NewUserServiceClient(userConn),
+		closeFns: []func() error{
+			authConn.Close,
+			userConn.Close,
+		},
+	}, nil
+}

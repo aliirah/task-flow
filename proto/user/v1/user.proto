@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package user.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+option go_package = "github.com/aliirah/task-flow/shared/proto/user/v1;userpb";
+
+service UserService {
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc GetUser(GetUserRequest) returns (User);
+  rpc CreateUser(CreateUserRequest) returns (User);
+  rpc UpdateUser(UpdateUserRequest) returns (User);
+  rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+  rpc UpdateProfile(UpdateProfileRequest) returns (User);
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string first_name = 3;
+  string last_name = 4;
+  repeated string roles = 5;
+  string status = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message ListUsersRequest {
+  string query = 1;
+  string role = 2;
+  int32 page = 3;
+  int32 limit = 4;
+}
+
+message ListUsersResponse {
+  repeated User items = 1;
+}
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message CreateUserRequest {
+  string email = 1;
+  string password = 2;
+  string first_name = 3;
+  string last_name = 4;
+  repeated string roles = 5;
+}
+
+message UpdateUserRequest {
+  string id = 1;
+  google.protobuf.StringValue first_name = 2;
+  google.protobuf.StringValue last_name = 3;
+  UserRoles roles = 4;
+  google.protobuf.StringValue status = 5;
+}
+
+message DeleteUserRequest {
+  string id = 1;
+}
+
+message UpdateProfileRequest {
+  string user_id = 1;
+  google.protobuf.StringValue first_name = 2;
+  google.protobuf.StringValue last_name = 3;
+}
+
+message UserRoles {
+  repeated string values = 1;
+}

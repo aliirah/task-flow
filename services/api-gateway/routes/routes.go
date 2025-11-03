@@ -1,26 +1,20 @@
 package routes
 
 import (
-	"net/http"
-
 	"github.com/aliirah/task-flow/services/api-gateway/handlers"
-	"github.com/aliirah/task-flow/services/api-gateway/middleware"
-	"github.com/aliirah/task-flow/services/api-gateway/services"
 	"github.com/gin-gonic/gin"
 )
 
-func Register(router *gin.Engine) {
-	healthService := services.NewHealthService()
-	healthHandler := handlers.NewHealthHandler(healthService)
+type Dependencies struct {
+	Health *handlers.HealthHandler
+	Auth   *handlers.AuthHandler
+	User   *handlers.UserHandler
+}
 
+func Register(router *gin.Engine, deps Dependencies) {
 	api := router.Group("/api")
-	api.GET("/health", healthHandler.Health)
 
-	protected := api.Group("/")
-	protected.Use(middleware.JWTAuth())
-	protected.GET("/sample", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "secured route",
-		})
-	})
+	registerHealthRoutes(api, deps.Health)
+	registerAuthRoutes(api, deps.Auth)
+	registerUserRoutes(api, deps.User)
 }

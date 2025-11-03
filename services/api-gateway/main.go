@@ -6,8 +6,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/aliirah/task-flow/services/api-gateway/clients"
+	"github.com/aliirah/task-flow/services/api-gateway/handlers"
 	"github.com/aliirah/task-flow/services/api-gateway/middleware"
 	"github.com/aliirah/task-flow/services/api-gateway/routes"
+	gatewayservices "github.com/aliirah/task-flow/services/api-gateway/services"
 	"github.com/aliirah/task-flow/shared/env"
 	"github.com/aliirah/task-flow/shared/messaging"
 	"github.com/aliirah/task-flow/shared/tracing"
@@ -38,6 +41,19 @@ func main() {
 	defer cancel()
 	defer sh(ctx)
 
+	// gRPC connections
+	authAddr := env.GetString("AUTH_SERVICE_ADDR", "auth-service:50051")
+	userAddr := env.GetString("USER_SERVICE_ADDR", "user-service:50052")
+
+	grpcClients, err := clients.Dial(ctx, clients.Config{
+		AuthAddr: authAddr,
+		UserAddr: userAddr,
+	})
+	if err != nil {
+		log.Fatalf("failed to connect downstream services: %v", err)
+	}
+	defer grpcClients.Close()
+
 	// RabbitMQ connection
 	rabbitmq, err := messaging.NewRabbitMQ(rabbitMqURI)
 	if err != nil {
@@ -47,7 +63,15 @@ func main() {
 
 	router := gin.Default()
 	router.Use(middleware.HTTPTracing())
-	routes.Register(router)
+	healthHandler := handlers.NewHealthHandler(gatewayservices.NewHealthService())
+	authHandler := handlers.NewAuthHandler(gatewayservices.NewAuthService(grpcClients.Auth))
+	userHandler := handlers.NewUserHandler(gatewayservices.NewUserService(grpcClients.User))
+
+	routes.Register(router, routes.Dependencies{
+		Health: healthHandler,
+		Auth:   authHandler,
+		User:   userHandler,
+	})
 	s := &http.Server{
 		Addr:           httpAddr,
 		Handler:        router,
