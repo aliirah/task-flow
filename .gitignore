@@ -62,3 +62,6 @@ build/
 
 # Secrets
 secrets.yaml
+
+.gocache/
+.gomodcache/
