@@ -5,25 +5,41 @@ import (
 	"strings"
 
 	"github.com/aliirah/task-flow/services/api-gateway/services"
+	"github.com/aliirah/task-flow/shared/util"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 )
 
 type AuthHandler struct {
-	service services.AuthService
+	service   services.AuthService
+	validator *validator.Validate
 }
 
 func NewAuthHandler(service services.AuthService) *AuthHandler {
-	return &AuthHandler{service: service}
+	return &AuthHandler{service: service, validator: util.NewValidator()}
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
-	var payload services.AuthLoginRequest
+	type loginPayload struct {
+		Identifier string `json:"identifier" validate:"required"`
+		Password   string `json:"password" validate:"required,min=8"`
+	}
+
+	var payload loginPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		return
+	}
+	if err := h.validator.Struct(payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "validation failed",
+			"details": util.CollectValidationErrors(err),
+		})
 		return
 	}
 
-	tokens, err := h.service.Login(c.Request.Context(), &payload)
+	req := services.AuthLoginRequest{Identifier: payload.Identifier, Password: payload.Password}
+	tokens, err := h.service.Login(c.Request.Context(), &req)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
@@ -33,11 +49,20 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	var payload struct {
-		RefreshToken string `json:"refreshToken" binding:"required"`
+	type refreshPayload struct {
+		RefreshToken string `json:"refreshToken" validate:"required"`
 	}
+
+	var payload refreshPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		return
+	}
+	if err := h.validator.Struct(payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "validation failed",
+			"details": util.CollectValidationErrors(err),
+		})
 		return
 	}
 

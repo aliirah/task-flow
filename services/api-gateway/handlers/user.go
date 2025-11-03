@@ -3,17 +3,21 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/aliirah/task-flow/services/api-gateway/services"
+	"github.com/aliirah/task-flow/shared/util"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 )
 
 type UserHandler struct {
-	service services.UserService
+	service   services.UserService
+	validator *validator.Validate
 }
 
 func NewUserHandler(service services.UserService) *UserHandler {
-	return &UserHandler{service: service}
+	return &UserHandler{service: service, validator: util.NewValidator()}
 }
 
 func (h *UserHandler) List(c *gin.Context) {
@@ -48,13 +52,36 @@ func (h *UserHandler) Get(c *gin.Context) {
 }
 
 func (h *UserHandler) Create(c *gin.Context) {
-	var payload services.UserCreateInput
+	type userCreatePayload struct {
+		Email     string   `json:"email" validate:"required,email"`
+		Password  string   `json:"password" validate:"required,min=8"`
+		FirstName string   `json:"firstName" validate:"required,min=2"`
+		LastName  string   `json:"lastName" validate:"required,min=2"`
+		Roles     []string `json:"roles" validate:"omitempty,dive,required"`
+	}
+
+	var payload userCreatePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		return
+	}
+	if err := h.validator.Struct(payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "validation failed",
+			"details": util.CollectValidationErrors(err),
+		})
 		return
 	}
 
-	created, err := h.service.Create(c.Request.Context(), &payload)
+	createReq := &services.UserCreateInput{
+		Email:     strings.TrimSpace(payload.Email),
+		Password:  payload.Password,
+		FirstName: strings.TrimSpace(payload.FirstName),
+		LastName:  strings.TrimSpace(payload.LastName),
+		Roles:     payload.Roles,
+	}
+
+	created, err := h.service.Create(c.Request.Context(), createReq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -65,13 +92,34 @@ func (h *UserHandler) Create(c *gin.Context) {
 
 func (h *UserHandler) Update(c *gin.Context) {
 	id := c.Param("id")
-	var payload services.UserUpdateInput
+	type userUpdatePayload struct {
+		FirstName *string   `json:"firstName" validate:"omitempty,min=2"`
+		LastName  *string   `json:"lastName" validate:"omitempty,min=2"`
+		Roles     *[]string `json:"roles" validate:"omitempty,dive,required"`
+		Status    *string   `json:"status" validate:"omitempty,oneof=active inactive suspended"`
+	}
+
+	var payload userUpdatePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		return
+	}
+	if err := h.validator.Struct(payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "validation failed",
+			"details": util.CollectValidationErrors(err),
+		})
 		return
 	}
 
-	updated, err := h.service.Update(c.Request.Context(), id, &payload)
+	updateReq := &services.UserUpdateInput{
+		FirstName: trimPointer(payload.FirstName),
+		LastName:  trimPointer(payload.LastName),
+		Roles:     payload.Roles,
+		Status:    trimPointer(payload.Status),
+	}
+
+	updated, err := h.service.Update(c.Request.Context(), id, updateReq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -97,17 +145,45 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	var payload services.ProfileUpdateInput
+	type profilePayload struct {
+		FirstName *string `json:"firstName" validate:"omitempty,min=2"`
+		LastName  *string `json:"lastName" validate:"omitempty,min=2"`
+	}
+
+	var payload profilePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		return
+	}
+	if err := h.validator.Struct(payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "validation failed",
+			"details": util.CollectValidationErrors(err),
+		})
 		return
 	}
 
-	updated, err := h.service.UpdateProfile(c.Request.Context(), userID, &payload)
+	profileReq := &services.ProfileUpdateInput{
+		FirstName: trimPointer(payload.FirstName),
+		LastName:  trimPointer(payload.LastName),
+	}
+
+	updated, err := h.service.UpdateProfile(c.Request.Context(), userID, profileReq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, updated)
+}
+
+func trimPointer(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
