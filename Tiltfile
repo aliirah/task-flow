@@ -3,6 +3,7 @@ load('ext://restart_process', 'docker_build_with_restart')
 
 k8s_yaml('infra/dev/k8s/secrets.yaml')
 k8s_yaml('infra/dev/k8s/app-config.yaml')
+k8s_yaml('infra/dev/k8s/rabbitmq-config.yaml')
 
 ## RabbitMQ ##
 k8s_yaml('infra/dev/k8s/rabbitmq-deployment.yaml')
@@ -12,7 +13,7 @@ k8s_resource('rabbitmq', port_forwards=['5672', '15672'], labels='tooling')
 ### API Gateway ###
 gateway_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/api-gateway ./services/api-gateway'
 if os.name == 'nt':
-  gateway_compile_cmd = './infra/development/docker/api-gateway-build.bat'
+  gateway_compile_cmd = './infra/dev/docker/api-gateway-build.bat'
 
 local_resource(
   'api-gateway-compile',
@@ -21,10 +22,10 @@ local_resource(
 
 
 docker_build_with_restart(
-  'ride-sharing/api-gateway',
+  'task-flow/api-gateway',
   '.',
   entrypoint=['/app/build/api-gateway'],
-  dockerfile='./infra/development/docker/api-gateway.Dockerfile',
+  dockerfile='./infra/dev/docker/api-gateway.Dockerfile',
   only=[
     './build/api-gateway',
     './shared',
@@ -35,12 +36,12 @@ docker_build_with_restart(
   ],
 )
 
-k8s_yaml('./infra/development/k8s/api-gateway-deployment.yaml')
+k8s_yaml('./infra/dev/k8s/api-gateway-deployment.yaml')
 k8s_resource('api-gateway', port_forwards=8081,
              resource_deps=['api-gateway-compile', 'rabbitmq'], labels="services")
 ### End API Gateway ###
 
 ### Jaeger ###
-k8s_yaml('./infra/development/k8s/jaeger.yaml')
+k8s_yaml('./infra/dev/k8s/jaeger.yaml')
 k8s_resource('jaeger', port_forwards=['16686:16686', '14268:14268'], labels="tooling")
 ### End of Jaeger ###
