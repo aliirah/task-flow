@@ -1,3 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+data:
+  rabbitmq.conf: |
+    deprecated_features.permit.management_metrics_collection = true
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

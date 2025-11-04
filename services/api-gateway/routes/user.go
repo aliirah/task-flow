@@ -1,12 +1,12 @@
 package routes
 
 import (
-	"github.com/aliirah/task-flow/services/api-gateway/handlers"
-	"github.com/aliirah/task-flow/services/api-gateway/middleware"
+	httphandler "github.com/aliirah/task-flow/services/api-gateway/internal/handler/http"
+	"github.com/aliirah/task-flow/services/api-gateway/internal/middleware"
 	"github.com/gin-gonic/gin"
 )
 
-func registerUserRoutes(api *gin.RouterGroup, handler *handlers.UserHandler) {
+func registerUserRoutes(api *gin.RouterGroup, handler *httphandler.UserHandler) {
 	users := api.Group("/users")
 	users.Use(middleware.JWTAuth())
 	users.GET("", handler.List)

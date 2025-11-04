@@ -1,4 +1,4 @@
-package services
+package service
 
 import (
 	"context"
@@ -24,6 +24,7 @@ type UserUpdateInput struct {
 	LastName  *string   `json:"lastName,omitempty"`
 	Roles     *[]string `json:"roles,omitempty"`
 	Status    *string   `json:"status,omitempty"`
+	UserType  *string   `json:"userType,omitempty"`
 }
 
 type ProfileUpdateInput struct {
@@ -101,6 +102,9 @@ func (s *userService) Update(ctx context.Context, id string, input *UserUpdateIn
 	}
 	if input.Status != nil {
 		req.Status = wrapperspb.String(*input.Status)
+	}
+	if input.UserType != nil {
+		req.UserType = wrapperspb.String(*input.UserType)
 	}
 	return s.client.UpdateUser(ctx, req)
 }

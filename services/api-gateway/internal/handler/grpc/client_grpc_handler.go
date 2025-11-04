@@ -1,4 +1,4 @@
-package clients
+package grpc
 
 import (
 	"context"
@@ -6,7 +6,8 @@ import (
 
 	authpb "github.com/aliirah/task-flow/shared/proto/auth/v1"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
-	"google.golang.org/grpc"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	grpcconn "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -32,9 +33,10 @@ func (c Connections) Close() error {
 }
 
 func Dial(ctx context.Context, cfg Config) (Connections, error) {
-	dial := func(addr string) (*grpc.ClientConn, error) {
-		conn, err := grpc.DialContext(ctx, addr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
+	dial := func(addr string) (*grpcconn.ClientConn, error) {
+		conn, err := grpcconn.DialContext(ctx, addr,
+			grpcconn.WithTransportCredentials(insecure.NewCredentials()),
+			grpcconn.WithStatsHandler(otelgrpc.NewClientHandler()),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("dial %s: %w", addr, err)

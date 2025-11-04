@@ -3,11 +3,14 @@ load('ext://restart_process', 'docker_build_with_restart')
 
 k8s_yaml('infra/dev/k8s/secrets.yaml')
 k8s_yaml('infra/dev/k8s/app-config.yaml')
-k8s_yaml('infra/dev/k8s/rabbitmq-config.yaml')
+k8s_yaml('infra/dev/k8s/auth-db.yaml')
+k8s_yaml('infra/dev/k8s/user-db.yaml')
 
 ## RabbitMQ ##
 k8s_yaml('infra/dev/k8s/rabbitmq-deployment.yaml')
 k8s_resource('rabbitmq', port_forwards=['5672', '15672'], labels='tooling')
+k8s_resource('auth-db', labels='databases')
+k8s_resource('user-db', labels='databases')
 ## END RabbitMQ ##
 
 ### API Gateway ###
@@ -43,6 +46,8 @@ k8s_resource('api-gateway', port_forwards=8081,
 
 ### Auth Service ###
 auth_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/auth-service ./services/auth-service'
+if os.name == 'nt':
+  auth_compile_cmd = './infra/dev/docker/auth-service-build.bat'
 local_resource(
   'auth-service-compile',
   auth_compile_cmd,
@@ -64,11 +69,14 @@ docker_build_with_restart(
 )
 
 k8s_yaml('./infra/dev/k8s/auth-service.yaml')
-k8s_resource('auth-service', resource_deps=['auth-service-compile'], labels="services")
+k8s_resource('auth-service', resource_deps=['auth-service-compile', 'auth-db'], labels="services")
+
 ### End Auth Service ###
 
 ### User Service ###
 user_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/user-service ./services/user-service'
+if os.name == 'nt':
+  user_compile_cmd = './infra/dev/docker/user-service-build.bat'
 local_resource(
   'user-service-compile',
   user_compile_cmd,
@@ -90,7 +98,8 @@ docker_build_with_restart(
 )
 
 k8s_yaml('./infra/dev/k8s/user-service.yaml')
-k8s_resource('user-service', resource_deps=['user-service-compile'], labels="services")
+k8s_resource('user-service', resource_deps=['user-service-compile', 'user-db'], labels="services")
+
 ### End User Service ###
 
 ### Jaeger ###

@@ -1,18 +1,18 @@
-package handlers
+package http
 
 import (
 	"net/http"
 
-	"github.com/aliirah/task-flow/services/api-gateway/services"
+	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 type HealthHandler struct {
-	service services.HealthService
+	service service.HealthService
 }
 
-func NewHealthHandler(service services.HealthService) *HealthHandler {
-	return &HealthHandler{service: service}
+func NewHealthHandler(svc service.HealthService) *HealthHandler {
+	return &HealthHandler{service: svc}
 }
 
 func (h *HealthHandler) Health(c *gin.Context) {

@@ -1,10 +1,10 @@
 package routes
 
 import (
-	"github.com/aliirah/task-flow/services/api-gateway/handlers"
+	httphandler "github.com/aliirah/task-flow/services/api-gateway/internal/handler/http"
 	"github.com/gin-gonic/gin"
 )
 
-func registerHealthRoutes(api *gin.RouterGroup, handler *handlers.HealthHandler) {
+func registerHealthRoutes(api *gin.RouterGroup, handler *httphandler.HealthHandler) {
 	api.GET("/health", handler.Health)
 }

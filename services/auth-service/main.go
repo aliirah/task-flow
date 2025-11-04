@@ -2,48 +2,22 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
+	"os"
 	"time"
 
+	"github.com/aliirah/task-flow/services/auth-service/internal/handler"
+	"github.com/aliirah/task-flow/services/auth-service/internal/models"
+	"github.com/aliirah/task-flow/services/auth-service/internal/service"
+	"github.com/aliirah/task-flow/shared/db/gormdb"
 	"github.com/aliirah/task-flow/shared/env"
 	authpb "github.com/aliirah/task-flow/shared/proto/auth/v1"
 	"github.com/aliirah/task-flow/shared/tracing"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 )
-
-type authServer struct {
-	authpb.UnimplementedAuthServiceServer
-}
-
-func newAuthServer() authpb.AuthServiceServer {
-	return &authServer{}
-}
-
-func (s *authServer) Login(ctx context.Context, req *authpb.LoginRequest) (*authpb.TokenResponse, error) {
-	log.Printf("AuthService.Login identifier=%s", req.GetIdentifier())
-	return &authpb.TokenResponse{
-		AccessToken:  "access-token-" + req.GetIdentifier(),
-		RefreshToken: "refresh-token-" + req.GetIdentifier(),
-		ExpiresAt:    timestamppb.New(time.Now().Add(15 * time.Minute).UTC()),
-	}, nil
-}
-
-func (s *authServer) Refresh(ctx context.Context, req *authpb.RefreshRequest) (*authpb.TokenResponse, error) {
-	log.Printf("AuthService.Refresh refreshToken=%s", req.GetRefreshToken())
-	return &authpb.TokenResponse{
-		AccessToken:  "refreshed-access-token",
-		RefreshToken: "next-refresh-token",
-		ExpiresAt:    timestamppb.New(time.Now().Add(15 * time.Minute).UTC()),
-	}, nil
-}
-
-func (s *authServer) Logout(ctx context.Context, req *authpb.LogoutRequest) (*emptypb.Empty, error) {
-	log.Printf("AuthService.Logout accessToken=%s", req.GetAccessToken())
-	return &emptypb.Empty{}, nil
-}
 
 func main() {
 	tracerCfg := tracing.Config{
@@ -57,10 +31,35 @@ func main() {
 	}
 	defer shutdown(context.Background())
 
+	dbDSN := buildDSNFromEnv()
+	db, err := gormdb.Open(gormdb.Config{
+		DSN:             dbDSN,
+		MaxIdleConns:    5,
+		MaxOpenConns:    10,
+		ConnMaxLifetime: time.Hour,
+	})
+	if err != nil {
+		log.Fatalf("failed to connect database: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("failed to obtain sql db: %v", err)
+	}
+	defer sqlDB.Close()
+
+	if err := models.AutoMigrate(db); err != nil {
+		log.Fatalf("auto migrate failed: %v", err)
+	}
+
 	addr := env.GetString("AUTH_GRPC_ADDR", ":50051")
 
-	grpcServer := grpc.NewServer()
-	authpb.RegisterAuthServiceServer(grpcServer, newAuthServer())
+	authSvc := service.NewAuthService(db)
+	authHandler := handler.NewAuthHandler(authSvc)
+
+	grpcServer := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+	)
+	authpb.RegisterAuthServiceServer(grpcServer, authHandler)
 
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -71,4 +70,18 @@ func main() {
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("auth service stopped: %v", err)
 	}
+}
+
+func buildDSNFromEnv() string {
+	if dsn := os.Getenv("AUTH_DATABASE_URL"); dsn != "" {
+		return dsn
+	}
+
+	host := env.GetString("AUTH_DB_HOST", "auth-db")
+	port := env.GetString("AUTH_DB_PORT", "5432")
+	user := env.GetString("AUTH_DB_USER", "auth_service")
+	pass := env.GetString("AUTH_DB_PASSWORD", "auth_service")
+	name := env.GetString("AUTH_DB_NAME", "auth_service")
+
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", user, pass, host, port, name)
 }

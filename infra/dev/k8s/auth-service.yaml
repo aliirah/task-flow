@@ -18,6 +18,13 @@ spec:
           imagePullPolicy: Never
           ports:
             - containerPort: 50051
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
           env:
             - name: AUTH_GRPC_ADDR
               value: ":50051"
@@ -25,6 +32,25 @@ spec:
               value: "development"
             - name: JAEGER_ENDPOINT
               value: "http://jaeger:14268/api/traces"
+            - name: AUTH_DB_HOST
+              value: auth-db
+            - name: AUTH_DB_PORT
+              value: "5432"
+            - name: AUTH_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: POSTGRES_USER
+            - name: AUTH_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: POSTGRES_PASSWORD
+            - name: AUTH_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: auth-db-secret
+                  key: POSTGRES_DB
           readinessProbe:
             tcpSocket:
               port: 50051

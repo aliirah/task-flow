@@ -8,9 +8,18 @@ import "google/protobuf/timestamp.proto";
 option go_package = "github.com/aliirah/task-flow/shared/proto/auth/v1;authpb";
 
 service AuthService {
+  rpc SignUp(SignUpRequest) returns (TokenResponse);
   rpc Login(LoginRequest) returns (TokenResponse);
   rpc Refresh(RefreshRequest) returns (TokenResponse);
   rpc Logout(LogoutRequest) returns (google.protobuf.Empty);
+}
+
+message SignUpRequest {
+  string email = 1;
+  string password = 2;
+  string first_name = 3;
+  string last_name = 4;
+  string user_type = 5; // 'user' or 'admin'
 }
 
 message LoginRequest {

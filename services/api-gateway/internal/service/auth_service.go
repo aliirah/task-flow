@@ -1,4 +1,4 @@
-package services
+package service
 
 import (
 	"context"
@@ -7,12 +7,14 @@ import (
 	authpb "github.com/aliirah/task-flow/shared/proto/auth/v1"
 )
 
+type AuthSignUpRequest = authpb.SignUpRequest
 type AuthLoginRequest = authpb.LoginRequest
 type AuthRefreshRequest = authpb.RefreshRequest
 type AuthLogoutRequest = authpb.LogoutRequest
 type AuthTokenResponse = authpb.TokenResponse
 
 type AuthService interface {
+	SignUp(ctx context.Context, req *AuthSignUpRequest) (*AuthTokenResponse, error)
 	Login(ctx context.Context, req *AuthLoginRequest) (*AuthTokenResponse, error)
 	Refresh(ctx context.Context, req *AuthRefreshRequest) (*AuthTokenResponse, error)
 	Logout(ctx context.Context, req *AuthLogoutRequest) error
@@ -31,6 +33,13 @@ func (s *authService) Login(ctx context.Context, req *AuthLoginRequest) (*AuthTo
 		return nil, errors.New("auth service client not configured")
 	}
 	return s.client.Login(ctx, req)
+}
+
+func (s *authService) SignUp(ctx context.Context, req *AuthSignUpRequest) (*AuthTokenResponse, error) {
+	if s.client == nil {
+		return nil, errors.New("auth service client not configured")
+	}
+	return s.client.SignUp(ctx, req)
 }
 
 func (s *authService) Refresh(ctx context.Context, req *AuthRefreshRequest) (*AuthTokenResponse, error) {

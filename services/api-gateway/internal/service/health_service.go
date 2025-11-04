@@ -1,28 +1,21 @@
-package services
+package service
 
-import (
-	"context"
-	"time"
-)
+import "context"
 
 type HealthStatus struct {
-	Status    string    `json:"status"`
-	CheckedAt time.Time `json:"checkedAt"`
+	Status string `json:"status"`
 }
 
 type HealthService interface {
 	Status(ctx context.Context) (HealthStatus, error)
 }
 
+type healthService struct{}
+
 func NewHealthService() HealthService {
 	return &healthService{}
 }
 
-type healthService struct{}
-
 func (s *healthService) Status(ctx context.Context) (HealthStatus, error) {
-	return HealthStatus{
-		Status:    "ok",
-		CheckedAt: time.Now().UTC(),
-	}, nil
+	return HealthStatus{Status: "ok"}, nil
 }

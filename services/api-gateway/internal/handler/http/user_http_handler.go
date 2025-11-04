@@ -1,30 +1,30 @@
-package handlers
+package http
 
 import (
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/aliirah/task-flow/services/api-gateway/services"
+	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/aliirah/task-flow/shared/util"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
 
 type UserHandler struct {
-	service   services.UserService
+	service   service.UserService
 	validator *validator.Validate
 }
 
-func NewUserHandler(service services.UserService) *UserHandler {
-	return &UserHandler{service: service, validator: util.NewValidator()}
+func NewUserHandler(svc service.UserService) *UserHandler {
+	return &UserHandler{service: svc, validator: util.NewValidator()}
 }
 
 func (h *UserHandler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
-	filter := services.UserFilter{
+	filter := service.UserFilter{
 		Query: c.Query("q"),
 		Role:  c.Query("role"),
 		Page:  page,
@@ -57,6 +57,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		Password  string   `json:"password" validate:"required,min=8"`
 		FirstName string   `json:"firstName" validate:"required,min=2"`
 		LastName  string   `json:"lastName" validate:"required,min=2"`
+		UserType  string   `json:"userType" validate:"required,oneof=user admin"`
 		Roles     []string `json:"roles" validate:"omitempty,dive,required"`
 	}
 
@@ -73,11 +74,12 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
-	createReq := &services.UserCreateInput{
+	createReq := &service.UserCreateInput{
 		Email:     strings.TrimSpace(payload.Email),
 		Password:  payload.Password,
 		FirstName: strings.TrimSpace(payload.FirstName),
 		LastName:  strings.TrimSpace(payload.LastName),
+		UserType:  payload.UserType,
 		Roles:     payload.Roles,
 	}
 
@@ -97,6 +99,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		LastName  *string   `json:"lastName" validate:"omitempty,min=2"`
 		Roles     *[]string `json:"roles" validate:"omitempty,dive,required"`
 		Status    *string   `json:"status" validate:"omitempty,oneof=active inactive suspended"`
+		UserType  *string   `json:"userType" validate:"omitempty,oneof=user admin"`
 	}
 
 	var payload userUpdatePayload
@@ -112,11 +115,12 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	updateReq := &services.UserUpdateInput{
+	updateReq := &service.UserUpdateInput{
 		FirstName: trimPointer(payload.FirstName),
 		LastName:  trimPointer(payload.LastName),
 		Roles:     payload.Roles,
 		Status:    trimPointer(payload.Status),
+		UserType:  trimPointer(payload.UserType),
 	}
 
 	updated, err := h.service.Update(c.Request.Context(), id, updateReq)
@@ -163,7 +167,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	profileReq := &services.ProfileUpdateInput{
+	profileReq := &service.ProfileUpdateInput{
 		FirstName: trimPointer(payload.FirstName),
 		LastName:  trimPointer(payload.LastName),
 	}
