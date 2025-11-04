@@ -37,6 +37,13 @@ case "$SERVICE" in
     PF_PID=$!
     sleep 2
     export AUTH_DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@localhost:${FORWARD_PORT}/${DB_NAME}?sslmode=disable"
+
+    USER_SERVICE_FORWARD_PORT=${USER_SERVICE_FORWARD_PORT:-55052}
+    kubectl port-forward -n $NAMESPACE svc/user-service ${USER_SERVICE_FORWARD_PORT}:50052 >/dev/null 2>&1 &
+    USER_PF_PID=$!
+    sleep 2
+    export USER_SERVICE_ADDR="localhost:${USER_SERVICE_FORWARD_PORT}"
+
     go run ./services/auth-service/cmd/seeder
     ;;
   user)
