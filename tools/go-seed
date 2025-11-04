@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 <auth|user>" >&2
+  echo "Usage: $0 <auth|user|org>" >&2
   exit 1
 fi
 
@@ -47,6 +47,19 @@ case "$SERVICE" in
     sleep 2
     export USER_DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@localhost:${FORWARD_PORT}/${DB_NAME}?sslmode=disable"
     go run ./services/user-service/cmd/seeder
+    ;;
+  org)
+    SECRET_NAME=org-db-secret
+    SVC_NAME=org-db
+    DB_NAME=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_DB}' | base64 --decode)
+    DB_USER=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_USER}' | base64 --decode)
+    DB_PASS=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 --decode)
+    FORWARD_PORT=${ORG_DB_FORWARD_PORT:-5435}
+    kubectl port-forward -n $NAMESPACE svc/$SVC_NAME ${FORWARD_PORT}:5432 >/dev/null 2>&1 &
+    PF_PID=$!
+    sleep 2
+    export ORG_DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@localhost:${FORWARD_PORT}/${DB_NAME}?sslmode=disable"
+    go run ./services/organization-service/cmd/seeder
     ;;
   *)
     echo "Unknown service: $SERVICE" >&2

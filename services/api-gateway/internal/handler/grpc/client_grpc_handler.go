@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	authpb "github.com/aliirah/task-flow/shared/proto/auth/v1"
+	organizationpb "github.com/aliirah/task-flow/shared/proto/organization/v1"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	grpcconn "google.golang.org/grpc"
@@ -12,14 +13,16 @@ import (
 )
 
 type Config struct {
-	AuthAddr string
-	UserAddr string
+	AuthAddr         string
+	UserAddr         string
+	OrganizationAddr string
 }
 
 type Connections struct {
-	Auth     authpb.AuthServiceClient
-	User     userpb.UserServiceClient
-	closeFns []func() error
+	Auth         authpb.AuthServiceClient
+	User         userpb.UserServiceClient
+	Organization organizationpb.OrganizationServiceClient
+	closeFns     []func() error
 }
 
 func (c Connections) Close() error {
@@ -55,12 +58,21 @@ func Dial(ctx context.Context, cfg Config) (Connections, error) {
 		return Connections{}, err
 	}
 
+	orgConn, err := dial(cfg.OrganizationAddr)
+	if err != nil {
+		_ = userConn.Close()
+		_ = authConn.Close()
+		return Connections{}, err
+	}
+
 	return Connections{
-		Auth: authpb.NewAuthServiceClient(authConn),
-		User: userpb.NewUserServiceClient(userConn),
+		Auth:         authpb.NewAuthServiceClient(authConn),
+		User:         userpb.NewUserServiceClient(userConn),
+		Organization: organizationpb.NewOrganizationServiceClient(orgConn),
 		closeFns: []func() error{
 			authConn.Close,
 			userConn.Close,
+			orgConn.Close,
 		},
 	}, nil
 }

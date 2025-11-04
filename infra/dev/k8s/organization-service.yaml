@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: organization-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: organization-service
+  template:
+    metadata:
+      labels:
+        app: organization-service
+    spec:
+      containers:
+        - name: organization-service
+          image: task-flow/organization-service
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 50053
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          env:
+            - name: ORG_GRPC_ADDR
+              value: ":50053"
+            - name: ENVIRONMENT
+              value: "development"
+            - name: JAEGER_ENDPOINT
+              value: "http://jaeger:14268/api/traces"
+            - name: ORG_DB_HOST
+              value: org-db
+            - name: ORG_DB_PORT
+              value: "5432"
+            - name: ORG_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: org-db-secret
+                  key: POSTGRES_USER
+            - name: ORG_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: org-db-secret
+                  key: POSTGRES_PASSWORD
+            - name: ORG_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: org-db-secret
+                  key: POSTGRES_DB
+          readinessProbe:
+            tcpSocket:
+              port: 50053
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 50053
+            initialDelaySeconds: 10
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: organization-service
+spec:
+  selector:
+    app: organization-service
+  ports:
+    - name: grpc
+      port: 50053
+      targetPort: 50053

@@ -62,10 +62,12 @@ func main() {
 	// gRPC connections
 	authAddr := env.GetString("AUTH_SERVICE_ADDR", "auth-service:50051")
 	userAddr := env.GetString("USER_SERVICE_ADDR", "user-service:50052")
+	orgAddr := env.GetString("ORG_SERVICE_ADDR", "organization-service:50053")
 
 	grpcClients, err := grpcclient.Dial(ctx, grpcclient.Config{
-		AuthAddr: authAddr,
-		UserAddr: userAddr,
+		AuthAddr:         authAddr,
+		UserAddr:         userAddr,
+		OrganizationAddr: orgAddr,
 	})
 	if err != nil {
 		log.Error(fmt.Errorf("failed to connect downstream services: %w", err))
@@ -90,14 +92,19 @@ func main() {
 	)
 	healthHandler := httphandler.NewHealthHandler(gatewayservice.NewHealthService())
 	authSvc := gatewayservice.NewAuthService(grpcClients.Auth)
+	userSvc := gatewayservice.NewUserService(grpcClients.User)
+	orgSvc := gatewayservice.NewOrganizationService(grpcClients.Organization)
+
 	authHandler := httphandler.NewAuthHandler(authSvc)
-	userHandler := httphandler.NewUserHandler(gatewayservice.NewUserService(grpcClients.User))
+	userHandler := httphandler.NewUserHandler(userSvc)
+	organizationHandler := httphandler.NewOrganizationHandler(orgSvc)
 	authMiddleware := gatewaymiddleware.JWTAuth(authSvc)
 
 	routes.Register(router, routes.Dependencies{
 		Health:         healthHandler,
 		Auth:           authHandler,
 		User:           userHandler,
+		Organization:   organizationHandler,
 		AuthMiddleware: authMiddleware,
 	})
 	s := &http.Server{

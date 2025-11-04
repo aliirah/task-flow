@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/aliirah/task-flow/shared/authctx"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -136,11 +135,4 @@ func (s *userService) UpdateProfile(ctx context.Context, userID string, input *P
 		req.LastName = wrapperspb.String(*input.LastName)
 	}
 	return s.client.UpdateProfile(ctx, req)
-}
-
-func withOutgoingAuth(ctx context.Context) context.Context {
-	if user, ok := authctx.UserFromContext(ctx); ok {
-		return authctx.OutgoingContext(ctx, user)
-	}
-	return ctx
 }

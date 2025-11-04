@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package organization.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/aliirah/task-flow/shared/proto/organization/v1;organizationpb";
+
+service OrganizationService {
+  rpc CreateOrganization(CreateOrganizationRequest) returns (Organization);
+  rpc GetOrganization(GetOrganizationRequest) returns (Organization);
+  rpc ListOrganizations(ListOrganizationsRequest) returns (ListOrganizationsResponse);
+  rpc UpdateOrganization(UpdateOrganizationRequest) returns (Organization);
+  rpc DeleteOrganization(DeleteOrganizationRequest) returns (google.protobuf.Empty);
+
+  rpc AddMember(AddMemberRequest) returns (OrganizationMember);
+  rpc RemoveMember(RemoveMemberRequest) returns (google.protobuf.Empty);
+  rpc ListMembers(ListMembersRequest) returns (ListMembersResponse);
+  rpc ListUserMemberships(ListUserMembershipsRequest) returns (ListUserMembershipsResponse);
+}
+
+message Organization {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string owner_id = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+message OrganizationMember {
+  string id = 1;
+  string organization_id = 2;
+  string user_id = 3;
+  string role = 4;
+  string status = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message CreateOrganizationRequest {
+  string name = 1;
+  string description = 2;
+  string owner_id = 3;
+}
+
+message GetOrganizationRequest {
+  string id = 1;
+}
+
+message ListOrganizationsRequest {
+  string query = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+message ListOrganizationsResponse {
+  repeated Organization items = 1;
+}
+
+message UpdateOrganizationRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message DeleteOrganizationRequest {
+  string id = 1;
+}
+
+message AddMemberRequest {
+  string organization_id = 1;
+  string user_id = 2;
+  string role = 3;
+}
+
+message RemoveMemberRequest {
+  string organization_id = 1;
+  string user_id = 2;
+}
+
+message ListMembersRequest {
+  string organization_id = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+message ListMembersResponse {
+  repeated OrganizationMember items = 1;
+}
+
+message ListUserMembershipsRequest {
+  string user_id = 1;
+}
+
+message ListUserMembershipsResponse {
+  repeated OrganizationMember memberships = 1;
+}

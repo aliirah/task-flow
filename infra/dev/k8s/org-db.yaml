@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: org-db
+spec:
+  serviceName: "org-db"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: org-db
+  template:
+    metadata:
+      labels:
+        app: org-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: org-db-secret
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: org-db
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: org-db

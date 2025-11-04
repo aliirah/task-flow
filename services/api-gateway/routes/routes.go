@@ -9,6 +9,7 @@ type Dependencies struct {
 	Health         *httphandler.HealthHandler
 	Auth           *httphandler.AuthHandler
 	User           *httphandler.UserHandler
+	Organization   *httphandler.OrganizationHandler
 	AuthMiddleware gin.HandlerFunc
 }
 
@@ -18,4 +19,5 @@ func Register(router *gin.Engine, deps Dependencies) {
 	registerHealthRoutes(api, deps.Health)
 	registerAuthRoutes(api, deps.Auth, deps.AuthMiddleware)
 	registerUserRoutes(api, deps.User, deps.AuthMiddleware)
+	registerOrganizationRoutes(api, deps.Organization, deps.AuthMiddleware)
 }

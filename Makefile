@@ -7,7 +7,6 @@ BIN_DIR := $(CURDIR)/bin
 tools:
 	@mkdir -p $(BIN_DIR)
 	@GO111MODULE=on go build -o $(BIN_DIR)/protoc-gen-go google.golang.org/protobuf/cmd/protoc-gen-go
-	@GO111MODULE=on go build -o $(BIN_DIR)/protoc-gen-go-grpc google.golang.org/grpc/cmd/protoc-gen-go-grpc
 
 .PHONY: generate-proto
 generate-proto: tools
@@ -15,7 +14,6 @@ generate-proto: tools
 	PATH="$(BIN_DIR):$$PATH" protoc \
 		--proto_path=$(PROTO_DIR) \
 		--go_out=paths=source_relative:$(GO_OUT) \
-		--go-grpc_out=paths=source_relative:$(GO_OUT) \
 		$(PROTO_SRC)
 
 .PHONY: seed-auth
@@ -25,3 +23,7 @@ seed-auth:
 .PHONY: seed-user
 seed-user:
 	@tools/go-seed user
+
+.PHONY: seed-org
+seed-org:
+	@tools/go-seed org

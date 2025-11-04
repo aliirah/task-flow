@@ -2,13 +2,17 @@ package faker
 
 import (
 	"math/rand"
+	"strings"
 	"time"
 )
 
 var (
-	firstNames = []string{"Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Heidi", "Ivan", "Judy"}
-	lastNames  = []string{"Anderson", "Brown", "Clark", "Davis", "Edwards", "Franklin", "Garcia", "Harris", "Iverson", "Johnson"}
-	domains    = []string{"example.com", "mail.com", "test.net", "demo.org"}
+	firstNames      = []string{"Alice", "Bob", "Charlie", "Diana", "Eve", "Frank", "Grace", "Heidi", "Ivan", "Judy"}
+	lastNames       = []string{"Anderson", "Brown", "Clark", "Davis", "Edwards", "Franklin", "Garcia", "Harris", "Iverson", "Johnson"}
+	domains         = []string{"example.com", "mail.com", "test.net", "demo.org"}
+	companyPrefixes = []string{"Global", "Dynamic", "Bright", "Prime", "Next", "Blue", "Nova", "Vertex"}
+	companySuffixes = []string{"Solutions", "Labs", "Systems", "Technologies", "Works", "Partners", "Group", "Collective"}
+	sentenceWords   = []string{"scalable", "distributed", "innovative", "platform", "collaboration", "ecosystem", "workflow", "automation", "experience", "insights"}
 )
 
 func init() {
@@ -42,6 +46,21 @@ func LastName() string {
 // Password returns a pseudo-random password value.
 func Password() string {
 	return randomFrom(firstNames) + randomFrom(lastNames) + "#" + randomDigits(4)
+}
+
+// Company returns a pseudo-random company name.
+func Company() string {
+	return randomFrom(companyPrefixes) + " " + randomFrom(companySuffixes)
+}
+
+// Sentence returns a pseudo-random short sentence.
+func Sentence() string {
+	words := make([]string, 0, 6)
+	count := 4 + rand.Intn(3)
+	for i := 0; i < count; i++ {
+		words = append(words, randomFrom(sentenceWords))
+	}
+	return strings.Title(strings.Join(words, " ")) + "."
 }
 
 func randomDigits(n int) string {
