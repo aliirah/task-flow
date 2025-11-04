@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: task-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: task-service
+  template:
+    metadata:
+      labels:
+        app: task-service
+    spec:
+      containers:
+        - name: task-service
+          image: task-flow/task-service
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 50054
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          env:
+            - name: TASK_GRPC_ADDR
+              value: ":50054"
+            - name: ENVIRONMENT
+              value: "development"
+            - name: JAEGER_ENDPOINT
+              value: "http://jaeger:14268/api/traces"
+            - name: TASK_DB_HOST
+              value: task-db
+            - name: TASK_DB_PORT
+              value: "5432"
+            - name: TASK_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: task-db-secret
+                  key: POSTGRES_USER
+            - name: TASK_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: task-db-secret
+                  key: POSTGRES_PASSWORD
+            - name: TASK_DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: task-db-secret
+                  key: POSTGRES_DB
+          readinessProbe:
+            tcpSocket:
+              port: 50054
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 50054
+            initialDelaySeconds: 10
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: task-service
+spec:
+  selector:
+    app: task-service
+  ports:
+    - name: grpc
+      port: 50054
+      targetPort: 50054

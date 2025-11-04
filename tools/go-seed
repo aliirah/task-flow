@@ -22,6 +22,10 @@ cleanup() {
     kill $USER_PF_PID >/dev/null 2>&1 || true
     wait $USER_PF_PID >/dev/null 2>&1 || true
   fi
+  if [[ -n ${ORG_PF_PID:-} ]]; then
+    kill $ORG_PF_PID >/dev/null 2>&1 || true
+    wait $ORG_PF_PID >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
@@ -78,6 +82,32 @@ case "$SERVICE" in
     export USER_SERVICE_ADDR="localhost:${USER_SERVICE_FORWARD_PORT}"
 
     go run ./services/organization-service/cmd/seeder
+    ;;
+  task)
+    SECRET_NAME=task-db-secret
+    SVC_NAME=task-db
+    DB_NAME=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_DB}' | base64 --decode)
+    DB_USER=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_USER}' | base64 --decode)
+    DB_PASS=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 --decode)
+    FORWARD_PORT=${TASK_DB_FORWARD_PORT:-5436}
+    kubectl port-forward -n $NAMESPACE svc/$SVC_NAME ${FORWARD_PORT}:5432 >/dev/null 2>&1 &
+    PF_PID=$!
+    sleep 2
+    export TASK_DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@localhost:${FORWARD_PORT}/${DB_NAME}?sslmode=disable"
+
+    USER_SERVICE_FORWARD_PORT=${USER_SERVICE_FORWARD_PORT:-55052}
+    kubectl port-forward -n $NAMESPACE svc/user-service ${USER_SERVICE_FORWARD_PORT}:50052 >/dev/null 2>&1 &
+    USER_PF_PID=$!
+    sleep 2
+    export USER_SERVICE_ADDR="localhost:${USER_SERVICE_FORWARD_PORT}"
+
+    ORG_SERVICE_FORWARD_PORT=${ORG_SERVICE_FORWARD_PORT:-55053}
+    kubectl port-forward -n $NAMESPACE svc/organization-service ${ORG_SERVICE_FORWARD_PORT}:50053 >/dev/null 2>&1 &
+    ORG_PF_PID=$!
+    sleep 2
+    export ORG_SERVICE_ADDR="localhost:${ORG_SERVICE_FORWARD_PORT}"
+
+    go run ./services/task-service/cmd/seeder
     ;;
   *)
     echo "Unknown service: $SERVICE" >&2

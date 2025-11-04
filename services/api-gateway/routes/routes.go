@@ -10,6 +10,7 @@ type Dependencies struct {
 	Auth           *httphandler.AuthHandler
 	User           *httphandler.UserHandler
 	Organization   *httphandler.OrganizationHandler
+	Task           *httphandler.TaskHandler
 	AuthMiddleware gin.HandlerFunc
 }
 
@@ -20,4 +21,5 @@ func Register(router *gin.Engine, deps Dependencies) {
 	registerAuthRoutes(api, deps.Auth, deps.AuthMiddleware)
 	registerUserRoutes(api, deps.User, deps.AuthMiddleware)
 	registerOrganizationRoutes(api, deps.Organization, deps.AuthMiddleware)
+	registerTaskRoutes(api, deps.Task, deps.AuthMiddleware)
 }

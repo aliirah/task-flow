@@ -12,3 +12,9 @@ coverage/
 
 !shared/
 proto/
+
+.gocache/
+.gomodcache/
+.gobuild/
+.cache/
+.modcache/

@@ -63,11 +63,13 @@ func main() {
 	authAddr := env.GetString("AUTH_SERVICE_ADDR", "auth-service:50051")
 	userAddr := env.GetString("USER_SERVICE_ADDR", "user-service:50052")
 	orgAddr := env.GetString("ORG_SERVICE_ADDR", "organization-service:50053")
+	taskAddr := env.GetString("TASK_SERVICE_ADDR", "task-service:50054")
 
 	grpcClients, err := grpcclient.Dial(ctx, grpcclient.Config{
 		AuthAddr:         authAddr,
 		UserAddr:         userAddr,
 		OrganizationAddr: orgAddr,
+		TaskAddr:         taskAddr,
 	})
 	if err != nil {
 		log.Error(fmt.Errorf("failed to connect downstream services: %w", err))
@@ -94,10 +96,12 @@ func main() {
 	authSvc := gatewayservice.NewAuthService(grpcClients.Auth)
 	userSvc := gatewayservice.NewUserService(grpcClients.User)
 	orgSvc := gatewayservice.NewOrganizationService(grpcClients.Organization)
+	taskSvc := gatewayservice.NewTaskService(grpcClients.Task)
 
 	authHandler := httphandler.NewAuthHandler(authSvc)
 	userHandler := httphandler.NewUserHandler(userSvc)
 	organizationHandler := httphandler.NewOrganizationHandler(orgSvc, userSvc)
+	taskHandler := httphandler.NewTaskHandler(taskSvc, userSvc, orgSvc)
 	authMiddleware := gatewaymiddleware.JWTAuth(authSvc)
 
 	routes.Register(router, routes.Dependencies{
@@ -105,6 +109,7 @@ func main() {
 		Auth:           authHandler,
 		User:           userHandler,
 		Organization:   organizationHandler,
+		Task:           taskHandler,
 		AuthMiddleware: authMiddleware,
 	})
 	s := &http.Server{

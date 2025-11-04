@@ -6,6 +6,7 @@ k8s_yaml('infra/dev/k8s/app-config.yaml')
 k8s_yaml('infra/dev/k8s/auth-db.yaml')
 k8s_yaml('infra/dev/k8s/user-db.yaml')
 k8s_yaml('infra/dev/k8s/org-db.yaml')
+k8s_yaml('infra/dev/k8s/task-db.yaml')
 
 ## RabbitMQ ##
 k8s_yaml('infra/dev/k8s/rabbitmq-deployment.yaml')
@@ -13,6 +14,7 @@ k8s_resource('rabbitmq', port_forwards=['5672', '15672'], labels='tooling')
 k8s_resource('auth-db', labels='databases')
 k8s_resource('user-db', labels='databases')
 k8s_resource('org-db', labels='databases')
+k8s_resource('task-db', labels='databases')
 ## END RabbitMQ ##
 
 ### API Gateway ###
@@ -43,7 +45,7 @@ docker_build_with_restart(
 
 k8s_yaml('./infra/dev/k8s/api-gateway-deployment.yaml')
 k8s_resource('api-gateway', port_forwards=8081,
-             resource_deps=['api-gateway-compile', 'rabbitmq', 'auth-service', 'user-service', 'organization-service'], labels="services")
+             resource_deps=['api-gateway-compile', 'rabbitmq', 'auth-service', 'user-service', 'organization-service', 'task-service'], labels="services")
 ### End API Gateway ###
 
 ### Auth Service ###
@@ -104,6 +106,8 @@ k8s_resource('user-service', resource_deps=['user-service-compile', 'user-db'], 
 ### End User Service ###
 
 ### Organization Service ###
+
+### Organization Service ###
 org_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/organization-service ./services/organization-service'
 if os.name == 'nt':
   org_compile_cmd = './infra/dev/docker/organization-service-build.bat'
@@ -131,6 +135,34 @@ k8s_yaml('./infra/dev/k8s/organization-service.yaml')
 k8s_resource('organization-service', resource_deps=['organization-service-compile', 'org-db'], labels="services")
 ### End Organization Service ###
 
+### Task Service ###
+task_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/task-service ./services/task-service'
+if os.name == 'nt':
+  task_compile_cmd = './infra/dev/docker/task-service-build.bat'
+local_resource(
+  'task-service-compile',
+  task_compile_cmd,
+  deps=['./services/task-service', './shared'], labels="compiles")
+
+docker_build_with_restart(
+  'task-flow/task-service',
+  '.',
+  entrypoint=['/app/build/task-service'],
+  dockerfile='./infra/dev/docker/task-service.Dockerfile',
+  only=[
+    './build/task-service',
+    './shared',
+  ],
+  live_update=[
+    sync('./build', '/app/build'),
+    sync('./shared', '/app/shared'),
+  ],
+)
+
+k8s_yaml('./infra/dev/k8s/task-service.yaml')
+k8s_resource('task-service', resource_deps=['task-service-compile', 'task-db'], labels="services")
+### End Task Service ###
+
 ## Seeders ##
 local_resource(
   'user-service-seed',
@@ -148,6 +180,12 @@ local_resource(
   'organization-service-seed',
   './tools/go-seed org',
   deps=['./tools/go-seed', './services/organization-service/internal/models', './services/organization-service/cmd/seeder', './shared'],
+  labels="seeders", trigger_mode=TRIGGER_MODE_MANUAL, auto_init=False)
+
+local_resource(
+  'task-service-seed',
+  './tools/go-seed task',
+  deps=['./tools/go-seed', './services/task-service/internal/models', './services/task-service/cmd/seeder', './shared'],
   labels="seeders", trigger_mode=TRIGGER_MODE_MANUAL, auto_init=False)
 ## End Seeders ##
 
