@@ -10,8 +10,10 @@ import (
 	"github.com/aliirah/task-flow/shared/authctx"
 	organizationpb "github.com/aliirah/task-flow/shared/proto/organization/v1"
 	"github.com/aliirah/task-flow/shared/rest"
+	"github.com/aliirah/task-flow/shared/transform/common"
+	orgtransform "github.com/aliirah/task-flow/shared/transform/organization"
+	usertransform "github.com/aliirah/task-flow/shared/transform/user"
 	"github.com/aliirah/task-flow/shared/util"
-	"github.com/aliirah/task-flow/shared/util/httputil"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"google.golang.org/grpc/codes"
@@ -70,7 +72,7 @@ func (h *OrganizationHandler) Create(c *gin.Context) {
 		return
 	}
 
-	rest.Created(c, httputil.OrganizationToMap(org))
+	rest.Created(c, orgtransform.ToMap(org))
 }
 
 func (h *OrganizationHandler) List(c *gin.Context) {
@@ -89,7 +91,7 @@ func (h *OrganizationHandler) List(c *gin.Context) {
 
 	items := make([]gin.H, 0, len(resp.GetItems()))
 	for _, org := range resp.GetItems() {
-		items = append(items, httputil.OrganizationToMap(org))
+		items = append(items, orgtransform.ToMap(org))
 	}
 	rest.Ok(c, gin.H{"items": items})
 }
@@ -100,7 +102,7 @@ func (h *OrganizationHandler) Get(c *gin.Context) {
 		writeOrganizationError(c, err)
 		return
 	}
-	rest.Ok(c, httputil.OrganizationToMap(org))
+	rest.Ok(c, orgtransform.ToMap(org))
 }
 
 func (h *OrganizationHandler) Update(c *gin.Context) {
@@ -132,7 +134,7 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 		writeOrganizationError(c, err)
 		return
 	}
-	rest.Ok(c, httputil.OrganizationToMap(org))
+	rest.Ok(c, orgtransform.ToMap(org))
 }
 
 func (h *OrganizationHandler) Delete(c *gin.Context) {
@@ -288,15 +290,7 @@ func (h *OrganizationHandler) enrichMembers(ctx context.Context, members []*orga
 	for _, member := range members {
 		item := memberToMap(member)
 		if user := userMap[member.GetUserId()]; user != nil {
-			item["user"] = map[string]interface{}{
-				"id":        user.GetId(),
-				"email":     user.GetEmail(),
-				"firstName": user.GetFirstName(),
-				"lastName":  user.GetLastName(),
-				"status":    user.GetStatus(),
-				"userType":  user.GetUserType(),
-				"roles":     user.GetRoles(),
-			}
+			item["user"] = usertransform.ToMap(user)
 		} else {
 			item["user"] = map[string]interface{}{
 				"id":        member.GetUserId(),
@@ -309,7 +303,7 @@ func (h *OrganizationHandler) enrichMembers(ctx context.Context, members []*orga
 			}
 		}
 		if org := orgMap[member.GetOrganizationId()]; org != nil {
-			item["organization"] = httputil.OrganizationToMap(org)
+			item["organization"] = orgtransform.ToMap(org)
 		}
 		items = append(items, item)
 	}
@@ -360,7 +354,7 @@ func memberToMap(member *organizationpb.OrganizationMember) gin.H {
 		"userId":         member.GetUserId(),
 		"role":           member.GetRole(),
 		"status":         member.GetStatus(),
-		"createdAt":      httputil.TimestampToString(member.GetCreatedAt()),
+		"createdAt":      common.TimestampToString(member.GetCreatedAt()),
 	}
 }
 

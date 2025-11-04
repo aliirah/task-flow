@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,8 +13,12 @@ import (
 	taskpb "github.com/aliirah/task-flow/shared/proto/task/v1"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"github.com/aliirah/task-flow/shared/rest"
+	orgtransform "github.com/aliirah/task-flow/shared/transform/organization"
+	tasktransform "github.com/aliirah/task-flow/shared/transform/task"
+	usertransform "github.com/aliirah/task-flow/shared/transform/user"
 	"github.com/aliirah/task-flow/shared/util"
-	"github.com/aliirah/task-flow/shared/util/httputil"
+	"github.com/aliirah/task-flow/shared/util/collections"
+	"github.com/aliirah/task-flow/shared/util/stringset"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"google.golang.org/grpc/codes"
@@ -73,13 +76,13 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		return
 	}
 
-	status, err := normaliseEnum(payload.Status, "status", taskStatuses, "open")
+	status, err := stringset.Normalize(payload.Status, "status", taskStatuses, "open")
 	if err != nil {
 		rest.Error(c, http.StatusBadRequest, err.Error(),
 			rest.WithErrorCode("validation.invalid_status"))
 		return
 	}
-	priority, err := normaliseEnum(payload.Priority, "priority", taskPriorities, "medium")
+	priority, err := stringset.Normalize(payload.Priority, "priority", taskPriorities, "medium")
 	if err != nil {
 		rest.Error(c, http.StatusBadRequest, err.Error(),
 			rest.WithErrorCode("validation.invalid_priority"))
@@ -145,7 +148,7 @@ func (h *TaskHandler) List(c *gin.Context) {
 		limit = 20
 	}
 
-	status, err := normaliseEnum(c.Query("status"), "status", taskStatuses, "")
+	status, err := stringset.Normalize(c.Query("status"), "status", taskStatuses, "")
 	if err != nil {
 		rest.Error(c, http.StatusBadRequest, err.Error(),
 			rest.WithErrorCode("validation.invalid_status"))
@@ -222,14 +225,14 @@ func (h *TaskHandler) Update(c *gin.Context) {
 	}
 
 	if payload.Status != nil {
-		if _, err := normaliseEnum(*payload.Status, "status", taskStatuses, ""); err != nil {
+		if _, err := stringset.Normalize(*payload.Status, "status", taskStatuses, ""); err != nil {
 			rest.Error(c, http.StatusBadRequest, err.Error(),
 				rest.WithErrorCode("validation.invalid_status"))
 			return
 		}
 	}
 	if payload.Priority != nil {
-		if _, err := normaliseEnum(*payload.Priority, "priority", taskPriorities, ""); err != nil {
+		if _, err := stringset.Normalize(*payload.Priority, "priority", taskPriorities, ""); err != nil {
 			rest.Error(c, http.StatusBadRequest, err.Error(),
 				rest.WithErrorCode("validation.invalid_priority"))
 			return
@@ -244,13 +247,13 @@ func (h *TaskHandler) Update(c *gin.Context) {
 		req.Description = wrapperspb.String(strings.TrimSpace(*payload.Description))
 	}
 	if payload.Status != nil {
-		value, _ := normaliseEnum(*payload.Status, "status", taskStatuses, "")
+		value, _ := stringset.Normalize(*payload.Status, "status", taskStatuses, "")
 		if value != "" {
 			req.Status = wrapperspb.String(value)
 		}
 	}
 	if payload.Priority != nil {
-		value, _ := normaliseEnum(*payload.Priority, "priority", taskPriorities, "")
+		value, _ := stringset.Normalize(*payload.Priority, "priority", taskPriorities, "")
 		if value != "" {
 			req.Priority = wrapperspb.String(value)
 		}
@@ -321,7 +324,7 @@ func (h *TaskHandler) enrichTasks(ctx context.Context, tasks []*taskpb.Task) ([]
 		}
 	}
 
-	users, err := h.userService.ListByIDs(ctx, mapKeys(userIDs))
+	users, err := h.userService.ListByIDs(ctx, collections.MapKeys(userIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +351,7 @@ func (h *TaskHandler) enrichTasks(ctx context.Context, tasks []*taskpb.Task) ([]
 		userMap[id] = user
 	}
 
-	orgList, err := h.orgService.ListByIDs(ctx, mapKeys(orgIDs))
+	orgList, err := h.orgService.ListByIDs(ctx, collections.MapKeys(orgIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -378,32 +381,20 @@ func (h *TaskHandler) enrichTasks(ctx context.Context, tasks []*taskpb.Task) ([]
 
 	items := make([]gin.H, 0, len(tasks))
 	for _, task := range tasks {
-		item := gin.H{
-			"id":             task.GetId(),
-			"title":          task.GetTitle(),
-			"description":    task.GetDescription(),
-			"status":         task.GetStatus(),
-			"priority":       task.GetPriority(),
-			"organizationId": task.GetOrganizationId(),
-			"assigneeId":     task.GetAssigneeId(),
-			"reporterId":     task.GetReporterId(),
-			"dueAt":          httputil.TimestampToString(task.GetDueAt()),
-			"createdAt":      httputil.TimestampToString(task.GetCreatedAt()),
-			"updatedAt":      httputil.TimestampToString(task.GetUpdatedAt()),
-		}
+		item := tasktransform.ToMap(task)
 
 		if org := orgMap[task.GetOrganizationId()]; org != nil {
-			item["organization"] = httputil.OrganizationToMap(org)
+			item["organization"] = orgtransform.ToMap(org)
 		} else if id := task.GetOrganizationId(); id != "" {
 			item["organization"] = gin.H{"id": id}
 		}
 		if assignee := userMap[task.GetAssigneeId()]; assignee != nil {
-			item["assignee"] = httputil.UserToMap(assignee)
+			item["assignee"] = usertransform.ToMap(assignee)
 		} else if id := task.GetAssigneeId(); id != "" {
 			item["assignee"] = gin.H{"id": id}
 		}
 		if reporter := userMap[task.GetReporterId()]; reporter != nil {
-			item["reporter"] = httputil.UserToMap(reporter)
+			item["reporter"] = usertransform.ToMap(reporter)
 		} else if id := task.GetReporterId(); id != "" {
 			item["reporter"] = gin.H{"id": id}
 		}
@@ -446,27 +437,4 @@ func writeTaskError(c *gin.Context, err error) {
 	rest.Error(c, http.StatusBadGateway, "task service unavailable",
 		rest.WithErrorCode("task.unavailable"),
 		rest.WithErrorDetails(err.Error()))
-}
-
-func normaliseEnum(value, field string, allowed map[string]struct{}, fallback string) (string, error) {
-	value = strings.TrimSpace(strings.ToLower(value))
-	if value == "" {
-		return fallback, nil
-	}
-	if _, ok := allowed[value]; !ok {
-		opts := make([]string, 0, len(allowed))
-		for k := range allowed {
-			opts = append(opts, k)
-		}
-		return "", fmt.Errorf("%s must be one of [%s]", field, strings.Join(opts, ", "))
-	}
-	return value, nil
-}
-
-func mapKeys(set map[string]struct{}) []string {
-	keys := make([]string, 0, len(set))
-	for k := range set {
-		keys = append(keys, k)
-	}
-	return keys
 }
