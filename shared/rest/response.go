@@ -3,7 +3,9 @@ package rest
 import (
 	"net/http"
 
+	"github.com/aliirah/task-flow/shared/logging"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 const (
@@ -72,6 +74,7 @@ func Error(c *gin.Context, status int, message string, opts ...ErrorOption) {
 	for _, opt := range opts {
 		opt(payload)
 	}
+	logHTTPError(c, status, payload)
 	respond(c, status, statusError, nil, payload)
 }
 
@@ -90,6 +93,9 @@ func Custom(c *gin.Context, httpStatus int, status string, data interface{}, err
 	if status == "" {
 		status = statusSuccess
 	}
+	if httpStatus >= 400 {
+		logHTTPError(c, httpStatus, err)
+	}
 	respond(c, httpStatus, status, data, err)
 }
 
@@ -99,6 +105,8 @@ func SetBatchID(c *gin.Context, batchID string) {
 		return
 	}
 	c.Set(ContextKeyBatchID, batchID)
+	ctx := logging.ContextWithFields(c.Request.Context(), zap.String("batch_id", batchID))
+	c.Request = c.Request.WithContext(ctx)
 }
 
 // GetRequestID extracts the request ID from context.
@@ -136,4 +144,42 @@ func respond(c *gin.Context, httpStatus int, status string, data interface{}, er
 	}
 
 	c.JSON(httpStatus, resp)
+}
+
+func logHTTPError(c *gin.Context, status int, err *ResponseError) {
+	if status < 500 {
+		return
+	}
+	fields := []zap.Field{
+		zap.Int("status", status),
+		zap.String("request_id", GetRequestID(c)),
+		zap.String("batch_id", GetBatchID(c)),
+	}
+
+	if err != nil {
+		fields = append(fields,
+			zap.String("message", err.Message),
+		)
+		if err.Code != "" {
+			fields = append(fields, zap.String("code", err.Code))
+		}
+		if err.Details != nil {
+			fields = append(fields, zap.Any("details", err.Details))
+		}
+	}
+
+	if c != nil {
+		fields = append(fields, zap.String("client_ip", c.ClientIP()))
+		if req := c.Request; req != nil {
+			fields = append(fields,
+				zap.String("method", req.Method),
+				zap.String("path", req.URL.Path),
+				zap.String("user_agent", req.UserAgent()),
+			)
+		}
+		fields = append(fields, zap.String("route", c.FullPath()))
+	}
+
+	logger := logging.FromContext(c.Request.Context())
+	logger.Error("http error response", fields...)
 }

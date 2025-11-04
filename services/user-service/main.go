@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/aliirah/task-flow/services/user-service/internal/service"
 	"github.com/aliirah/task-flow/shared/db/gormdb"
 	"github.com/aliirah/task-flow/shared/env"
+	log "github.com/aliirah/task-flow/shared/logging"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"github.com/aliirah/task-flow/shared/tracing"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -20,6 +20,20 @@ import (
 )
 
 func main() {
+	loggerCfg := log.Config{
+		Directory: env.GetString("LOG_DIR", "logs"),
+		Filename:  env.GetString("LOG_FILE", "user-service"),
+		Level:     env.GetString("LOG_LEVEL", "info"),
+	}
+	if _, err := log.Init(loggerCfg); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialise logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer log.Sync()
+
+	// TODO: remove logging once log file verification is complete
+	log.Info("user-service logger initialised")
+
 	tracerCfg := tracing.Config{
 		ServiceName:    "user-service",
 		Environment:    env.GetString("ENVIRONMENT", "development"),
@@ -27,7 +41,8 @@ func main() {
 	}
 	shutdown, err := tracing.InitTracer(tracerCfg)
 	if err != nil {
-		log.Fatalf("failed to init tracer: %v", err)
+		log.Error(fmt.Errorf("failed to init tracer: %w", err))
+		os.Exit(1)
 	}
 	defer shutdown(context.Background())
 
@@ -39,16 +54,19 @@ func main() {
 		ConnMaxLifetime: time.Hour,
 	})
 	if err != nil {
-		log.Fatalf("failed to connect database: %v", err)
+		log.Error(fmt.Errorf("failed to connect database: %w", err))
+		os.Exit(1)
 	}
 	sqlDB, err := db.DB()
 	if err != nil {
-		log.Fatalf("failed to obtain sql db: %v", err)
+		log.Error(fmt.Errorf("failed to obtain sql db: %w", err))
+		os.Exit(1)
 	}
 	defer sqlDB.Close()
 
 	if err := models.AutoMigrate(db); err != nil {
-		log.Fatalf("auto migrate failed: %v", err)
+		log.Error(fmt.Errorf("auto migrate failed: %w", err))
+		os.Exit(1)
 	}
 
 	userSvc := service.NewUserService(db)
@@ -63,12 +81,14 @@ func main() {
 
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		log.Error(fmt.Errorf("failed to listen: %w", err))
+		os.Exit(1)
 	}
 
-	log.Printf("User service listening on %s", addr)
+	log.Infof("User service listening on %s", addr)
 	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("user service stopped: %v", err)
+		log.Error(fmt.Errorf("user service stopped: %w", err))
+		os.Exit(1)
 	}
 }
 

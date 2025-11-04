@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"net/http"
+	"os"
 	"time"
+
+	requestid "github.com/gin-contrib/requestid"
+	"github.com/gin-gonic/gin"
 
 	grpcclient "github.com/aliirah/task-flow/services/api-gateway/internal/handler/grpc"
 	httphandler "github.com/aliirah/task-flow/services/api-gateway/internal/handler/http"
@@ -12,9 +16,10 @@ import (
 	gatewayservice "github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/aliirah/task-flow/services/api-gateway/routes"
 	"github.com/aliirah/task-flow/shared/env"
+	log "github.com/aliirah/task-flow/shared/logging"
 	"github.com/aliirah/task-flow/shared/messaging"
 	"github.com/aliirah/task-flow/shared/tracing"
-	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 var (
@@ -23,7 +28,19 @@ var (
 )
 
 func main() {
-	log.Println("Starting API Gateway")
+	loggerCfg := log.Config{
+		Directory: env.GetString("LOG_DIR", "logs"),
+		Filename:  env.GetString("LOG_FILE", "api-gateway"),
+		Level:     env.GetString("LOG_LEVEL", "info"),
+	}
+	if _, err := log.Init(loggerCfg); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialise logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer log.Sync()
+
+	// TODO: remove logging once log file verification is complete
+	log.Info("api-gateway logger initialised")
 
 	// init tracing
 	tracerCfg := tracing.Config{
@@ -34,7 +51,8 @@ func main() {
 
 	sh, err := tracing.InitTracer(tracerCfg)
 	if err != nil {
-		log.Fatalf("failed to initialize tracer: %v", err)
+		log.Error(fmt.Errorf("failed to initialize tracer: %w", err))
+		os.Exit(1)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -50,21 +68,24 @@ func main() {
 		UserAddr: userAddr,
 	})
 	if err != nil {
-		log.Fatalf("failed to connect downstream services: %v", err)
+		log.Error(fmt.Errorf("failed to connect downstream services: %w", err))
+		os.Exit(1)
 	}
 	defer grpcClients.Close()
 
 	// RabbitMQ connection
 	rabbitmq, err := messaging.NewRabbitMQ(rabbitMqURI)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(fmt.Errorf("failed to connect RabbitMQ: %w", err))
+		os.Exit(1)
 	}
 	defer rabbitmq.Close()
 
 	router := gin.Default()
 	router.Use(
+		requestid.New(),
+		gatewaymiddleware.RequestContext(),
 		gatewaymiddleware.ErrorHandler(),
-		gatewaymiddleware.RequestID(),
 		gatewaymiddleware.HTTPTracing(),
 	)
 	healthHandler := httphandler.NewHealthHandler(gatewayservice.NewHealthService())
@@ -83,5 +104,8 @@ func main() {
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
-	s.ListenAndServe()
+	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Error(fmt.Errorf("http server error: %w", err), zap.String("addr", httpAddr))
+		os.Exit(1)
+	}
 }
