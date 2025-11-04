@@ -105,13 +105,13 @@ k8s_resource('user-service', resource_deps=['user-service-compile', 'user-db'], 
 local_resource(
   'auth-service-seed',
   './tools/go-seed auth',
-  deps=['./tools/go-seed', './services/auth-service/internal/seed', './services/auth-service/internal/models', './services/auth-service/cmd/seeder', './shared'],
+  deps=['./tools/go-seed', './services/auth-service/internal/models', './services/auth-service/cmd/seeder', './shared'],
   labels="seeders", trigger_mode=TRIGGER_MODE_MANUAL, auto_init=False)
 
 local_resource(
   'user-service-seed',
   './tools/go-seed user',
-  deps=['./tools/go-seed', './services/user-service/internal/seed', './services/user-service/internal/models', './services/user-service/cmd/seeder', './shared'],
+  deps=['./tools/go-seed', './services/user-service/internal/models', './services/user-service/cmd/seeder', './shared'],
   labels="seeders", trigger_mode=TRIGGER_MODE_MANUAL, auto_init=False)
 ## End Seeders ##
 

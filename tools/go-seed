@@ -11,7 +11,6 @@ NAMESPACE=${K8S_NAMESPACE:-default}
 FORWARD_PORT=0
 SECRET_NAME=""
 SVC_NAME=""
-ENV_VAR=""
 DB_NAME=""
 
 cleanup() {
@@ -26,7 +25,6 @@ case "$SERVICE" in
   auth)
     SECRET_NAME=auth-db-secret
     SVC_NAME=auth-db
-    ENV_VAR=AUTH_DATABASE_URL
     DB_NAME=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_DB}' | base64 --decode)
     DB_USER=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_USER}' | base64 --decode)
     DB_PASS=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 --decode)
