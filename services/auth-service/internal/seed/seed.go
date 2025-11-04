@@ -16,7 +16,7 @@ import (
 func Run() error {
 	dsn := os.Getenv("AUTH_DATABASE_URL")
 	if dsn == "" {
-		dsn = "postgres://auth_service:auth_service@auth-db:5432/auth_service?sslmode=disable"
+		dsn = "postgres://auth_service:auth_service@localhost:5432/auth_service?sslmode=disable"
 	}
 
 	db, err := gormdb.Open(gormdb.Config{DSN: dsn})

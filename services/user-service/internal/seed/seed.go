@@ -15,7 +15,7 @@ import (
 func Run() error {
 	dsn := os.Getenv("USER_DATABASE_URL")
 	if dsn == "" {
-		dsn = "postgres://user_service:user_service@user-db:5432/user_service?sslmode=disable"
+		dsn = "postgres://user_service:user_service@localhost:5432/user_service?sslmode=disable"
 	}
 
 	db, err := gormdb.Open(gormdb.Config{DSN: dsn})

@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "Usage: $0 <auth|user>" >&2
+  exit 1
+fi
+
+SERVICE=$1
+NAMESPACE=${K8S_NAMESPACE:-default}
+FORWARD_PORT=0
+SECRET_NAME=""
+SVC_NAME=""
+ENV_VAR=""
+DB_NAME=""
+
+cleanup() {
+  if [[ $FORWARD_PORT -ne 0 && -n ${PF_PID:-} ]]; then
+    kill $PF_PID >/dev/null 2>&1 || true
+    wait $PF_PID >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+
+case "$SERVICE" in
+  auth)
+    SECRET_NAME=auth-db-secret
+    SVC_NAME=auth-db
+    ENV_VAR=AUTH_DATABASE_URL
+    DB_NAME=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_DB}' | base64 --decode)
+    DB_USER=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_USER}' | base64 --decode)
+    DB_PASS=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 --decode)
+    FORWARD_PORT=${AUTH_DB_FORWARD_PORT:-5433}
+    kubectl port-forward -n $NAMESPACE svc/$SVC_NAME ${FORWARD_PORT}:5432 >/dev/null 2>&1 &
+    PF_PID=$!
+    sleep 2
+    export AUTH_DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@localhost:${FORWARD_PORT}/${DB_NAME}?sslmode=disable"
+    go run ./services/auth-service/cmd/seeder
+    ;;
+  user)
+    SECRET_NAME=user-db-secret
+    SVC_NAME=user-db
+    DB_NAME=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_DB}' | base64 --decode)
+    DB_USER=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_USER}' | base64 --decode)
+    DB_PASS=$(kubectl get secret $SECRET_NAME -n $NAMESPACE -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 --decode)
+    FORWARD_PORT=${USER_DB_FORWARD_PORT:-5434}
+    kubectl port-forward -n $NAMESPACE svc/$SVC_NAME ${FORWARD_PORT}:5432 >/dev/null 2>&1 &
+    PF_PID=$!
+    sleep 2
+    export USER_DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@localhost:${FORWARD_PORT}/${DB_NAME}?sslmode=disable"
+    go run ./services/user-service/cmd/seeder
+    ;;
+  *)
+    echo "Unknown service: $SERVICE" >&2
+    exit 1
+    ;;
+ esac

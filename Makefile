@@ -15,3 +15,11 @@ generate-proto: tools
 		--proto_path=$(PROTO_DIR) \
 		--go_out=paths=source_relative:$(GO_OUT) \
 		$(PROTO_SRC)
+
+.PHONY: seed-auth
+seed-auth:
+	@tools/go-seed auth
+
+.PHONY: seed-user
+seed-user:
+	@tools/go-seed user
