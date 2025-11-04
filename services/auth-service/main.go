@@ -14,9 +14,11 @@ import (
 	"github.com/aliirah/task-flow/shared/env"
 	log "github.com/aliirah/task-flow/shared/logging"
 	authpb "github.com/aliirah/task-flow/shared/proto/auth/v1"
+	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"github.com/aliirah/task-flow/shared/tracing"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -69,10 +71,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	addr := env.GetString("AUTH_GRPC_ADDR", ":50051")
+	userSvcAddr := env.GetString("USER_SERVICE_ADDR", "user-service:50052")
+	userConn, err := grpc.DialContext(context.Background(), userSvcAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()))
+	if err != nil {
+		log.Error(fmt.Errorf("failed to connect user service: %w", err))
+		os.Exit(1)
+	}
+	defer userConn.Close()
 
-	authSvc := service.NewAuthService(db)
+	cfg := service.Config{
+		JWTSecret:       []byte(env.GetString("AUTH_JWT_SECRET", "development-secret")),
+		AccessTokenTTL:  parseDuration(env.GetString("AUTH_ACCESS_TOKEN_TTL", "15m"), 15*time.Minute),
+		RefreshTokenTTL: parseDuration(env.GetString("AUTH_REFRESH_TOKEN_TTL", "720h"), 24*time.Hour),
+	}
+
+	authSvc := service.NewAuthService(db, cfg, userpb.NewUserServiceClient(userConn))
 	authHandler := handler.NewAuthHandler(authSvc)
+
+	addr := env.GetString("AUTH_GRPC_ADDR", ":50051")
 
 	grpcServer := grpc.NewServer(
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
@@ -104,4 +122,15 @@ func buildDSNFromEnv() string {
 	name := env.GetString("AUTH_DB_NAME", "auth_service")
 
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", user, pass, host, port, name)
+}
+
+func parseDuration(value string, fallback time.Duration) time.Duration {
+	if value == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return fallback
+	}
+	return d
 }

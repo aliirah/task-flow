@@ -12,6 +12,7 @@ service AuthService {
   rpc Login(LoginRequest) returns (TokenResponse);
   rpc Refresh(RefreshRequest) returns (TokenResponse);
   rpc Logout(LogoutRequest) returns (google.protobuf.Empty);
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
 }
 
 message SignUpRequest {
@@ -32,11 +33,31 @@ message RefreshRequest {
 }
 
 message LogoutRequest {
-  string access_token = 1;
+  string refresh_token = 1;
 }
 
 message TokenResponse {
   string access_token = 1;
   string refresh_token = 2;
   google.protobuf.Timestamp expires_at = 3;
+  UserProfile user = 4;
+}
+
+message ValidateTokenRequest {
+  string access_token = 1;
+}
+
+message ValidateTokenResponse {
+  UserProfile user = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message UserProfile {
+  string id = 1;
+  string email = 2;
+  string first_name = 3;
+  string last_name = 4;
+  repeated string roles = 5;
+  string status = 6;
+  string user_type = 7;
 }

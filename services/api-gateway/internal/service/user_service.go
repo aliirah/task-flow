@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/aliirah/task-flow/shared/authctx"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -53,6 +54,7 @@ func (s *userService) List(ctx context.Context, filter UserFilter) ([]*User, err
 	if s.client == nil {
 		return nil, errors.New("user service client not configured")
 	}
+	ctx = withOutgoingAuth(ctx)
 	if filter.Page <= 0 {
 		filter.Page = 1
 	}
@@ -76,6 +78,7 @@ func (s *userService) Get(ctx context.Context, id string) (*User, error) {
 	if s.client == nil {
 		return nil, errors.New("user service client not configured")
 	}
+	ctx = withOutgoingAuth(ctx)
 	return s.client.GetUser(ctx, &userpb.GetUserRequest{Id: id})
 }
 
@@ -83,6 +86,7 @@ func (s *userService) Create(ctx context.Context, input *UserCreateInput) (*User
 	if s.client == nil {
 		return nil, errors.New("user service client not configured")
 	}
+	ctx = withOutgoingAuth(ctx)
 	return s.client.CreateUser(ctx, (*userpb.CreateUserRequest)(input))
 }
 
@@ -90,6 +94,7 @@ func (s *userService) Update(ctx context.Context, id string, input *UserUpdateIn
 	if s.client == nil {
 		return nil, errors.New("user service client not configured")
 	}
+	ctx = withOutgoingAuth(ctx)
 	req := &userpb.UpdateUserRequest{Id: id}
 	if input.FirstName != nil {
 		req.FirstName = wrapperspb.String(*input.FirstName)
@@ -113,6 +118,7 @@ func (s *userService) Delete(ctx context.Context, id string) error {
 	if s.client == nil {
 		return errors.New("user service client not configured")
 	}
+	ctx = withOutgoingAuth(ctx)
 	_, err := s.client.DeleteUser(ctx, &userpb.DeleteUserRequest{Id: id})
 	return err
 }
@@ -121,6 +127,7 @@ func (s *userService) UpdateProfile(ctx context.Context, userID string, input *P
 	if s.client == nil {
 		return nil, errors.New("user service client not configured")
 	}
+	ctx = withOutgoingAuth(ctx)
 	req := &userpb.UpdateProfileRequest{UserId: userID}
 	if input.FirstName != nil {
 		req.FirstName = wrapperspb.String(*input.FirstName)
@@ -129,4 +136,11 @@ func (s *userService) UpdateProfile(ctx context.Context, userID string, input *P
 		req.LastName = wrapperspb.String(*input.LastName)
 	}
 	return s.client.UpdateProfile(ctx, req)
+}
+
+func withOutgoingAuth(ctx context.Context) context.Context {
+	if user, ok := authctx.UserFromContext(ctx); ok {
+		return authctx.OutgoingContext(ctx, user)
+	}
+	return ctx
 }

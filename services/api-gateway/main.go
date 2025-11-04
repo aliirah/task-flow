@@ -89,13 +89,16 @@ func main() {
 		gatewaymiddleware.HTTPTracing(),
 	)
 	healthHandler := httphandler.NewHealthHandler(gatewayservice.NewHealthService())
-	authHandler := httphandler.NewAuthHandler(gatewayservice.NewAuthService(grpcClients.Auth))
+	authSvc := gatewayservice.NewAuthService(grpcClients.Auth)
+	authHandler := httphandler.NewAuthHandler(authSvc)
 	userHandler := httphandler.NewUserHandler(gatewayservice.NewUserService(grpcClients.User))
+	authMiddleware := gatewaymiddleware.JWTAuth(authSvc)
 
 	routes.Register(router, routes.Dependencies{
-		Health: healthHandler,
-		Auth:   authHandler,
-		User:   userHandler,
+		Health:         healthHandler,
+		Auth:           authHandler,
+		User:           userHandler,
+		AuthMiddleware: authMiddleware,
 	})
 	s := &http.Server{
 		Addr:           httpAddr,

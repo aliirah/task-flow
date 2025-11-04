@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
+	"github.com/aliirah/task-flow/shared/authctx"
 	"github.com/aliirah/task-flow/shared/rest"
 	"github.com/aliirah/task-flow/shared/util"
 	"github.com/gin-gonic/gin"
@@ -146,8 +147,8 @@ func (h *UserHandler) Delete(c *gin.Context) {
 }
 
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
-	userID := c.GetString("userID")
-	if userID == "" {
+	user, ok := authctx.UserFromGin(c)
+	if !ok || user.ID == "" {
 		rest.Error(c, http.StatusUnauthorized, "missing user identity",
 			rest.WithErrorCode("auth.missing_identity"))
 		return
@@ -176,7 +177,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		LastName:  trimPointer(payload.LastName),
 	}
 
-	updated, err := h.service.UpdateProfile(c.Request.Context(), userID, profileReq)
+	updated, err := h.service.UpdateProfile(c.Request.Context(), user.ID, profileReq)
 	if err != nil {
 		writeUserServiceError(c, err)
 		return

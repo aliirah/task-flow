@@ -6,15 +6,16 @@ import (
 )
 
 type Dependencies struct {
-	Health *httphandler.HealthHandler
-	Auth   *httphandler.AuthHandler
-	User   *httphandler.UserHandler
+	Health         *httphandler.HealthHandler
+	Auth           *httphandler.AuthHandler
+	User           *httphandler.UserHandler
+	AuthMiddleware gin.HandlerFunc
 }
 
 func Register(router *gin.Engine, deps Dependencies) {
 	api := router.Group("/api")
 
 	registerHealthRoutes(api, deps.Health)
-	registerAuthRoutes(api, deps.Auth)
-	registerUserRoutes(api, deps.User)
+	registerAuthRoutes(api, deps.Auth, deps.AuthMiddleware)
+	registerUserRoutes(api, deps.User, deps.AuthMiddleware)
 }

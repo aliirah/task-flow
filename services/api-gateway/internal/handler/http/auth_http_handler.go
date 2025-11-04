@@ -1,8 +1,10 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/aliirah/task-flow/shared/rest"
@@ -28,7 +30,7 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		Password  string `json:"password" validate:"required,min=8"`
 		FirstName string `json:"firstName" validate:"required,min=2"`
 		LastName  string `json:"lastName" validate:"required,min=2"`
-		UserType  string `json:"userType" validate:"required,oneof=user admin"`
+		UserType  string `json:"userType" validate:"omitempty,oneof=user admin"`
 	}
 
 	var payload signUpPayload
@@ -44,19 +46,24 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		return
 	}
 
+	userType := strings.TrimSpace(payload.UserType)
+	if userType == "" {
+		userType = "user"
+	}
+
 	resp, err := h.service.SignUp(c.Request.Context(), &service.AuthSignUpRequest{
 		Email:     payload.Email,
 		Password:  payload.Password,
 		FirstName: payload.FirstName,
 		LastName:  payload.LastName,
-		UserType:  payload.UserType,
+		UserType:  userType,
 	})
 	if err != nil {
 		writeAuthServiceError(c, err)
 		return
 	}
 
-	rest.Created(c, resp)
+	respondWithTokens(c, resp, http.StatusCreated)
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -85,7 +92,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	rest.Ok(c, tokens)
+	respondWithTokens(c, tokens, http.StatusOK)
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
@@ -114,19 +121,29 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	rest.Ok(c, tokens)
+	respondWithTokens(c, tokens, http.StatusOK)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
-	rawAuth := c.GetHeader("Authorization")
-	token := strings.TrimSpace(strings.TrimPrefix(rawAuth, "Bearer"))
-	if token == "" {
-		rest.Error(c, http.StatusBadRequest, "missing authorization token",
-			rest.WithErrorCode("auth.missing_token"))
+	type logoutPayload struct {
+		RefreshToken string `json:"refreshToken" validate:"required"`
+	}
+
+	var payload logoutPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		rest.Error(c, http.StatusBadRequest, "invalid request payload",
+			rest.WithErrorCode("validation.invalid_payload"))
 		return
 	}
 
-	logoutReq := service.AuthLogoutRequest{AccessToken: token}
+	if err := h.validator.Struct(payload); err != nil {
+		rest.Error(c, http.StatusBadRequest, "validation failed",
+			rest.WithErrorCode("validation.failed"),
+			rest.WithErrorDetails(util.CollectValidationErrors(err)))
+		return
+	}
+
+	logoutReq := service.AuthLogoutRequest{RefreshToken: payload.RefreshToken}
 
 	if err := h.service.Logout(c.Request.Context(), &logoutReq); err != nil {
 		writeAuthServiceError(c, err)
@@ -166,4 +183,38 @@ func writeAuthServiceError(c *gin.Context, err error) {
 	rest.Error(c, http.StatusBadGateway, "auth service unavailable",
 		rest.WithErrorCode("auth.unavailable"),
 		rest.WithErrorDetails(err.Error()))
+}
+
+func respondWithTokens(c *gin.Context, resp *service.AuthTokenResponse, status int) {
+	if resp == nil {
+		rest.InternalError(c, errors.New("auth service returned empty response"))
+		return
+	}
+
+	payload := gin.H{
+		"accessToken":  resp.GetAccessToken(),
+		"refreshToken": resp.GetRefreshToken(),
+	}
+
+	if resp.GetExpiresAt() != nil {
+		payload["expiresAt"] = resp.GetExpiresAt().AsTime().UTC().Format(time.RFC3339)
+	}
+
+	if resp.GetUser() != nil {
+		payload["user"] = gin.H{
+			"id":        resp.GetUser().GetId(),
+			"email":     resp.GetUser().GetEmail(),
+			"firstName": resp.GetUser().GetFirstName(),
+			"lastName":  resp.GetUser().GetLastName(),
+			"roles":     resp.GetUser().GetRoles(),
+			"status":    resp.GetUser().GetStatus(),
+			"userType":  resp.GetUser().GetUserType(),
+		}
+	}
+
+	if status == http.StatusCreated {
+		rest.Created(c, payload)
+	} else {
+		rest.Ok(c, payload)
+	}
 }

@@ -19,6 +19,7 @@ func RequestContext() gin.HandlerFunc {
 		}
 
 		c.Set(rest.ContextKeyRequestID, requestID)
+		c.Writer.Header().Set(rest.HeaderRequestID, requestID)
 
 		ctx := logging.ContextWithFields(
 			c.Request.Context(),

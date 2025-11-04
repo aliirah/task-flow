@@ -52,6 +52,13 @@ func (h *UserHandler) GetUser(ctx context.Context, req *userpb.GetUserRequest) (
 
 func (h *UserHandler) CreateUser(ctx context.Context, req *userpb.CreateUserRequest) (*userpb.User, error) {
 	id := uuid.New()
+	if req.GetId() != "" {
+		parsed, err := uuid.Parse(req.GetId())
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid user id")
+		}
+		id = parsed
+	}
 	input := service.CreateUserInput{
 		ID:        id,
 		Email:     req.GetEmail(),

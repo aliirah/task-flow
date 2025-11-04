@@ -296,6 +296,7 @@ type CreateUserRequest struct {
 	LastName      string                 `protobuf:"bytes,4,opt,name=last_name,json=lastName,proto3" json:"last_name,omitempty"`
 	Roles         []string               `protobuf:"bytes,5,rep,name=roles,proto3" json:"roles,omitempty"`
 	UserType      string                 `protobuf:"bytes,6,opt,name=user_type,json=userType,proto3" json:"user_type,omitempty"`
+	Id            string                 `protobuf:"bytes,7,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -368,6 +369,13 @@ func (x *CreateUserRequest) GetRoles() []string {
 func (x *CreateUserRequest) GetUserType() string {
 	if x != nil {
 		return x.UserType
+	}
+	return ""
+}
+
+func (x *CreateUserRequest) GetId() string {
+	if x != nil {
+		return x.Id
 	}
 	return ""
 }
@@ -630,7 +638,7 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x11ListUsersResponse\x12#\n" +
 	"\x05items\x18\x01 \x03(\v2\r.user.v1.UserR\x05items\" \n" +
 	"\x0eGetUserRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\xb4\x01\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\xc4\x01\n" +
 	"\x11CreateUserRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x1d\n" +
@@ -638,7 +646,8 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"first_name\x18\x03 \x01(\tR\tfirstName\x12\x1b\n" +
 	"\tlast_name\x18\x04 \x01(\tR\blastName\x12\x14\n" +
 	"\x05roles\x18\x05 \x03(\tR\x05roles\x12\x1b\n" +
-	"\tuser_type\x18\x06 \x01(\tR\buserType\"\xb6\x02\n" +
+	"\tuser_type\x18\x06 \x01(\tR\buserType\x12\x0e\n" +
+	"\x02id\x18\a \x01(\tR\x02id\"\xb6\x02\n" +
 	"\x11UpdateUserRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12;\n" +
 	"\n" +
