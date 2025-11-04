@@ -10,12 +10,12 @@ import (
 	requestid "github.com/gin-contrib/requestid"
 	"github.com/gin-gonic/gin"
 
-	grpcclient "github.com/aliirah/task-flow/services/api-gateway/internal/handler/grpc"
 	httphandler "github.com/aliirah/task-flow/services/api-gateway/internal/handler/http"
 	gatewaymiddleware "github.com/aliirah/task-flow/services/api-gateway/internal/middleware"
 	gatewayservice "github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/aliirah/task-flow/services/api-gateway/routes"
 	"github.com/aliirah/task-flow/shared/env"
+	grpcutil "github.com/aliirah/task-flow/shared/grpcutil"
 	log "github.com/aliirah/task-flow/shared/logging"
 	"github.com/aliirah/task-flow/shared/messaging"
 	"github.com/aliirah/task-flow/shared/tracing"
@@ -65,7 +65,7 @@ func main() {
 	orgAddr := env.GetString("ORG_SERVICE_ADDR", "organization-service:50053")
 	taskAddr := env.GetString("TASK_SERVICE_ADDR", "task-service:50054")
 
-	grpcClients, err := grpcclient.Dial(ctx, grpcclient.Config{
+	grpcClients, err := grpcutil.Dial(ctx, grpcutil.Config{
 		AuthAddr:         authAddr,
 		UserAddr:         userAddr,
 		OrganizationAddr: orgAddr,

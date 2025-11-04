@@ -11,6 +11,7 @@ service OrganizationService {
   rpc CreateOrganization(CreateOrganizationRequest) returns (Organization);
   rpc GetOrganization(GetOrganizationRequest) returns (Organization);
   rpc ListOrganizations(ListOrganizationsRequest) returns (ListOrganizationsResponse);
+  rpc ListOrganizationsByIDs(ListOrganizationsByIDsRequest) returns (ListOrganizationsByIDsResponse);
   rpc UpdateOrganization(UpdateOrganizationRequest) returns (Organization);
   rpc DeleteOrganization(DeleteOrganizationRequest) returns (google.protobuf.Empty);
 
@@ -55,6 +56,14 @@ message ListOrganizationsRequest {
 }
 
 message ListOrganizationsResponse {
+  repeated Organization items = 1;
+}
+
+message ListOrganizationsByIDsRequest {
+  repeated string ids = 1;
+}
+
+message ListOrganizationsByIDsResponse {
   repeated Organization items = 1;
 }
 

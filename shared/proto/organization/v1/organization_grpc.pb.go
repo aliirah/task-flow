@@ -15,6 +15,7 @@ type OrganizationServiceClient interface {
 	CreateOrganization(ctx context.Context, in *CreateOrganizationRequest, opts ...grpc.CallOption) (*Organization, error)
 	GetOrganization(ctx context.Context, in *GetOrganizationRequest, opts ...grpc.CallOption) (*Organization, error)
 	ListOrganizations(ctx context.Context, in *ListOrganizationsRequest, opts ...grpc.CallOption) (*ListOrganizationsResponse, error)
+	ListOrganizationsByIDs(ctx context.Context, in *ListOrganizationsByIDsRequest, opts ...grpc.CallOption) (*ListOrganizationsByIDsResponse, error)
 	UpdateOrganization(ctx context.Context, in *UpdateOrganizationRequest, opts ...grpc.CallOption) (*Organization, error)
 	DeleteOrganization(ctx context.Context, in *DeleteOrganizationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	AddMember(ctx context.Context, in *AddMemberRequest, opts ...grpc.CallOption) (*OrganizationMember, error)
@@ -52,6 +53,15 @@ func (c *organizationServiceClient) GetOrganization(ctx context.Context, in *Get
 func (c *organizationServiceClient) ListOrganizations(ctx context.Context, in *ListOrganizationsRequest, opts ...grpc.CallOption) (*ListOrganizationsResponse, error) {
 	out := new(ListOrganizationsResponse)
 	err := c.cc.Invoke(ctx, "/organization.v1.OrganizationService/ListOrganizations", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *organizationServiceClient) ListOrganizationsByIDs(ctx context.Context, in *ListOrganizationsByIDsRequest, opts ...grpc.CallOption) (*ListOrganizationsByIDsResponse, error) {
+	out := new(ListOrganizationsByIDsResponse)
+	err := c.cc.Invoke(ctx, "/organization.v1.OrganizationService/ListOrganizationsByIDs", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -117,6 +127,7 @@ type OrganizationServiceServer interface {
 	CreateOrganization(context.Context, *CreateOrganizationRequest) (*Organization, error)
 	GetOrganization(context.Context, *GetOrganizationRequest) (*Organization, error)
 	ListOrganizations(context.Context, *ListOrganizationsRequest) (*ListOrganizationsResponse, error)
+	ListOrganizationsByIDs(context.Context, *ListOrganizationsByIDsRequest) (*ListOrganizationsByIDsResponse, error)
 	UpdateOrganization(context.Context, *UpdateOrganizationRequest) (*Organization, error)
 	DeleteOrganization(context.Context, *DeleteOrganizationRequest) (*emptypb.Empty, error)
 	AddMember(context.Context, *AddMemberRequest) (*OrganizationMember, error)
@@ -136,6 +147,9 @@ func (UnimplementedOrganizationServiceServer) GetOrganization(context.Context, *
 }
 func (UnimplementedOrganizationServiceServer) ListOrganizations(context.Context, *ListOrganizationsRequest) (*ListOrganizationsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListOrganizations not implemented")
+}
+func (UnimplementedOrganizationServiceServer) ListOrganizationsByIDs(context.Context, *ListOrganizationsByIDsRequest) (*ListOrganizationsByIDsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListOrganizationsByIDs not implemented")
 }
 func (UnimplementedOrganizationServiceServer) UpdateOrganization(context.Context, *UpdateOrganizationRequest) (*Organization, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateOrganization not implemented")
@@ -215,6 +229,24 @@ func _OrganizationService_ListOrganizations_Handler(srv interface{}, ctx context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(OrganizationServiceServer).ListOrganizations(ctx, req.(*ListOrganizationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OrganizationService_ListOrganizationsByIDs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOrganizationsByIDsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrganizationServiceServer).ListOrganizationsByIDs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/organization.v1.OrganizationService/ListOrganizationsByIDs",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrganizationServiceServer).ListOrganizationsByIDs(ctx, req.(*ListOrganizationsByIDsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -342,6 +374,10 @@ var OrganizationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListOrganizations",
 			Handler:    _OrganizationService_ListOrganizations_Handler,
+		},
+		{
+			MethodName: "ListOrganizationsByIDs",
+			Handler:    _OrganizationService_ListOrganizationsByIDs_Handler,
 		},
 		{
 			MethodName: "UpdateOrganization",

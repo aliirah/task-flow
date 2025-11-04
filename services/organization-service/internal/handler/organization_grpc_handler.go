@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"strings"
 
 	"github.com/aliirah/task-flow/services/organization-service/internal/models"
 	"github.com/aliirah/task-flow/services/organization-service/internal/service"
@@ -70,6 +71,40 @@ func (h *OrganizationHandler) ListOrganizations(ctx context.Context, req *organi
 	}
 
 	return &organizationpb.ListOrganizationsResponse{Items: items}, nil
+}
+
+func (h *OrganizationHandler) ListOrganizationsByIDs(ctx context.Context, req *organizationpb.ListOrganizationsByIDsRequest) (*organizationpb.ListOrganizationsByIDsResponse, error) {
+	rawIDs := req.GetIds()
+	if len(rawIDs) == 0 {
+		return &organizationpb.ListOrganizationsByIDsResponse{}, nil
+	}
+
+	ids := make([]uuid.UUID, 0, len(rawIDs))
+	for _, value := range rawIDs {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		id, err := parseUUID(value)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid organization id in request")
+		}
+		if id != uuid.Nil {
+			ids = append(ids, id)
+		}
+	}
+
+	orgs, err := h.svc.ListOrganizationsByIDs(ctx, ids)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	items := make([]*organizationpb.Organization, 0, len(orgs))
+	for _, org := range orgs {
+		o := org
+		items = append(items, toProtoOrganization(&o))
+	}
+
+	return &organizationpb.ListOrganizationsByIDsResponse{Items: items}, nil
 }
 
 func (h *OrganizationHandler) UpdateOrganization(ctx context.Context, req *organizationpb.UpdateOrganizationRequest) (*organizationpb.Organization, error) {

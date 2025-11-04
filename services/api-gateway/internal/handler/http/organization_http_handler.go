@@ -5,18 +5,17 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/aliirah/task-flow/shared/authctx"
 	organizationpb "github.com/aliirah/task-flow/shared/proto/organization/v1"
 	"github.com/aliirah/task-flow/shared/rest"
 	"github.com/aliirah/task-flow/shared/util"
+	"github.com/aliirah/task-flow/shared/util/httputil"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type OrganizationHandler struct {
@@ -71,7 +70,7 @@ func (h *OrganizationHandler) Create(c *gin.Context) {
 		return
 	}
 
-	rest.Created(c, organizationToMap(org))
+	rest.Created(c, httputil.OrganizationToMap(org))
 }
 
 func (h *OrganizationHandler) List(c *gin.Context) {
@@ -90,7 +89,7 @@ func (h *OrganizationHandler) List(c *gin.Context) {
 
 	items := make([]gin.H, 0, len(resp.GetItems()))
 	for _, org := range resp.GetItems() {
-		items = append(items, organizationToMap(org))
+		items = append(items, httputil.OrganizationToMap(org))
 	}
 	rest.Ok(c, gin.H{"items": items})
 }
@@ -101,7 +100,7 @@ func (h *OrganizationHandler) Get(c *gin.Context) {
 		writeOrganizationError(c, err)
 		return
 	}
-	rest.Ok(c, organizationToMap(org))
+	rest.Ok(c, httputil.OrganizationToMap(org))
 }
 
 func (h *OrganizationHandler) Update(c *gin.Context) {
@@ -133,7 +132,7 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 		writeOrganizationError(c, err)
 		return
 	}
-	rest.Ok(c, organizationToMap(org))
+	rest.Ok(c, httputil.OrganizationToMap(org))
 }
 
 func (h *OrganizationHandler) Delete(c *gin.Context) {
@@ -310,7 +309,7 @@ func (h *OrganizationHandler) enrichMembers(ctx context.Context, members []*orga
 			}
 		}
 		if org := orgMap[member.GetOrganizationId()]; org != nil {
-			item["organization"] = organizationToMap(org)
+			item["organization"] = httputil.OrganizationToMap(org)
 		}
 		items = append(items, item)
 	}
@@ -351,20 +350,6 @@ func writeOrganizationError(c *gin.Context, err error) {
 		rest.WithErrorDetails(err.Error()))
 }
 
-func organizationToMap(org *organizationpb.Organization) gin.H {
-	if org == nil {
-		return gin.H{}
-	}
-	return gin.H{
-		"id":          org.GetId(),
-		"name":        org.GetName(),
-		"description": org.GetDescription(),
-		"ownerId":     org.GetOwnerId(),
-		"createdAt":   timestampToString(org.GetCreatedAt()),
-		"updatedAt":   timestampToString(org.GetUpdatedAt()),
-	}
-}
-
 func memberToMap(member *organizationpb.OrganizationMember) gin.H {
 	if member == nil {
 		return gin.H{}
@@ -375,15 +360,8 @@ func memberToMap(member *organizationpb.OrganizationMember) gin.H {
 		"userId":         member.GetUserId(),
 		"role":           member.GetRole(),
 		"status":         member.GetStatus(),
-		"createdAt":      timestampToString(member.GetCreatedAt()),
+		"createdAt":      httputil.TimestampToString(member.GetCreatedAt()),
 	}
-}
-
-func timestampToString(ts *timestamppb.Timestamp) string {
-	if ts == nil {
-		return ""
-	}
-	return ts.AsTime().UTC().Format(time.RFC3339)
 }
 
 func getString(value *string) string {

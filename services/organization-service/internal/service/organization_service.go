@@ -11,7 +11,7 @@ import (
 )
 
 var (
- 	ErrOrganizationNotFound = errors.New("organization not found")
+	ErrOrganizationNotFound = errors.New("organization not found")
 )
 
 type Service struct {
@@ -197,4 +197,17 @@ func (s *Service) ListUserMemberships(ctx context.Context, userID uuid.UUID) ([]
 		return nil, err
 	}
 	return memberships, nil
+}
+
+func (s *Service) ListOrganizationsByIDs(ctx context.Context, ids []uuid.UUID) ([]models.Organization, error) {
+	if len(ids) == 0 {
+		return []models.Organization{}, nil
+	}
+	var orgs []models.Organization
+	if err := s.db.WithContext(ctx).
+		Where("id IN ?", ids).
+		Find(&orgs).Error; err != nil {
+		return nil, err
+	}
+	return orgs, nil
 }

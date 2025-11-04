@@ -15,6 +15,7 @@ import (
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"github.com/aliirah/task-flow/shared/rest"
 	"github.com/aliirah/task-flow/shared/util"
+	"github.com/aliirah/task-flow/shared/util/httputil"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"google.golang.org/grpc/codes"
@@ -347,9 +348,22 @@ func (h *TaskHandler) enrichTasks(ctx context.Context, tasks []*taskpb.Task) ([]
 		userMap[id] = user
 	}
 
-	orgMap := make(map[string]*organizationpb.Organization, len(orgIDs))
+	orgList, err := h.orgService.ListByIDs(ctx, mapKeys(orgIDs))
+	if err != nil {
+		return nil, err
+	}
+	orgMap := make(map[string]*organizationpb.Organization, len(orgList))
+	for _, org := range orgList {
+		if org == nil || org.GetId() == "" {
+			continue
+		}
+		orgMap[org.GetId()] = org
+	}
 	for id := range orgIDs {
 		if id == "" {
+			continue
+		}
+		if _, ok := orgMap[id]; ok {
 			continue
 		}
 		org, fetchErr := h.orgService.Get(ctx, id)
@@ -373,23 +387,23 @@ func (h *TaskHandler) enrichTasks(ctx context.Context, tasks []*taskpb.Task) ([]
 			"organizationId": task.GetOrganizationId(),
 			"assigneeId":     task.GetAssigneeId(),
 			"reporterId":     task.GetReporterId(),
-			"dueAt":          timestampToString(task.GetDueAt()),
-			"createdAt":      timestampToString(task.GetCreatedAt()),
-			"updatedAt":      timestampToString(task.GetUpdatedAt()),
+			"dueAt":          httputil.TimestampToString(task.GetDueAt()),
+			"createdAt":      httputil.TimestampToString(task.GetCreatedAt()),
+			"updatedAt":      httputil.TimestampToString(task.GetUpdatedAt()),
 		}
 
 		if org := orgMap[task.GetOrganizationId()]; org != nil {
-			item["organization"] = organizationToMap(org)
+			item["organization"] = httputil.OrganizationToMap(org)
 		} else if id := task.GetOrganizationId(); id != "" {
 			item["organization"] = gin.H{"id": id}
 		}
 		if assignee := userMap[task.GetAssigneeId()]; assignee != nil {
-			item["assignee"] = userToMap(assignee)
+			item["assignee"] = httputil.UserToMap(assignee)
 		} else if id := task.GetAssigneeId(); id != "" {
 			item["assignee"] = gin.H{"id": id}
 		}
 		if reporter := userMap[task.GetReporterId()]; reporter != nil {
-			item["reporter"] = userToMap(reporter)
+			item["reporter"] = httputil.UserToMap(reporter)
 		} else if id := task.GetReporterId(); id != "" {
 			item["reporter"] = gin.H{"id": id}
 		}
@@ -455,19 +469,4 @@ func mapKeys(set map[string]struct{}) []string {
 		keys = append(keys, k)
 	}
 	return keys
-}
-
-func userToMap(user *userpb.User) gin.H {
-	if user == nil {
-		return gin.H{}
-	}
-	return gin.H{
-		"id":        user.GetId(),
-		"email":     user.GetEmail(),
-		"firstName": user.GetFirstName(),
-		"lastName":  user.GetLastName(),
-		"status":    user.GetStatus(),
-		"userType":  user.GetUserType(),
-		"roles":     user.GetRoles(),
-	}
 }

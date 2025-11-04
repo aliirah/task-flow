@@ -11,6 +11,7 @@ type OrganizationService interface {
 	Create(ctx context.Context, req *organizationpb.CreateOrganizationRequest) (*organizationpb.Organization, error)
 	Get(ctx context.Context, id string) (*organizationpb.Organization, error)
 	List(ctx context.Context, req *organizationpb.ListOrganizationsRequest) (*organizationpb.ListOrganizationsResponse, error)
+	ListByIDs(ctx context.Context, ids []string) ([]*organizationpb.Organization, error)
 	Update(ctx context.Context, req *organizationpb.UpdateOrganizationRequest) (*organizationpb.Organization, error)
 	Delete(ctx context.Context, req *organizationpb.DeleteOrganizationRequest) error
 
@@ -50,6 +51,21 @@ func (s *organizationService) List(ctx context.Context, req *organizationpb.List
 	}
 	ctx = withOutgoingAuth(ctx)
 	return s.client.ListOrganizations(ctx, req)
+}
+
+func (s *organizationService) ListByIDs(ctx context.Context, ids []string) ([]*organizationpb.Organization, error) {
+	if s.client == nil {
+		return nil, errors.New("organization service client not configured")
+	}
+	if len(ids) == 0 {
+		return []*organizationpb.Organization{}, nil
+	}
+	ctx = withOutgoingAuth(ctx)
+	resp, err := s.client.ListOrganizationsByIDs(ctx, &organizationpb.ListOrganizationsByIDsRequest{Ids: ids})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetItems(), nil
 }
 
 func (s *organizationService) Update(ctx context.Context, req *organizationpb.UpdateOrganizationRequest) (*organizationpb.Organization, error) {

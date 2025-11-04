@@ -1,4 +1,4 @@
-package grpc
+package grpcutil
 
 import (
 	"context"
@@ -9,10 +9,11 @@ import (
 	taskpb "github.com/aliirah/task-flow/shared/proto/task/v1"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	grpcconn "google.golang.org/grpc"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// Config captures downstream service connection addresses.
 type Config struct {
 	AuthAddr         string
 	UserAddr         string
@@ -20,6 +21,7 @@ type Config struct {
 	TaskAddr         string
 }
 
+// Connections bundles ready-to-use gRPC clients and tracks closers.
 type Connections struct {
 	Auth         authpb.AuthServiceClient
 	User         userpb.UserServiceClient
@@ -28,6 +30,7 @@ type Connections struct {
 	closeFns     []func() error
 }
 
+// Close tears down all underlying connections in reverse order.
 func (c Connections) Close() error {
 	var firstErr error
 	for i := len(c.closeFns) - 1; i >= 0; i-- {
@@ -38,11 +41,12 @@ func (c Connections) Close() error {
 	return firstErr
 }
 
+// Dial initialises gRPC connections to downstream services using common options.
 func Dial(ctx context.Context, cfg Config) (Connections, error) {
-	dial := func(addr string) (*grpcconn.ClientConn, error) {
-		conn, err := grpcconn.DialContext(ctx, addr,
-			grpcconn.WithTransportCredentials(insecure.NewCredentials()),
-			grpcconn.WithStatsHandler(otelgrpc.NewClientHandler()),
+	dial := func(addr string) (*grpc.ClientConn, error) {
+		conn, err := grpc.DialContext(ctx, addr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("dial %s: %w", addr, err)
