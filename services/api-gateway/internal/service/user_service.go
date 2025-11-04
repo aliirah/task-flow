@@ -39,6 +39,7 @@ type UserService interface {
 	Update(ctx context.Context, id string, input *UserUpdateInput) (*User, error)
 	Delete(ctx context.Context, id string) error
 	UpdateProfile(ctx context.Context, userID string, input *ProfileUpdateInput) (*User, error)
+	ListByIDs(ctx context.Context, ids []string) ([]*User, error)
 }
 
 type userService struct {
@@ -135,4 +136,19 @@ func (s *userService) UpdateProfile(ctx context.Context, userID string, input *P
 		req.LastName = wrapperspb.String(*input.LastName)
 	}
 	return s.client.UpdateProfile(ctx, req)
+}
+
+func (s *userService) ListByIDs(ctx context.Context, ids []string) ([]*User, error) {
+	if s.client == nil {
+		return nil, errors.New("user service client not configured")
+	}
+	if len(ids) == 0 {
+		return []*User{}, nil
+	}
+	ctx = withOutgoingAuth(ctx)
+	resp, err := s.client.ListUsersByIDs(ctx, &userpb.ListUsersByIDsRequest{Ids: ids})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetItems(), nil
 }

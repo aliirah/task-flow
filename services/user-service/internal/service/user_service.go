@@ -74,6 +74,17 @@ func (s *UserService) List(ctx context.Context) ([]models.User, error) {
 	return users, nil
 }
 
+func (s *UserService) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]models.User, error) {
+	if len(ids) == 0 {
+		return []models.User{}, nil
+	}
+	var users []models.User
+	if err := s.db.WithContext(ctx).Preload("Roles").Find(&users, "id IN ?", ids).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
 func (s *UserService) Update(ctx context.Context, id uuid.UUID, input UpdateUserInput) (*models.User, error) {
 	user, err := s.Get(ctx, id)
 	if err != nil {

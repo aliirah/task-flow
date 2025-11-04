@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,14 +20,16 @@ import (
 )
 
 type OrganizationHandler struct {
-	service   service.OrganizationService
-	validator *validator.Validate
+	orgService  service.OrganizationService
+	userService service.UserService
+	validator   *validator.Validate
 }
 
-func NewOrganizationHandler(svc service.OrganizationService) *OrganizationHandler {
+func NewOrganizationHandler(orgSvc service.OrganizationService, userSvc service.UserService) *OrganizationHandler {
 	return &OrganizationHandler{
-		service:   svc,
-		validator: util.NewValidator(),
+		orgService:  orgSvc,
+		userService: userSvc,
+		validator:   util.NewValidator(),
 	}
 }
 
@@ -62,7 +65,7 @@ func (h *OrganizationHandler) Create(c *gin.Context) {
 		OwnerId:     currentUser.ID,
 	}
 
-	org, err := h.service.Create(c.Request.Context(), req)
+	org, err := h.orgService.Create(c.Request.Context(), req)
 	if err != nil {
 		writeOrganizationError(c, err)
 		return
@@ -75,7 +78,7 @@ func (h *OrganizationHandler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
-	resp, err := h.service.List(c.Request.Context(), &organizationpb.ListOrganizationsRequest{
+	resp, err := h.orgService.List(c.Request.Context(), &organizationpb.ListOrganizationsRequest{
 		Query: c.Query("q"),
 		Page:  int32(page),
 		Limit: int32(limit),
@@ -93,7 +96,7 @@ func (h *OrganizationHandler) List(c *gin.Context) {
 }
 
 func (h *OrganizationHandler) Get(c *gin.Context) {
-	org, err := h.service.Get(c.Request.Context(), c.Param("id"))
+	org, err := h.orgService.Get(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		writeOrganizationError(c, err)
 		return
@@ -125,7 +128,7 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 		Description: getString(body.Description),
 	}
 
-	org, err := h.service.Update(c.Request.Context(), req)
+	org, err := h.orgService.Update(c.Request.Context(), req)
 	if err != nil {
 		writeOrganizationError(c, err)
 		return
@@ -134,7 +137,7 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 }
 
 func (h *OrganizationHandler) Delete(c *gin.Context) {
-	if err := h.service.Delete(c.Request.Context(), &organizationpb.DeleteOrganizationRequest{Id: c.Param("id")}); err != nil {
+	if err := h.orgService.Delete(c.Request.Context(), &organizationpb.DeleteOrganizationRequest{Id: c.Param("id")}); err != nil {
 		writeOrganizationError(c, err)
 		return
 	}
@@ -165,7 +168,7 @@ func (h *OrganizationHandler) AddMember(c *gin.Context) {
 		Role:           strings.TrimSpace(body.Role),
 	}
 
-	member, err := h.service.AddMember(c.Request.Context(), req)
+	member, err := h.orgService.AddMember(c.Request.Context(), req)
 	if err != nil {
 		writeOrganizationError(c, err)
 		return
@@ -179,7 +182,7 @@ func (h *OrganizationHandler) RemoveMember(c *gin.Context) {
 		OrganizationId: c.Param("id"),
 		UserId:         c.Param("userId"),
 	}
-	if err := h.service.RemoveMember(c.Request.Context(), req); err != nil {
+	if err := h.orgService.RemoveMember(c.Request.Context(), req); err != nil {
 		writeOrganizationError(c, err)
 		return
 	}
@@ -195,18 +198,19 @@ func (h *OrganizationHandler) ListMembers(c *gin.Context) {
 		Limit:          int32(limit),
 	}
 
-	resp, err := h.service.ListMembers(c.Request.Context(), req)
+	resp, err := h.orgService.ListMembers(c.Request.Context(), req)
 	if err != nil {
 		writeOrganizationError(c, err)
 		return
 	}
 
-	items := make([]gin.H, 0, len(resp.GetItems()))
-	for _, member := range resp.GetItems() {
-		items = append(items, memberToMap(member))
+	payload, err := h.enrichMembers(c.Request.Context(), resp.GetItems())
+	if err != nil {
+		writeOrganizationError(c, err)
+		return
 	}
 
-	rest.Ok(c, gin.H{"items": items})
+	rest.Ok(c, gin.H{"items": payload})
 }
 
 func (h *OrganizationHandler) ListUserMemberships(c *gin.Context) {
@@ -217,7 +221,7 @@ func (h *OrganizationHandler) ListUserMemberships(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.service.ListUserMemberships(c.Request.Context(), &organizationpb.ListUserMembershipsRequest{
+	resp, err := h.orgService.ListUserMemberships(c.Request.Context(), &organizationpb.ListUserMembershipsRequest{
 		UserId: user.ID,
 	})
 	if err != nil {
@@ -225,11 +229,92 @@ func (h *OrganizationHandler) ListUserMemberships(c *gin.Context) {
 		return
 	}
 
-	items := make([]gin.H, 0, len(resp.GetMemberships()))
-	for _, member := range resp.GetMemberships() {
-		items = append(items, memberToMap(member))
+	payload, err := h.enrichMembers(c.Request.Context(), resp.GetMemberships())
+	if err != nil {
+		writeOrganizationError(c, err)
+		return
 	}
-	rest.Ok(c, gin.H{"items": items})
+	rest.Ok(c, gin.H{"items": payload})
+}
+
+func (h *OrganizationHandler) enrichMembers(ctx context.Context, members []*organizationpb.OrganizationMember) ([]gin.H, error) {
+	if len(members) == 0 {
+		return []gin.H{}, nil
+	}
+
+	userIDs := make([]string, 0, len(members))
+	orgIDs := make(map[string]struct{})
+	for _, member := range members {
+		userIDs = append(userIDs, member.GetUserId())
+		if orgID := member.GetOrganizationId(); orgID != "" {
+			orgIDs[orgID] = struct{}{}
+		}
+	}
+
+	users, err := h.userService.ListByIDs(ctx, userIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	userMap := make(map[string]*service.User, len(users))
+	for _, u := range users {
+		userMap[u.GetId()] = u
+	}
+
+	for _, member := range members {
+		userID := member.GetUserId()
+		if _, exists := userMap[userID]; exists || userID == "" {
+			continue
+		}
+		user, err := h.userService.Get(ctx, userID)
+		if err != nil {
+			if st, ok := status.FromError(err); ok && st.Code() == codes.NotFound {
+				continue
+			}
+			return nil, err
+		}
+		userMap[userID] = user
+	}
+
+	orgMap := make(map[string]*organizationpb.Organization, len(orgIDs))
+	for id := range orgIDs {
+		org, err := h.orgService.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		orgMap[id] = org
+	}
+
+	items := make([]gin.H, 0, len(members))
+	for _, member := range members {
+		item := memberToMap(member)
+		if user := userMap[member.GetUserId()]; user != nil {
+			item["user"] = map[string]interface{}{
+				"id":        user.GetId(),
+				"email":     user.GetEmail(),
+				"firstName": user.GetFirstName(),
+				"lastName":  user.GetLastName(),
+				"status":    user.GetStatus(),
+				"userType":  user.GetUserType(),
+				"roles":     user.GetRoles(),
+			}
+		} else {
+			item["user"] = map[string]interface{}{
+				"id":        member.GetUserId(),
+				"email":     "",
+				"firstName": "",
+				"lastName":  "",
+				"status":    "",
+				"userType":  "",
+				"roles":     []string{},
+			}
+		}
+		if org := orgMap[member.GetOrganizationId()]; org != nil {
+			item["organization"] = organizationToMap(org)
+		}
+		items = append(items, item)
+	}
+	return items, nil
 }
 
 func writeOrganizationError(c *gin.Context, err error) {

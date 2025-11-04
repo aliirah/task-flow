@@ -36,6 +36,33 @@ func (h *UserHandler) ListUsers(ctx context.Context, req *userpb.ListUsersReques
 	return &userpb.ListUsersResponse{Items: items}, nil
 }
 
+func (h *UserHandler) ListUsersByIDs(ctx context.Context, req *userpb.ListUsersByIDsRequest) (*userpb.ListUsersResponse, error) {
+	if len(req.GetIds()) == 0 {
+		return &userpb.ListUsersResponse{Items: []*userpb.User{}}, nil
+	}
+
+	ids := make([]uuid.UUID, 0, len(req.GetIds()))
+	for _, idStr := range req.GetIds() {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid user id")
+		}
+		ids = append(ids, id)
+	}
+
+	users, err := h.svc.ListByIDs(ctx, ids)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	items := make([]*userpb.User, 0, len(users))
+	for _, u := range users {
+		items = append(items, mapUser(u))
+	}
+
+	return &userpb.ListUsersResponse{Items: items}, nil
+}
+
 func (h *UserHandler) GetUser(ctx context.Context, req *userpb.GetUserRequest) (*userpb.User, error) {
 	id, err := uuid.Parse(req.GetId())
 	if err != nil {

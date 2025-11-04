@@ -97,7 +97,7 @@ func main() {
 
 	authHandler := httphandler.NewAuthHandler(authSvc)
 	userHandler := httphandler.NewUserHandler(userSvc)
-	organizationHandler := httphandler.NewOrganizationHandler(orgSvc)
+	organizationHandler := httphandler.NewOrganizationHandler(orgSvc, userSvc)
 	authMiddleware := gatewaymiddleware.JWTAuth(authSvc)
 
 	routes.Register(router, routes.Dependencies{

@@ -18,6 +18,10 @@ cleanup() {
     kill $PF_PID >/dev/null 2>&1 || true
     wait $PF_PID >/dev/null 2>&1 || true
   fi
+  if [[ -n ${USER_PF_PID:-} ]]; then
+    kill $USER_PF_PID >/dev/null 2>&1 || true
+    wait $USER_PF_PID >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
@@ -59,6 +63,13 @@ case "$SERVICE" in
     PF_PID=$!
     sleep 2
     export ORG_DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@localhost:${FORWARD_PORT}/${DB_NAME}?sslmode=disable"
+
+    USER_SERVICE_FORWARD_PORT=${USER_SERVICE_FORWARD_PORT:-55052}
+    kubectl port-forward -n $NAMESPACE svc/user-service ${USER_SERVICE_FORWARD_PORT}:50052 >/dev/null 2>&1 &
+    USER_PF_PID=$!
+    sleep 2
+    export USER_SERVICE_ADDR="localhost:${USER_SERVICE_FORWARD_PORT}"
+
     go run ./services/organization-service/cmd/seeder
     ;;
   *)
