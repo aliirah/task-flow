@@ -62,7 +62,11 @@ func main() {
 	defer rabbitmq.Close()
 
 	router := gin.Default()
-	router.Use(gatewaymiddleware.HTTPTracing())
+	router.Use(
+		gatewaymiddleware.ErrorHandler(),
+		gatewaymiddleware.RequestID(),
+		gatewaymiddleware.HTTPTracing(),
+	)
 	healthHandler := httphandler.NewHealthHandler(gatewayservice.NewHealthService())
 	authHandler := httphandler.NewAuthHandler(gatewayservice.NewAuthService(grpcClients.Auth))
 	userHandler := httphandler.NewUserHandler(gatewayservice.NewUserService(grpcClients.User))

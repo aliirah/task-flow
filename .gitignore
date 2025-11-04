@@ -65,3 +65,4 @@ secrets.yaml
 
 .gocache/
 .gomodcache/
+.gobuild/

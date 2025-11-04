@@ -6,9 +6,12 @@ import (
 	"strings"
 
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
+	"github.com/aliirah/task-flow/shared/rest"
 	"github.com/aliirah/task-flow/shared/util"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type UserHandler struct {
@@ -33,22 +36,22 @@ func (h *UserHandler) List(c *gin.Context) {
 
 	users, err := h.service.List(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeUserServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"items": users})
+	rest.Ok(c, map[string]any{"items": users})
 }
 
 func (h *UserHandler) Get(c *gin.Context) {
 	id := c.Param("id")
 	user, err := h.service.Get(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		writeUserServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	rest.Ok(c, user)
 }
 
 func (h *UserHandler) Create(c *gin.Context) {
@@ -63,14 +66,14 @@ func (h *UserHandler) Create(c *gin.Context) {
 
 	var payload userCreatePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		rest.Error(c, http.StatusBadRequest, "invalid request payload",
+			rest.WithErrorCode("validation.invalid_payload"))
 		return
 	}
 	if err := h.validator.Struct(payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "validation failed",
-			"details": util.CollectValidationErrors(err),
-		})
+		rest.Error(c, http.StatusBadRequest, "validation failed",
+			rest.WithErrorCode("validation.failed"),
+			rest.WithErrorDetails(util.CollectValidationErrors(err)))
 		return
 	}
 
@@ -85,11 +88,11 @@ func (h *UserHandler) Create(c *gin.Context) {
 
 	created, err := h.service.Create(c.Request.Context(), createReq)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeUserServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, created)
+	rest.Created(c, created)
 }
 
 func (h *UserHandler) Update(c *gin.Context) {
@@ -104,14 +107,14 @@ func (h *UserHandler) Update(c *gin.Context) {
 
 	var payload userUpdatePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		rest.Error(c, http.StatusBadRequest, "invalid request payload",
+			rest.WithErrorCode("validation.invalid_payload"))
 		return
 	}
 	if err := h.validator.Struct(payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "validation failed",
-			"details": util.CollectValidationErrors(err),
-		})
+		rest.Error(c, http.StatusBadRequest, "validation failed",
+			rest.WithErrorCode("validation.failed"),
+			rest.WithErrorDetails(util.CollectValidationErrors(err)))
 		return
 	}
 
@@ -125,27 +128,28 @@ func (h *UserHandler) Update(c *gin.Context) {
 
 	updated, err := h.service.Update(c.Request.Context(), id, updateReq)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeUserServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, updated)
+	rest.Ok(c, updated)
 }
 
 func (h *UserHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 	if err := h.service.Delete(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeUserServiceError(c, err)
 		return
 	}
 
-	c.Status(http.StatusNoContent)
+	rest.NoContent(c)
 }
 
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	userID := c.GetString("userID")
 	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing user identity"})
+		rest.Error(c, http.StatusUnauthorized, "missing user identity",
+			rest.WithErrorCode("auth.missing_identity"))
 		return
 	}
 
@@ -156,14 +160,14 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 	var payload profilePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		rest.Error(c, http.StatusBadRequest, "invalid request payload",
+			rest.WithErrorCode("validation.invalid_payload"))
 		return
 	}
 	if err := h.validator.Struct(payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "validation failed",
-			"details": util.CollectValidationErrors(err),
-		})
+		rest.Error(c, http.StatusBadRequest, "validation failed",
+			rest.WithErrorCode("validation.failed"),
+			rest.WithErrorDetails(util.CollectValidationErrors(err)))
 		return
 	}
 
@@ -174,11 +178,11 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 	updated, err := h.service.UpdateProfile(c.Request.Context(), userID, profileReq)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeUserServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, updated)
+	rest.Ok(c, updated)
 }
 
 func trimPointer(value *string) *string {
@@ -190,4 +194,39 @@ func trimPointer(value *string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+func writeUserServiceError(c *gin.Context, err error) {
+	if err == nil {
+		return
+	}
+
+	if st, ok := status.FromError(err); ok {
+		switch st.Code() {
+		case codes.InvalidArgument, codes.FailedPrecondition:
+			rest.Error(c, http.StatusBadRequest, st.Message(),
+				rest.WithErrorCode("user.invalid_request"))
+		case codes.AlreadyExists:
+			rest.Error(c, http.StatusConflict, st.Message(),
+				rest.WithErrorCode("user.already_exists"))
+		case codes.NotFound:
+			rest.Error(c, http.StatusNotFound, st.Message(),
+				rest.WithErrorCode("user.not_found"))
+		case codes.Unauthenticated:
+			rest.Error(c, http.StatusUnauthorized, st.Message(),
+				rest.WithErrorCode("user.unauthenticated"))
+		case codes.PermissionDenied:
+			rest.Error(c, http.StatusForbidden, st.Message(),
+				rest.WithErrorCode("user.permission_denied"))
+		default:
+			rest.Error(c, http.StatusBadGateway, "user service error",
+				rest.WithErrorCode("user.service_error"),
+				rest.WithErrorDetails(st.Message()))
+		}
+		return
+	}
+
+	rest.Error(c, http.StatusBadGateway, "user service unavailable",
+		rest.WithErrorCode("user.unavailable"),
+		rest.WithErrorDetails(err.Error()))
 }

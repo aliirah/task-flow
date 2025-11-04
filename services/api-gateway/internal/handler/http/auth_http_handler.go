@@ -5,9 +5,12 @@ import (
 	"strings"
 
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
+	"github.com/aliirah/task-flow/shared/rest"
 	"github.com/aliirah/task-flow/shared/util"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type AuthHandler struct {
@@ -30,14 +33,14 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 
 	var payload signUpPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		rest.Error(c, http.StatusBadRequest, "invalid request payload",
+			rest.WithErrorCode("validation.invalid_payload"))
 		return
 	}
 	if err := h.validator.Struct(payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "validation failed",
-			"details": util.CollectValidationErrors(err),
-		})
+		rest.Error(c, http.StatusBadRequest, "validation failed",
+			rest.WithErrorCode("validation.failed"),
+			rest.WithErrorDetails(util.CollectValidationErrors(err)))
 		return
 	}
 
@@ -49,11 +52,11 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		UserType:  payload.UserType,
 	})
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeAuthServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, resp)
+	rest.Created(c, resp)
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -64,25 +67,25 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	var payload loginPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		rest.Error(c, http.StatusBadRequest, "invalid request payload",
+			rest.WithErrorCode("validation.invalid_payload"))
 		return
 	}
 	if err := h.validator.Struct(payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "validation failed",
-			"details": util.CollectValidationErrors(err),
-		})
+		rest.Error(c, http.StatusBadRequest, "validation failed",
+			rest.WithErrorCode("validation.failed"),
+			rest.WithErrorDetails(util.CollectValidationErrors(err)))
 		return
 	}
 
 	req := service.AuthLoginRequest{Identifier: payload.Identifier, Password: payload.Password}
 	tokens, err := h.service.Login(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		writeAuthServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, tokens)
+	rest.Ok(c, tokens)
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
@@ -92,14 +95,14 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 	var payload refreshPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		rest.Error(c, http.StatusBadRequest, "invalid request payload",
+			rest.WithErrorCode("validation.invalid_payload"))
 		return
 	}
 	if err := h.validator.Struct(payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "validation failed",
-			"details": util.CollectValidationErrors(err),
-		})
+		rest.Error(c, http.StatusBadRequest, "validation failed",
+			rest.WithErrorCode("validation.failed"),
+			rest.WithErrorDetails(util.CollectValidationErrors(err)))
 		return
 	}
 
@@ -107,27 +110,60 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 	tokens, err := h.service.Refresh(c.Request.Context(), &refreshReq)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		writeAuthServiceError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, tokens)
+	rest.Ok(c, tokens)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
 	rawAuth := c.GetHeader("Authorization")
 	token := strings.TrimSpace(strings.TrimPrefix(rawAuth, "Bearer"))
 	if token == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing authorization token"})
+		rest.Error(c, http.StatusBadRequest, "missing authorization token",
+			rest.WithErrorCode("auth.missing_token"))
 		return
 	}
 
 	logoutReq := service.AuthLogoutRequest{AccessToken: token}
 
 	if err := h.service.Logout(c.Request.Context(), &logoutReq); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeAuthServiceError(c, err)
 		return
 	}
 
-	c.Status(http.StatusNoContent)
+	rest.NoContent(c)
+}
+
+func writeAuthServiceError(c *gin.Context, err error) {
+	if err == nil {
+		return
+	}
+
+	if st, ok := status.FromError(err); ok {
+		switch st.Code() {
+		case codes.InvalidArgument, codes.FailedPrecondition:
+			rest.Error(c, http.StatusBadRequest, st.Message(),
+				rest.WithErrorCode("auth.invalid_request"))
+		case codes.AlreadyExists:
+			rest.Error(c, http.StatusConflict, st.Message(),
+				rest.WithErrorCode("auth.already_exists"))
+		case codes.Unauthenticated, codes.PermissionDenied:
+			rest.Error(c, http.StatusUnauthorized, st.Message(),
+				rest.WithErrorCode("auth.invalid_credentials"))
+		case codes.NotFound:
+			rest.Error(c, http.StatusNotFound, st.Message(),
+				rest.WithErrorCode("auth.not_found"))
+		default:
+			rest.Error(c, http.StatusBadGateway, "auth service error",
+				rest.WithErrorCode("auth.service_error"),
+				rest.WithErrorDetails(st.Message()))
+		}
+		return
+	}
+
+	rest.Error(c, http.StatusBadGateway, "auth service unavailable",
+		rest.WithErrorCode("auth.unavailable"),
+		rest.WithErrorDetails(err.Error()))
 }
