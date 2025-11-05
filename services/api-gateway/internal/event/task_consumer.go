@@ -35,23 +35,37 @@ func (c *TaskEventConsumer) handle(ctx context.Context, msg amqp.Delivery) error
 		return fmt.Errorf("failed to unmarshal AMQP message: %w", err)
 	}
 
-	var taskEvent contracts.TaskCreatedEvent
-	if err := json.Unmarshal(amqpMsg.Data, &taskEvent); err != nil {
-		fmt.Printf("[TaskEventConsumer] Failed to unmarshal task event data: %v", err)
-		return fmt.Errorf("failed to unmarshal task event data: %w", err)
-	}
-
-	fmt.Printf("[TaskEventConsumer] Processing task event: %s for org: %s", taskEvent.TaskID, taskEvent.OrganizationID)
-
 	// Validate required fields
 	if amqpMsg.OrganizationID == "" {
 		return fmt.Errorf("organization_id is required for task events")
 	}
 
-	// Convert the message to a WebSocket message
-	wsMsg := contracts.WSMessage{
-		Type: amqpMsg.EventType,
-		Data: taskEvent,
+	var wsMsg contracts.WSMessage
+	switch amqpMsg.EventType {
+	case contracts.TaskEventCreated:
+		var taskEvent contracts.TaskCreatedEvent
+		if err := json.Unmarshal(amqpMsg.Data, &taskEvent); err != nil {
+			fmt.Printf("[TaskEventConsumer] Failed to unmarshal task created event data: %v", err)
+			return fmt.Errorf("failed to unmarshal task created event data: %w", err)
+		}
+		fmt.Printf("[TaskEventConsumer] Processing task created event: %s for org: %s", taskEvent.TaskID, taskEvent.OrganizationID)
+		wsMsg = contracts.WSMessage{
+			Type: amqpMsg.EventType,
+			Data: taskEvent,
+		}
+	case contracts.TaskEventUpdated:
+		var taskEvent contracts.TaskUpdatedEvent
+		if err := json.Unmarshal(amqpMsg.Data, &taskEvent); err != nil {
+			fmt.Printf("[TaskEventConsumer] Failed to unmarshal task updated event data: %v", err)
+			return fmt.Errorf("failed to unmarshal task updated event data: %w", err)
+		}
+		fmt.Printf("[TaskEventConsumer] Processing task updated event: %s for org: %s", taskEvent.TaskID, taskEvent.OrganizationID)
+		wsMsg = contracts.WSMessage{
+			Type: amqpMsg.EventType,
+			Data: taskEvent,
+		}
+	default:
+		return fmt.Errorf("unknown task event type: %s", amqpMsg.EventType)
 	}
 
 	// Broadcast to organization
@@ -62,6 +76,6 @@ func (c *TaskEventConsumer) handle(ctx context.Context, msg amqp.Delivery) error
 		return fmt.Errorf("failed to broadcast message: %w", err)
 	}
 
-	fmt.Printf("[TaskEventConsumer] Successfully broadcast task event: %s", taskEvent.TaskID)
+	fmt.Printf("[TaskEventConsumer] Successfully broadcast task event for org: %s", amqpMsg.OrganizationID)
 	return nil
 }

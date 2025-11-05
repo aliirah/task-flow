@@ -185,6 +185,42 @@ func (s *Service) UpdateTask(ctx context.Context, id uuid.UUID, input UpdateTask
 		if err := s.db.WithContext(ctx).Model(task).Updates(updates).Error; err != nil {
 			return nil, err
 		}
+
+		// Reload the task to get the updated data
+		if err := s.db.WithContext(ctx).First(task, "id = ?", id).Error; err != nil {
+			return nil, fmt.Errorf("failed to reload task after update: %w", err)
+		}
+
+		// Fetch reporter details
+		var reporter *userpb.User
+		resp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{
+			Id: task.ReporterID.String(),
+		})
+		if err != nil && status.Code(err) != codes.NotFound {
+			return nil, fmt.Errorf("failed to fetch reporter details: %w", err)
+		}
+		if resp != nil {
+			reporter = resp
+		}
+
+		// Fetch assignee details if assigned
+		var assignee *userpb.User
+		if task.AssigneeID != uuid.Nil {
+			resp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{
+				Id: task.AssigneeID.String(),
+			})
+			if err != nil && status.Code(err) != codes.NotFound {
+				return nil, fmt.Errorf("failed to fetch assignee details: %w", err)
+			}
+			if resp != nil {
+				assignee = resp
+			}
+		}
+
+		// Publish task updated event with enriched user details
+		if err := s.publisher.TaskUpdated(ctx, task, reporter, assignee); err != nil {
+			return nil, fmt.Errorf("failed to publish task updated event: %w", err)
+		}
 	}
 
 	return task, nil
