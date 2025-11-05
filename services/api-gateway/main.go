@@ -80,20 +80,29 @@ func main() {
 	defer grpcClients.Close()
 
 	// RabbitMQ connection
+	fmt.Printf("Connecting to RabbitMQ at %s\n", rabbitMqURI)
 	rabbitmq, err := messaging.NewRabbitMQ(rabbitMqURI)
 	if err != nil {
 		log.Error(fmt.Errorf("failed to connect RabbitMQ: %w", err))
 		os.Exit(1)
 	}
 	defer rabbitmq.Close()
+	fmt.Println("Successfully connected to RabbitMQ")
 
+	// Initialize connection manager for WebSocket connections
 	connMgr := messaging.NewConnectionManager()
 
-	consumer := messaging.NewQueueConsumer(rabbitmq, connMgr, messaging.TaskEventsQueue)
-	if err := consumer.Start(); err != nil {
-		log.Error(fmt.Errorf("failed to start task events consumer: %w", err))
+	// Initialize task event consumer
+	fmt.Println("Setting up task event consumer...")
+	taskEventConsumer := gatewayevent.NewTaskEventConsumer(connMgr)
+
+	// Set up consumer with explicit queue name
+	fmt.Printf("Starting consumer on queue: %s\n", messaging.TaskEventsQueue)
+	if err := rabbitmq.ConsumeMessages(messaging.TaskEventsQueue, taskEventConsumer.Handle); err != nil {
+		log.Error(fmt.Errorf("failed to setup consumer: %w", err))
 		os.Exit(1)
 	}
+	fmt.Println("Task event consumer successfully initialized")
 
 	router := gin.Default()
 	router.Use(
@@ -107,12 +116,11 @@ func main() {
 	userSvc := gatewayservice.NewUserService(grpcClients.User)
 	orgSvc := gatewayservice.NewOrganizationService(grpcClients.Organization, userSvc)
 	taskSvc := gatewayservice.NewTaskService(grpcClients.Task, userSvc, orgSvc)
-	taskPublisher := gatewayevent.NewTaskPublisher(rabbitmq)
 
 	authHandler := httphandler.NewAuthHandler(authSvc)
 	userHandler := httphandler.NewUserHandler(userSvc)
 	organizationHandler := httphandler.NewOrganizationHandler(orgSvc)
-	taskHandler := httphandler.NewTaskHandler(taskSvc, taskPublisher)
+	taskHandler := httphandler.NewTaskHandler(taskSvc)
 	wsHandler := wshandler.NewHandler(authSvc, orgSvc, connMgr)
 	authMiddleware := gatewaymiddleware.JWTAuth(authSvc)
 

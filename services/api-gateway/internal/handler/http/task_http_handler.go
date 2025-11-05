@@ -6,14 +6,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
-	"go.uber.org/zap"
 
 	"github.com/aliirah/task-flow/services/api-gateway/internal/dto"
-	"github.com/aliirah/task-flow/services/api-gateway/internal/event"
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/aliirah/task-flow/shared/authctx"
 	taskdomain "github.com/aliirah/task-flow/shared/domain/task"
-	log "github.com/aliirah/task-flow/shared/logging"
 	taskpb "github.com/aliirah/task-flow/shared/proto/task/v1"
 	"github.com/aliirah/task-flow/shared/rest"
 	"github.com/aliirah/task-flow/shared/util"
@@ -23,15 +20,13 @@ import (
 // TaskHandler serves task endpoints for the API Gateway.
 type TaskHandler struct {
 	taskService service.TaskService
-	publisher   event.TaskEventPublisher
 	validator   *validator.Validate
 }
 
 // NewTaskHandler constructs a new TaskHandler.
-func NewTaskHandler(taskSvc service.TaskService, publisher event.TaskEventPublisher) *TaskHandler {
+func NewTaskHandler(taskSvc service.TaskService) *TaskHandler {
 	return &TaskHandler{
 		taskService: taskSvc,
-		publisher:   publisher,
 		validator:   util.NewValidator(),
 	}
 }
@@ -63,12 +58,6 @@ func (h *TaskHandler) Create(c *gin.Context) {
 	task, err := h.taskService.Create(c.Request.Context(), req)
 	if rest.HandleGRPCError(c, err, rest.WithNamespace("task")) {
 		return
-	}
-
-	if h.publisher != nil {
-		if pubErr := h.publisher.TaskCreated(c.Request.Context(), task); pubErr != nil {
-			log.Warn("publish task.created event", zap.Error(pubErr), zap.String("taskId", task.GetId()))
-		}
 	}
 
 	items, err := h.taskService.BuildView(c.Request.Context(), []*taskpb.Task{task})

@@ -2,20 +2,26 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
+	"github.com/aliirah/task-flow/services/task-service/internal/event"
 	"github.com/aliirah/task-flow/services/task-service/internal/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type Service struct {
-	db *gorm.DB
+	db        *gorm.DB
+	publisher event.TaskEventPublisher
 }
 
-func New(db *gorm.DB) *Service {
-	return &Service{db: db}
+func New(db *gorm.DB, publisher event.TaskEventPublisher) *Service {
+	return &Service{
+		db:        db,
+		publisher: publisher,
+	}
 }
 
 type CreateTaskInput struct {
@@ -44,6 +50,11 @@ func (s *Service) CreateTask(ctx context.Context, input CreateTaskInput) (*model
 	if err := s.db.WithContext(ctx).Create(task).Error; err != nil {
 		return nil, err
 	}
+
+	if err := s.publisher.TaskCreated(ctx, task); err != nil {
+		return nil, fmt.Errorf("failed to publish task created event: %w", err)
+	}
+
 	return task, nil
 }
 

@@ -7,17 +7,21 @@ import (
 	"os"
 	"time"
 
+	"github.com/aliirah/task-flow/services/task-service/internal/event"
 	"github.com/aliirah/task-flow/services/task-service/internal/handler"
 	"github.com/aliirah/task-flow/services/task-service/internal/models"
 	"github.com/aliirah/task-flow/services/task-service/internal/service"
 	"github.com/aliirah/task-flow/shared/db/gormdb"
 	"github.com/aliirah/task-flow/shared/env"
 	log "github.com/aliirah/task-flow/shared/logging"
+	"github.com/aliirah/task-flow/shared/messaging"
 	taskpb "github.com/aliirah/task-flow/shared/proto/task/v1"
 	"github.com/aliirah/task-flow/shared/tracing"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 )
+
+var rabbitMqURI = env.GetString("RABBITMQ_URI", "amqp://guest:guest@rabbitmq:5672/")
 
 func main() {
 	loggerCfg := log.Config{
@@ -69,7 +73,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	taskSvc := service.New(db)
+	rabbitMQ, err := messaging.NewRabbitMQ(rabbitMqURI)
+	if err != nil {
+		log.Error(fmt.Errorf("failed to connect to RabbitMQ: %w", err))
+		os.Exit(1)
+	}
+	defer rabbitMQ.Close()
+
+	// Initialize task event publisher
+	taskPublisher := event.NewTaskPublisher(rabbitMQ)
+
+	taskSvc := service.New(db, taskPublisher)
 	taskHandler := handler.NewTaskHandler(taskSvc)
 
 	addr := env.GetString("TASK_GRPC_ADDR", ":50054")

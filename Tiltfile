@@ -160,7 +160,7 @@ docker_build_with_restart(
 )
 
 k8s_yaml('./infra/dev/k8s/task-service.yaml')
-k8s_resource('task-service', resource_deps=['task-service-compile', 'task-db'], labels="services")
+k8s_resource('task-service', resource_deps=['task-service-compile', 'task-db', 'rabbitmq'], labels="services")
 ### End Task Service ###
 
 ## Seeders ##

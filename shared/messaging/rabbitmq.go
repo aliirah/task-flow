@@ -212,7 +212,7 @@ func (r *RabbitMQ) setupExchangesAndQueues() error {
 	if err := r.declareAndBindQueue(
 		TaskEventsQueue,
 		[]string{
-			contracts.TaskEventCreated,
+			"task.*", // Bind to all task events for any organization
 		},
 		EventExchange,
 	); err != nil {
