@@ -10,7 +10,9 @@ import (
 	requestid "github.com/gin-contrib/requestid"
 	"github.com/gin-gonic/gin"
 
+	gatewayevent "github.com/aliirah/task-flow/services/api-gateway/internal/event"
 	httphandler "github.com/aliirah/task-flow/services/api-gateway/internal/handler/http"
+	wshandler "github.com/aliirah/task-flow/services/api-gateway/internal/handler/ws"
 	gatewaymiddleware "github.com/aliirah/task-flow/services/api-gateway/internal/middleware"
 	gatewayservice "github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/aliirah/task-flow/services/api-gateway/routes"
@@ -85,6 +87,14 @@ func main() {
 	}
 	defer rabbitmq.Close()
 
+	connMgr := messaging.NewConnectionManager()
+
+	consumer := messaging.NewQueueConsumer(rabbitmq, connMgr, messaging.TaskEventsQueue)
+	if err := consumer.Start(); err != nil {
+		log.Error(fmt.Errorf("failed to start task events consumer: %w", err))
+		os.Exit(1)
+	}
+
 	router := gin.Default()
 	router.Use(
 		requestid.New(),
@@ -95,13 +105,15 @@ func main() {
 	healthHandler := httphandler.NewHealthHandler(gatewayservice.NewHealthService())
 	authSvc := gatewayservice.NewAuthService(grpcClients.Auth)
 	userSvc := gatewayservice.NewUserService(grpcClients.User)
-	orgSvc := gatewayservice.NewOrganizationService(grpcClients.Organization)
-	taskSvc := gatewayservice.NewTaskService(grpcClients.Task)
+	orgSvc := gatewayservice.NewOrganizationService(grpcClients.Organization, userSvc)
+	taskSvc := gatewayservice.NewTaskService(grpcClients.Task, userSvc, orgSvc)
+	taskPublisher := gatewayevent.NewTaskPublisher(rabbitmq)
 
 	authHandler := httphandler.NewAuthHandler(authSvc)
 	userHandler := httphandler.NewUserHandler(userSvc)
-	organizationHandler := httphandler.NewOrganizationHandler(orgSvc, userSvc)
-	taskHandler := httphandler.NewTaskHandler(taskSvc, userSvc, orgSvc)
+	organizationHandler := httphandler.NewOrganizationHandler(orgSvc)
+	taskHandler := httphandler.NewTaskHandler(taskSvc, taskPublisher)
+	wsHandler := wshandler.NewHandler(authSvc, orgSvc, connMgr)
 	authMiddleware := gatewaymiddleware.JWTAuth(authSvc)
 
 	routes.Register(router, routes.Dependencies{
@@ -110,6 +122,7 @@ func main() {
 		User:           userHandler,
 		Organization:   organizationHandler,
 		Task:           taskHandler,
+		WS:             wsHandler,
 		AuthMiddleware: authMiddleware,
 	})
 	s := &http.Server{

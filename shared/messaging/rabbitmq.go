@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+
 	"github.com/aliirah/task-flow/shared/contracts"
 	"github.com/aliirah/task-flow/shared/retry"
 	"github.com/aliirah/task-flow/shared/tracing"
@@ -13,7 +14,6 @@ import (
 )
 
 const (
-	TripExchange       = "trip"
 	DeadLetterExchange = "dlx"
 )
 
@@ -134,7 +134,7 @@ func (r *RabbitMQ) PublishMessage(ctx context.Context, routingKey string, messag
 		Body:         jsonMsg,
 	}
 
-	return tracing.TracedPublisher(ctx, TripExchange, routingKey, msg, r.publish)
+	return tracing.TracedPublisher(ctx, EventExchange, routingKey, msg, r.publish)
 }
 
 func (r *RabbitMQ) publish(ctx context.Context, exchange, routingKey string, msg amqp.Publishing) error {
@@ -197,28 +197,27 @@ func (r *RabbitMQ) setupExchangesAndQueues() error {
 	}
 
 	err := r.Channel.ExchangeDeclare(
-		TripExchange, // name
-		"topic",      // type
-		true,         // durable
-		false,        // auto-deleted
-		false,        // internal
-		false,        // no-wait
-		nil,          // arguments
+		EventExchange, // name
+		"topic",       // type
+		true,          // durable
+		false,         // auto-deleted
+		false,         // internal
+		false,         // no-wait
+		nil,           // arguments
 	)
 	if err != nil {
-		return fmt.Errorf("failed to declare exchange: %s: %v", TripExchange, err)
+		return fmt.Errorf("failed to declare exchange: %s: %v", EventExchange, err)
 	}
 
-	// TODO: Declare and bind other queues as needed
-	// if err := r.declareAndBindQueue(
-	// 	FindAvailableDriversQueue,
-	// 	[]string{
-	// 		contracts.TripEventCreated, contracts.TripEventDriverNotInterested,
-	// 	},
-	// 	TripExchange,
-	// ); err != nil {
-	// 	return err
-	// }
+	if err := r.declareAndBindQueue(
+		TaskEventsQueue,
+		[]string{
+			contracts.TaskEventCreated,
+		},
+		EventExchange,
+	); err != nil {
+		return err
+	}
 
 	return nil
 }

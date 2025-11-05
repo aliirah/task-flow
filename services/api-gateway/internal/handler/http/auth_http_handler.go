@@ -1,16 +1,15 @@
 package http
 
 import (
-	"errors"
 	"net/http"
-	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 
 	"github.com/aliirah/task-flow/services/api-gateway/internal/dto"
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/aliirah/task-flow/shared/rest"
 	"github.com/aliirah/task-flow/shared/util"
-	"github.com/gin-gonic/gin"
-	"github.com/go-playground/validator/v10"
 )
 
 type AuthHandler struct {
@@ -42,7 +41,12 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		return
 	}
 
-	respondWithTokens(c, resp, http.StatusCreated)
+	payloadBody, buildErr := h.service.BuildTokenPayload(resp)
+	if buildErr != nil {
+		rest.InternalError(c, buildErr)
+		return
+	}
+	rest.Created(c, payloadBody)
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -65,7 +69,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	respondWithTokens(c, tokens, http.StatusOK)
+	payloadBody, buildErr := h.service.BuildTokenPayload(tokens)
+	if buildErr != nil {
+		rest.InternalError(c, buildErr)
+		return
+	}
+	rest.Ok(c, payloadBody)
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
@@ -89,7 +98,12 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	respondWithTokens(c, tokens, http.StatusOK)
+	payloadBody, buildErr := h.service.BuildTokenPayload(tokens)
+	if buildErr != nil {
+		rest.InternalError(c, buildErr)
+		return
+	}
+	rest.Ok(c, payloadBody)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
@@ -114,38 +128,4 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	}
 
 	rest.NoContent(c)
-}
-
-func respondWithTokens(c *gin.Context, resp *service.AuthTokenResponse, status int) {
-	if resp == nil {
-		rest.InternalError(c, errors.New("auth service returned empty response"))
-		return
-	}
-
-	payload := gin.H{
-		"accessToken":  resp.GetAccessToken(),
-		"refreshToken": resp.GetRefreshToken(),
-	}
-
-	if resp.GetExpiresAt() != nil {
-		payload["expiresAt"] = resp.GetExpiresAt().AsTime().UTC().Format(time.RFC3339)
-	}
-
-	if resp.GetUser() != nil {
-		payload["user"] = gin.H{
-			"id":        resp.GetUser().GetId(),
-			"email":     resp.GetUser().GetEmail(),
-			"firstName": resp.GetUser().GetFirstName(),
-			"lastName":  resp.GetUser().GetLastName(),
-			"roles":     resp.GetUser().GetRoles(),
-			"status":    resp.GetUser().GetStatus(),
-			"userType":  resp.GetUser().GetUserType(),
-		}
-	}
-
-	if status == http.StatusCreated {
-		rest.Created(c, payload)
-	} else {
-		rest.Ok(c, payload)
-	}
 }

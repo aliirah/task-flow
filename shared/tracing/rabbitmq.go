@@ -51,8 +51,14 @@ func TracedPublisher(ctx context.Context, exchange, routingKey string, msg amqp.
 	// Try to extract and add message details to span (map[string]any if you don't know the type)
 	var msgBody contracts.AmqpMessage
 	if err := json.Unmarshal(msg.Body, &msgBody); err == nil {
-		if msgBody.OwnerID != "" {
-			span.SetAttributes(attribute.String("messaging.owner_id", msgBody.OwnerID))
+		if msgBody.OrganizationID != "" {
+			span.SetAttributes(attribute.String("messaging.organization_id", msgBody.OrganizationID))
+		}
+		if msgBody.UserID != "" {
+			span.SetAttributes(attribute.String("messaging.user_id", msgBody.UserID))
+		}
+		if msgBody.EventType != "" {
+			span.SetAttributes(attribute.String("messaging.event_type", msgBody.EventType))
 		}
 	}
 
@@ -91,8 +97,14 @@ func TracedConsumer(delivery amqp.Delivery, handler func(context.Context, amqp.D
 	// Try to extract and add message details to span (map[string]any if you don't know the type)
 	var msgBody contracts.AmqpMessage
 	if err := json.Unmarshal(delivery.Body, &msgBody); err == nil {
-		if msgBody.OwnerID != "" {
-			span.SetAttributes(attribute.String("messaging.owner_id", msgBody.OwnerID))
+		if msgBody.OrganizationID != "" {
+			span.SetAttributes(attribute.String("messaging.organization_id", msgBody.OrganizationID))
+		}
+		if msgBody.UserID != "" {
+			span.SetAttributes(attribute.String("messaging.user_id", msgBody.UserID))
+		}
+		if msgBody.EventType != "" {
+			span.SetAttributes(attribute.String("messaging.event_type", msgBody.EventType))
 		}
 	}
 

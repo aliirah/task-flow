@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/aliirah/task-flow/shared/contracts"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -14,77 +15,169 @@ var (
 	ErrConnectionNotFound = errors.New("connection not found")
 )
 
-// connWrapper is a wrapper around the websocket connection to allow for thread-safe operations
-// This is necessary because the websocket connection is not thread-safe
-type connWrapper struct {
-	conn  *websocket.Conn
-	mutex sync.Mutex
+type connectionInfo struct {
+	conn          *websocket.Conn
+	userID        string
+	subscriptions map[string]struct{}
+	mutex         sync.Mutex
 }
 
 type ConnectionManager struct {
-	connections map[string]*connWrapper // Local connections storage (userId -> connection)
-	mutex       sync.RWMutex
+	mu          sync.RWMutex
+	connections map[string]*connectionInfo
+	userIndex   map[string]map[string]struct{}
+	orgIndex    map[string]map[string]struct{}
 }
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for now
+		return true
 	},
 }
 
-// Note that on multiple instances of the API gateway, the connection manager needs to store the connections on a separate shared storage.
 func NewConnectionManager() *ConnectionManager {
 	return &ConnectionManager{
-		connections: make(map[string]*connWrapper),
+		connections: make(map[string]*connectionInfo),
+		userIndex:   make(map[string]map[string]struct{}),
+		orgIndex:    make(map[string]map[string]struct{}),
 	}
 }
 
 func (cm *ConnectionManager) Upgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return nil, err
+	return upgrader.Upgrade(w, r, nil)
+}
+
+func (cm *ConnectionManager) Add(userID string, conn *websocket.Conn) string {
+	connID := uuid.NewString()
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	cm.connections[connID] = &connectionInfo{
+		conn:          conn,
+		userID:        userID,
+		subscriptions: make(map[string]struct{}),
 	}
-	return conn, nil
-}
 
-func (cm *ConnectionManager) Add(id string, conn *websocket.Conn) {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
-	cm.connections[id] = &connWrapper{
-		conn:  conn,
-		mutex: sync.Mutex{},
+	if cm.userIndex[userID] == nil {
+		cm.userIndex[userID] = make(map[string]struct{})
 	}
+	cm.userIndex[userID][connID] = struct{}{}
 
-	log.Printf("Added connection for user %s", id)
+	log.Printf("Added connection %s for user %s", connID, userID)
+	return connID
 }
 
-func (cm *ConnectionManager) Remove(id string) {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
-	delete(cm.connections, id)
-}
+func (cm *ConnectionManager) Remove(connID string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 
-func (cm *ConnectionManager) Get(id string) (*websocket.Conn, bool) {
-	cm.mutex.RLock()
-	defer cm.mutex.RUnlock()
-	wrapper, exists := cm.connections[id]
+	info, exists := cm.connections[connID]
 	if !exists {
-		return nil, false
+		return
 	}
-	return wrapper.conn, true
+
+	for orgID := range info.subscriptions {
+		cm.removeSubscriptionUnlocked(connID, orgID)
+	}
+
+	delete(cm.connections, connID)
+
+	if userSet, ok := cm.userIndex[info.userID]; ok {
+		delete(userSet, connID)
+		if len(userSet) == 0 {
+			delete(cm.userIndex, info.userID)
+		}
+	}
 }
 
-func (cm *ConnectionManager) SendMessage(id string, message contracts.WSMessage) error {
-	cm.mutex.RLock()
-	wrapper, exists := cm.connections[id]
-	cm.mutex.RUnlock()
+func (cm *ConnectionManager) Subscribe(connID, orgID string) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 
+	info, exists := cm.connections[connID]
 	if !exists {
 		return ErrConnectionNotFound
 	}
 
-	wrapper.mutex.Lock()
-	defer wrapper.mutex.Unlock()
+	if _, already := info.subscriptions[orgID]; already {
+		return nil
+	}
 
-	return wrapper.conn.WriteJSON(message)
+	info.subscriptions[orgID] = struct{}{}
+	if cm.orgIndex[orgID] == nil {
+		cm.orgIndex[orgID] = make(map[string]struct{})
+	}
+	cm.orgIndex[orgID][connID] = struct{}{}
+	return nil
+}
+
+func (cm *ConnectionManager) Unsubscribe(connID, orgID string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.removeSubscriptionUnlocked(connID, orgID)
+}
+
+func (cm *ConnectionManager) removeSubscriptionUnlocked(connID, orgID string) {
+	info, ok := cm.connections[connID]
+	if !ok {
+		return
+	}
+	delete(info.subscriptions, orgID)
+
+	if conns, ok := cm.orgIndex[orgID]; ok {
+		delete(conns, connID)
+		if len(conns) == 0 {
+			delete(cm.orgIndex, orgID)
+		}
+	}
+}
+
+func (cm *ConnectionManager) BroadcastToOrg(orgID string, message contracts.WSMessage) error {
+	cm.mu.RLock()
+	connIDs, ok := cm.orgIndex[orgID]
+	cm.mu.RUnlock()
+	if !ok {
+		return nil
+	}
+
+	for connID := range connIDs {
+		if err := cm.write(connID, message); err != nil {
+			log.Printf("broadcast error to org %s conn %s: %v", orgID, connID, err)
+			cm.Remove(connID)
+		}
+	}
+	return nil
+}
+
+func (cm *ConnectionManager) SendToUser(userID string, message contracts.WSMessage) error {
+	cm.mu.RLock()
+	connIDs, ok := cm.userIndex[userID]
+	cm.mu.RUnlock()
+	if !ok {
+		return ErrConnectionNotFound
+	}
+
+	var sendErr error
+	for connID := range connIDs {
+		if err := cm.write(connID, message); err != nil {
+			sendErr = ErrConnectionNotFound
+			cm.Remove(connID)
+		}
+	}
+	return sendErr
+}
+
+func (cm *ConnectionManager) write(connID string, message contracts.WSMessage) error {
+	cm.mu.RLock()
+	info, exists := cm.connections[connID]
+	cm.mu.RUnlock()
+	if !exists {
+		return ErrConnectionNotFound
+	}
+
+	info.mutex.Lock()
+	defer info.mutex.Unlock()
+
+	return info.conn.WriteJSON(message)
 }

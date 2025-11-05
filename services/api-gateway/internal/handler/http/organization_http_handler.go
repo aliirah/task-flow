@@ -1,9 +1,11 @@
 package http
 
 import (
-	"context"
 	"net/http"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 
 	"github.com/aliirah/task-flow/services/api-gateway/internal/dto"
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
@@ -11,25 +13,18 @@ import (
 	organizationpb "github.com/aliirah/task-flow/shared/proto/organization/v1"
 	"github.com/aliirah/task-flow/shared/rest"
 	orgtransform "github.com/aliirah/task-flow/shared/transform/organization"
-	usertransform "github.com/aliirah/task-flow/shared/transform/user"
 	"github.com/aliirah/task-flow/shared/util"
-	"github.com/gin-gonic/gin"
-	"github.com/go-playground/validator/v10"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type OrganizationHandler struct {
-	orgService  service.OrganizationService
-	userService service.UserService
-	validator   *validator.Validate
+	orgService service.OrganizationService
+	validator  *validator.Validate
 }
 
-func NewOrganizationHandler(orgSvc service.OrganizationService, userSvc service.UserService) *OrganizationHandler {
+func NewOrganizationHandler(orgSvc service.OrganizationService) *OrganizationHandler {
 	return &OrganizationHandler{
-		orgService:  orgSvc,
-		userService: userSvc,
-		validator:   util.NewValidator(),
+		orgService: orgSvc,
+		validator:  util.NewValidator(),
 	}
 }
 
@@ -171,7 +166,7 @@ func (h *OrganizationHandler) ListMembers(c *gin.Context) {
 		return
 	}
 
-	payload, err := h.enrichMembers(c.Request.Context(), resp.GetItems())
+	payload, err := h.orgService.BuildMemberViews(c.Request.Context(), resp.GetItems())
 	if err != nil {
 		if rest.HandleGRPCError(c, err, rest.WithNamespace("organization")) {
 			return
@@ -198,7 +193,7 @@ func (h *OrganizationHandler) ListUserMemberships(c *gin.Context) {
 		return
 	}
 
-	payload, err := h.enrichMembers(c.Request.Context(), resp.GetMemberships())
+	payload, err := h.orgService.BuildMemberViews(c.Request.Context(), resp.GetMemberships())
 	if err != nil {
 		if rest.HandleGRPCError(c, err, rest.WithNamespace("organization")) {
 			return
@@ -207,66 +202,4 @@ func (h *OrganizationHandler) ListUserMemberships(c *gin.Context) {
 		return
 	}
 	rest.Ok(c, gin.H{"items": payload})
-}
-
-func (h *OrganizationHandler) enrichMembers(ctx context.Context, members []*organizationpb.OrganizationMember) ([]gin.H, error) {
-	if len(members) == 0 {
-		return []gin.H{}, nil
-	}
-
-	userIDs := make([]string, 0, len(members))
-	orgIDs := make(map[string]struct{})
-	for _, member := range members {
-		userIDs = append(userIDs, member.GetUserId())
-		if orgID := member.GetOrganizationId(); orgID != "" {
-			orgIDs[orgID] = struct{}{}
-		}
-	}
-
-	users, err := h.userService.ListByIDs(ctx, userIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	userMap := make(map[string]*service.User, len(users))
-	for _, u := range users {
-		userMap[u.GetId()] = u
-	}
-
-	for _, member := range members {
-		userID := member.GetUserId()
-		if _, exists := userMap[userID]; exists || userID == "" {
-			continue
-		}
-		user, err := h.userService.Get(ctx, userID)
-		if err != nil {
-			if st, ok := status.FromError(err); ok && st.Code() == codes.NotFound {
-				continue
-			}
-			return nil, err
-		}
-		userMap[userID] = user
-	}
-
-	orgMap := make(map[string]*organizationpb.Organization, len(orgIDs))
-	for id := range orgIDs {
-		org, err := h.orgService.Get(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-		orgMap[id] = org
-	}
-
-	items := make([]gin.H, 0, len(members))
-	for _, member := range members {
-		item := orgtransform.MemberToMap(member)
-		if user := userMap[member.GetUserId()]; user != nil {
-			item["user"] = usertransform.ToMap(user)
-		}
-		if org := orgMap[member.GetOrganizationId()]; org != nil {
-			item["organization"] = orgtransform.ToMap(org)
-		}
-		items = append(items, item)
-	}
-	return items, nil
 }

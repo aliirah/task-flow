@@ -3,6 +3,7 @@ package messaging
 import (
 	"encoding/json"
 	"log"
+
 	"github.com/aliirah/task-flow/shared/contracts"
 )
 
@@ -42,23 +43,22 @@ func (qc *QueueConsumer) Start() error {
 				continue
 			}
 
-			userID := msgBody.OwnerID
-
-			var payload any
-			if msgBody.Data != nil {
-				if err := json.Unmarshal(msgBody.Data, &payload); err != nil {
-					log.Println("Failed to unmarshal payload:", err)
-					continue
-				}
-			}
-
 			clientMsg := contracts.WSMessage{
-				Type: msg.RoutingKey,
-				Data: payload,
+				Type: msgBody.EventType,
+				Data: msgBody.Data,
 			}
 
-			if err := qc.connMgr.SendMessage(userID, clientMsg); err != nil {
-				log.Printf("Failed to send message to user %s: %v", userID, err)
+			switch {
+			case msgBody.OrganizationID != "":
+				if err := qc.connMgr.BroadcastToOrg(msgBody.OrganizationID, clientMsg); err != nil {
+					log.Printf("Failed to broadcast to organization %s: %v", msgBody.OrganizationID, err)
+				}
+			case msgBody.UserID != "":
+				if err := qc.connMgr.SendToUser(msgBody.UserID, clientMsg); err != nil {
+					log.Printf("Failed to send message to user %s: %v", msgBody.UserID, err)
+				}
+			default:
+				log.Printf("Message missing target information: routing=%s", msg.RoutingKey)
 			}
 		}
 	}()
