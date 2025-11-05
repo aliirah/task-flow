@@ -94,14 +94,15 @@ func main() {
 
 	// Initialize task event consumer
 	fmt.Println("Setting up task event consumer...")
-	taskEventConsumer := gatewayevent.NewTaskEventConsumer(connMgr)
+	taskEventConsumer := gatewayevent.NewTaskEventConsumer(rabbitmq, connMgr)
 
-	// Set up consumer with explicit queue name
-	fmt.Printf("Starting consumer on queue: %s\n", messaging.TaskEventsQueue)
-	if err := rabbitmq.ConsumeMessages(messaging.TaskEventsQueue, taskEventConsumer.Handle); err != nil {
-		log.Error(fmt.Errorf("failed to setup consumer: %w", err))
-		os.Exit(1)
-	}
+	// Start listening for messages
+	go func() {
+		if err := taskEventConsumer.Listen(); err != nil {
+			log.Error(fmt.Errorf("failed to start task event consumer: %w", err))
+			os.Exit(1)
+		}
+	}()
 	fmt.Println("Task event consumer successfully initialized")
 
 	router := gin.Default()
