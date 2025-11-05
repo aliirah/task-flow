@@ -4,18 +4,16 @@ import (
 	"context"
 	"net/http"
 	"strconv"
-	"strings"
-	"time"
 
+	"github.com/aliirah/task-flow/services/api-gateway/internal/dto"
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/aliirah/task-flow/shared/authctx"
+	taskdomain "github.com/aliirah/task-flow/shared/domain/task"
 	organizationpb "github.com/aliirah/task-flow/shared/proto/organization/v1"
 	taskpb "github.com/aliirah/task-flow/shared/proto/task/v1"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"github.com/aliirah/task-flow/shared/rest"
-	orgtransform "github.com/aliirah/task-flow/shared/transform/organization"
 	tasktransform "github.com/aliirah/task-flow/shared/transform/task"
-	usertransform "github.com/aliirah/task-flow/shared/transform/user"
 	"github.com/aliirah/task-flow/shared/util"
 	"github.com/aliirah/task-flow/shared/util/collections"
 	"github.com/aliirah/task-flow/shared/util/stringset"
@@ -23,13 +21,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
-	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
-)
-
-var (
-	taskStatuses   = map[string]struct{}{"open": {}, "in_progress": {}, "completed": {}, "blocked": {}, "cancelled": {}}
-	taskPriorities = map[string]struct{}{"low": {}, "medium": {}, "high": {}, "critical": {}}
 )
 
 // TaskHandler serves task endpoints for the API Gateway.
@@ -50,20 +41,9 @@ func NewTaskHandler(taskSvc service.TaskService, userSvc service.UserService, or
 	}
 }
 
-type createTaskPayload struct {
-	Title          string  `json:"title" validate:"required,min=3"`
-	Description    string  `json:"description" validate:"omitempty,max=4096"`
-	Status         string  `json:"status" validate:"omitempty"`
-	Priority       string  `json:"priority" validate:"omitempty"`
-	OrganizationID string  `json:"organizationId" validate:"required,uuid4"`
-	AssigneeID     string  `json:"assigneeId" validate:"omitempty,uuid4"`
-	ReporterID     string  `json:"reporterId" validate:"omitempty,uuid4"`
-	DueAt          *string `json:"dueAt" validate:"omitempty"`
-}
-
 // Create handles POST /api/tasks.
 func (h *TaskHandler) Create(c *gin.Context) {
-	var payload createTaskPayload
+	var payload dto.CreateTaskPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		rest.Error(c, http.StatusBadRequest, "invalid request payload",
 			rest.WithErrorCode("validation.invalid_payload"))
@@ -76,58 +56,26 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		return
 	}
 
-	status, err := stringset.Normalize(payload.Status, "status", taskStatuses, "open")
-	if err != nil {
-		rest.Error(c, http.StatusBadRequest, err.Error(),
-			rest.WithErrorCode("validation.invalid_status"))
-		return
-	}
-	priority, err := stringset.Normalize(payload.Priority, "priority", taskPriorities, "medium")
-	if err != nil {
-		rest.Error(c, http.StatusBadRequest, err.Error(),
-			rest.WithErrorCode("validation.invalid_priority"))
-		return
-	}
-
-	var dueAt *time.Time
-	if payload.DueAt != nil && strings.TrimSpace(*payload.DueAt) != "" {
-		parsed, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(*payload.DueAt))
-		if parseErr != nil {
-			rest.Error(c, http.StatusBadRequest, "invalid dueAt format, expected RFC3339",
-				rest.WithErrorCode("validation.invalid_due_at"))
-			return
-		}
-		dueAt = &parsed
-	}
-
 	currentUser, _ := authctx.UserFromGin(c)
-	if payload.ReporterID == "" && currentUser.ID != "" {
-		payload.ReporterID = currentUser.ID
-	}
 
-	req := &taskpb.CreateTaskRequest{
-		Title:          strings.TrimSpace(payload.Title),
-		Description:    strings.TrimSpace(payload.Description),
-		Status:         status,
-		Priority:       priority,
-		OrganizationId: payload.OrganizationID,
-		AssigneeId:     payload.AssigneeID,
-		ReporterId:     payload.ReporterID,
-	}
-	if dueAt != nil {
-		due := dueAt.UTC()
-		req.DueAt = timestamppb.New(due)
+	req, err := payload.Build(currentUser.ID)
+	if err != nil {
+		rest.Error(c, http.StatusBadRequest, err.Error(),
+			rest.WithErrorCode("task.invalid_request"))
+		return
 	}
 
 	task, err := h.taskService.Create(c.Request.Context(), req)
-	if err != nil {
-		writeTaskError(c, err)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("task")) {
 		return
 	}
 
 	items, err := h.enrichTasks(c.Request.Context(), []*taskpb.Task{task})
 	if err != nil {
-		writeTaskError(c, err)
+		if rest.HandleGRPCError(c, err, rest.WithNamespace("task")) {
+			return
+		}
+		rest.InternalError(c, err)
 		return
 	}
 	if len(items) == 0 {
@@ -148,7 +96,7 @@ func (h *TaskHandler) List(c *gin.Context) {
 		limit = 20
 	}
 
-	status, err := stringset.Normalize(c.Query("status"), "status", taskStatuses, "")
+	status, err := stringset.Normalize(c.Query("status"), "status", taskdomain.StatusSet, "")
 	if err != nil {
 		rest.Error(c, http.StatusBadRequest, err.Error(),
 			rest.WithErrorCode("validation.invalid_status"))
@@ -165,14 +113,16 @@ func (h *TaskHandler) List(c *gin.Context) {
 	}
 
 	resp, err := h.taskService.List(c.Request.Context(), req)
-	if err != nil {
-		writeTaskError(c, err)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("task")) {
 		return
 	}
 
 	items, err := h.enrichTasks(c.Request.Context(), resp.GetItems())
 	if err != nil {
-		writeTaskError(c, err)
+		if rest.HandleGRPCError(c, err, rest.WithNamespace("task")) {
+			return
+		}
+		rest.InternalError(c, err)
 		return
 	}
 
@@ -182,13 +132,15 @@ func (h *TaskHandler) List(c *gin.Context) {
 // Get handles GET /api/tasks/:id.
 func (h *TaskHandler) Get(c *gin.Context) {
 	task, err := h.taskService.Get(c.Request.Context(), c.Param("id"))
-	if err != nil {
-		writeTaskError(c, err)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("task")) {
 		return
 	}
 	items, err := h.enrichTasks(c.Request.Context(), []*taskpb.Task{task})
 	if err != nil {
-		writeTaskError(c, err)
+		if rest.HandleGRPCError(c, err, rest.WithNamespace("task")) {
+			return
+		}
+		rest.InternalError(c, err)
 		return
 	}
 	if len(items) == 0 {
@@ -198,20 +150,9 @@ func (h *TaskHandler) Get(c *gin.Context) {
 	rest.Ok(c, items[0])
 }
 
-type updateTaskPayload struct {
-	Title          *string `json:"title" validate:"omitempty,min=3"`
-	Description    *string `json:"description" validate:"omitempty,max=4096"`
-	Status         *string `json:"status" validate:"omitempty"`
-	Priority       *string `json:"priority" validate:"omitempty"`
-	OrganizationID *string `json:"organizationId" validate:"omitempty,uuid4"`
-	AssigneeID     *string `json:"assigneeId" validate:"omitempty,uuid4"`
-	ReporterID     *string `json:"reporterId" validate:"omitempty,uuid4"`
-	DueAt          *string `json:"dueAt" validate:"omitempty"`
-}
-
 // Update handles PATCH /api/tasks/:id.
 func (h *TaskHandler) Update(c *gin.Context) {
-	var payload updateTaskPayload
+	var payload dto.UpdateTaskPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		rest.Error(c, http.StatusBadRequest, "invalid request payload",
 			rest.WithErrorCode("validation.invalid_payload"))
@@ -224,69 +165,24 @@ func (h *TaskHandler) Update(c *gin.Context) {
 		return
 	}
 
-	if payload.Status != nil {
-		if _, err := stringset.Normalize(*payload.Status, "status", taskStatuses, ""); err != nil {
-			rest.Error(c, http.StatusBadRequest, err.Error(),
-				rest.WithErrorCode("validation.invalid_status"))
-			return
-		}
-	}
-	if payload.Priority != nil {
-		if _, err := stringset.Normalize(*payload.Priority, "priority", taskPriorities, ""); err != nil {
-			rest.Error(c, http.StatusBadRequest, err.Error(),
-				rest.WithErrorCode("validation.invalid_priority"))
-			return
-		}
-	}
-
-	req := &taskpb.UpdateTaskRequest{Id: c.Param("id")}
-	if payload.Title != nil {
-		req.Title = wrapperspb.String(strings.TrimSpace(*payload.Title))
-	}
-	if payload.Description != nil {
-		req.Description = wrapperspb.String(strings.TrimSpace(*payload.Description))
-	}
-	if payload.Status != nil {
-		value, _ := stringset.Normalize(*payload.Status, "status", taskStatuses, "")
-		if value != "" {
-			req.Status = wrapperspb.String(value)
-		}
-	}
-	if payload.Priority != nil {
-		value, _ := stringset.Normalize(*payload.Priority, "priority", taskPriorities, "")
-		if value != "" {
-			req.Priority = wrapperspb.String(value)
-		}
-	}
-	if payload.OrganizationID != nil {
-		req.OrganizationId = wrapperspb.String(strings.TrimSpace(*payload.OrganizationID))
-	}
-	if payload.AssigneeID != nil {
-		req.AssigneeId = wrapperspb.String(strings.TrimSpace(*payload.AssigneeID))
-	}
-	if payload.ReporterID != nil {
-		req.ReporterId = wrapperspb.String(strings.TrimSpace(*payload.ReporterID))
-	}
-	if payload.DueAt != nil && strings.TrimSpace(*payload.DueAt) != "" {
-		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*payload.DueAt))
-		if err != nil {
-			rest.Error(c, http.StatusBadRequest, "invalid dueAt format, expected RFC3339",
-				rest.WithErrorCode("validation.invalid_due_at"))
-			return
-		}
-		due := parsed.UTC()
-		req.DueAt = timestamppb.New(due)
+	req, err := payload.Build(c.Param("id"))
+	if err != nil {
+		rest.Error(c, http.StatusBadRequest, err.Error(),
+			rest.WithErrorCode("task.invalid_request"))
+		return
 	}
 
 	task, err := h.taskService.Update(c.Request.Context(), req)
-	if err != nil {
-		writeTaskError(c, err)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("task")) {
 		return
 	}
 
 	items, err := h.enrichTasks(c.Request.Context(), []*taskpb.Task{task})
 	if err != nil {
-		writeTaskError(c, err)
+		if rest.HandleGRPCError(c, err, rest.WithNamespace("task")) {
+			return
+		}
+		rest.InternalError(c, err)
 		return
 	}
 	if len(items) == 0 {
@@ -298,8 +194,7 @@ func (h *TaskHandler) Update(c *gin.Context) {
 
 // Delete handles DELETE /api/tasks/:id.
 func (h *TaskHandler) Delete(c *gin.Context) {
-	if err := h.taskService.Delete(c.Request.Context(), c.Param("id")); err != nil {
-		writeTaskError(c, err)
+	if rest.HandleGRPCError(c, h.taskService.Delete(c.Request.Context(), c.Param("id")), rest.WithNamespace("task")) {
 		return
 	}
 	rest.NoContent(c)
@@ -381,60 +276,16 @@ func (h *TaskHandler) enrichTasks(ctx context.Context, tasks []*taskpb.Task) ([]
 
 	items := make([]gin.H, 0, len(tasks))
 	for _, task := range tasks {
-		item := tasktransform.ToMap(task)
-
-		if org := orgMap[task.GetOrganizationId()]; org != nil {
-			item["organization"] = orgtransform.ToMap(org)
-		} else if id := task.GetOrganizationId(); id != "" {
-			item["organization"] = gin.H{"id": id}
+		opts := tasktransform.DetailOptions{
+			Organization:   orgMap[task.GetOrganizationId()],
+			OrganizationID: task.GetOrganizationId(),
+			Assignee:       userMap[task.GetAssigneeId()],
+			AssigneeID:     task.GetAssigneeId(),
+			Reporter:       userMap[task.GetReporterId()],
+			ReporterID:     task.GetReporterId(),
 		}
-		if assignee := userMap[task.GetAssigneeId()]; assignee != nil {
-			item["assignee"] = usertransform.ToMap(assignee)
-		} else if id := task.GetAssigneeId(); id != "" {
-			item["assignee"] = gin.H{"id": id}
-		}
-		if reporter := userMap[task.GetReporterId()]; reporter != nil {
-			item["reporter"] = usertransform.ToMap(reporter)
-		} else if id := task.GetReporterId(); id != "" {
-			item["reporter"] = gin.H{"id": id}
-		}
-		items = append(items, item)
+		items = append(items, tasktransform.ToDetailedMap(task, opts))
 	}
 
 	return items, nil
-}
-
-func writeTaskError(c *gin.Context, err error) {
-	if err == nil {
-		return
-	}
-
-	if st, ok := status.FromError(err); ok {
-		switch st.Code() {
-		case codes.InvalidArgument, codes.FailedPrecondition:
-			rest.Error(c, http.StatusBadRequest, st.Message(),
-				rest.WithErrorCode("task.invalid_request"))
-		case codes.NotFound:
-			rest.Error(c, http.StatusNotFound, st.Message(),
-				rest.WithErrorCode("task.not_found"))
-		case codes.PermissionDenied:
-			rest.Error(c, http.StatusForbidden, st.Message(),
-				rest.WithErrorCode("task.forbidden"))
-		case codes.Unauthenticated:
-			rest.Error(c, http.StatusUnauthorized, st.Message(),
-				rest.WithErrorCode("task.unauthenticated"))
-		case codes.AlreadyExists:
-			rest.Error(c, http.StatusConflict, st.Message(),
-				rest.WithErrorCode("task.already_exists"))
-		default:
-			rest.Error(c, http.StatusBadGateway, "task service error",
-				rest.WithErrorCode("task.service_error"),
-				rest.WithErrorDetails(st.Message()))
-		}
-		return
-	}
-
-	rest.Error(c, http.StatusBadGateway, "task service unavailable",
-		rest.WithErrorCode("task.unavailable"),
-		rest.WithErrorDetails(err.Error()))
 }

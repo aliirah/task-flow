@@ -3,16 +3,14 @@ package http
 import (
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
+	"github.com/aliirah/task-flow/services/api-gateway/internal/dto"
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/aliirah/task-flow/shared/rest"
 	"github.com/aliirah/task-flow/shared/util"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type AuthHandler struct {
@@ -25,15 +23,7 @@ func NewAuthHandler(svc service.AuthService) *AuthHandler {
 }
 
 func (h *AuthHandler) SignUp(c *gin.Context) {
-	type signUpPayload struct {
-		Email     string `json:"email" validate:"required,email"`
-		Password  string `json:"password" validate:"required,min=8"`
-		FirstName string `json:"firstName" validate:"required,min=2"`
-		LastName  string `json:"lastName" validate:"required,min=2"`
-		UserType  string `json:"userType" validate:"omitempty,oneof=user admin"`
-	}
-
-	var payload signUpPayload
+	var payload dto.SignUpPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		rest.Error(c, http.StatusBadRequest, "invalid request payload",
 			rest.WithErrorCode("validation.invalid_payload"))
@@ -46,20 +36,9 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		return
 	}
 
-	userType := strings.TrimSpace(payload.UserType)
-	if userType == "" {
-		userType = "user"
-	}
-
-	resp, err := h.service.SignUp(c.Request.Context(), &service.AuthSignUpRequest{
-		Email:     payload.Email,
-		Password:  payload.Password,
-		FirstName: payload.FirstName,
-		LastName:  payload.LastName,
-		UserType:  userType,
-	})
-	if err != nil {
-		writeAuthServiceError(c, err)
+	req := payload.Build()
+	resp, err := h.service.SignUp(c.Request.Context(), &req)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("auth")) {
 		return
 	}
 
@@ -67,12 +46,7 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
-	type loginPayload struct {
-		Identifier string `json:"identifier" validate:"required"`
-		Password   string `json:"password" validate:"required,min=8"`
-	}
-
-	var payload loginPayload
+	var payload dto.LoginPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		rest.Error(c, http.StatusBadRequest, "invalid request payload",
 			rest.WithErrorCode("validation.invalid_payload"))
@@ -85,10 +59,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	req := service.AuthLoginRequest{Identifier: payload.Identifier, Password: payload.Password}
+	req := payload.Build()
 	tokens, err := h.service.Login(c.Request.Context(), &req)
-	if err != nil {
-		writeAuthServiceError(c, err)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("auth")) {
 		return
 	}
 
@@ -96,11 +69,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	type refreshPayload struct {
-		RefreshToken string `json:"refreshToken" validate:"required"`
-	}
-
-	var payload refreshPayload
+	var payload dto.RefreshPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		rest.Error(c, http.StatusBadRequest, "invalid request payload",
 			rest.WithErrorCode("validation.invalid_payload"))
@@ -113,11 +82,10 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	refreshReq := service.AuthRefreshRequest{RefreshToken: payload.RefreshToken}
+	refreshReq := payload.Build()
 
 	tokens, err := h.service.Refresh(c.Request.Context(), &refreshReq)
-	if err != nil {
-		writeAuthServiceError(c, err)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("auth")) {
 		return
 	}
 
@@ -125,11 +93,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
-	type logoutPayload struct {
-		RefreshToken string `json:"refreshToken" validate:"required"`
-	}
-
-	var payload logoutPayload
+	var payload dto.LogoutPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		rest.Error(c, http.StatusBadRequest, "invalid request payload",
 			rest.WithErrorCode("validation.invalid_payload"))
@@ -143,46 +107,13 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	logoutReq := service.AuthLogoutRequest{RefreshToken: payload.RefreshToken}
+	logoutReq := payload.Build()
 
-	if err := h.service.Logout(c.Request.Context(), &logoutReq); err != nil {
-		writeAuthServiceError(c, err)
+	if rest.HandleGRPCError(c, h.service.Logout(c.Request.Context(), &logoutReq), rest.WithNamespace("auth")) {
 		return
 	}
 
 	rest.NoContent(c)
-}
-
-func writeAuthServiceError(c *gin.Context, err error) {
-	if err == nil {
-		return
-	}
-
-	if st, ok := status.FromError(err); ok {
-		switch st.Code() {
-		case codes.InvalidArgument, codes.FailedPrecondition:
-			rest.Error(c, http.StatusBadRequest, st.Message(),
-				rest.WithErrorCode("auth.invalid_request"))
-		case codes.AlreadyExists:
-			rest.Error(c, http.StatusConflict, st.Message(),
-				rest.WithErrorCode("auth.already_exists"))
-		case codes.Unauthenticated, codes.PermissionDenied:
-			rest.Error(c, http.StatusUnauthorized, st.Message(),
-				rest.WithErrorCode("auth.invalid_credentials"))
-		case codes.NotFound:
-			rest.Error(c, http.StatusNotFound, st.Message(),
-				rest.WithErrorCode("auth.not_found"))
-		default:
-			rest.Error(c, http.StatusBadGateway, "auth service error",
-				rest.WithErrorCode("auth.service_error"),
-				rest.WithErrorDetails(st.Message()))
-		}
-		return
-	}
-
-	rest.Error(c, http.StatusBadGateway, "auth service unavailable",
-		rest.WithErrorCode("auth.unavailable"),
-		rest.WithErrorDetails(err.Error()))
 }
 
 func respondWithTokens(c *gin.Context, resp *service.AuthTokenResponse, status int) {

@@ -3,16 +3,14 @@ package http
 import (
 	"net/http"
 	"strconv"
-	"strings"
 
+	"github.com/aliirah/task-flow/services/api-gateway/internal/dto"
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/aliirah/task-flow/shared/authctx"
 	"github.com/aliirah/task-flow/shared/rest"
 	"github.com/aliirah/task-flow/shared/util"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type UserHandler struct {
@@ -36,8 +34,7 @@ func (h *UserHandler) List(c *gin.Context) {
 	}
 
 	users, err := h.service.List(c.Request.Context(), filter)
-	if err != nil {
-		writeUserServiceError(c, err)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("user")) {
 		return
 	}
 
@@ -47,8 +44,7 @@ func (h *UserHandler) List(c *gin.Context) {
 func (h *UserHandler) Get(c *gin.Context) {
 	id := c.Param("id")
 	user, err := h.service.Get(c.Request.Context(), id)
-	if err != nil {
-		writeUserServiceError(c, err)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("user")) {
 		return
 	}
 
@@ -56,16 +52,7 @@ func (h *UserHandler) Get(c *gin.Context) {
 }
 
 func (h *UserHandler) Create(c *gin.Context) {
-	type userCreatePayload struct {
-		Email     string   `json:"email" validate:"required,email"`
-		Password  string   `json:"password" validate:"required,min=8"`
-		FirstName string   `json:"firstName" validate:"required,min=2"`
-		LastName  string   `json:"lastName" validate:"required,min=2"`
-		UserType  string   `json:"userType" validate:"required,oneof=user admin"`
-		Roles     []string `json:"roles" validate:"omitempty,dive,required"`
-	}
-
-	var payload userCreatePayload
+	var payload dto.UserCreatePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		rest.Error(c, http.StatusBadRequest, "invalid request payload",
 			rest.WithErrorCode("validation.invalid_payload"))
@@ -78,18 +65,10 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
-	createReq := &service.UserCreateInput{
-		Email:     strings.TrimSpace(payload.Email),
-		Password:  payload.Password,
-		FirstName: strings.TrimSpace(payload.FirstName),
-		LastName:  strings.TrimSpace(payload.LastName),
-		UserType:  payload.UserType,
-		Roles:     payload.Roles,
-	}
+	createReq := payload.Build()
 
 	created, err := h.service.Create(c.Request.Context(), createReq)
-	if err != nil {
-		writeUserServiceError(c, err)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("user")) {
 		return
 	}
 
@@ -98,15 +77,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 
 func (h *UserHandler) Update(c *gin.Context) {
 	id := c.Param("id")
-	type userUpdatePayload struct {
-		FirstName *string   `json:"firstName" validate:"omitempty,min=2"`
-		LastName  *string   `json:"lastName" validate:"omitempty,min=2"`
-		Roles     *[]string `json:"roles" validate:"omitempty,dive,required"`
-		Status    *string   `json:"status" validate:"omitempty,oneof=active inactive suspended"`
-		UserType  *string   `json:"userType" validate:"omitempty,oneof=user admin"`
-	}
-
-	var payload userUpdatePayload
+	var payload dto.UserUpdatePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		rest.Error(c, http.StatusBadRequest, "invalid request payload",
 			rest.WithErrorCode("validation.invalid_payload"))
@@ -119,17 +90,10 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	updateReq := &service.UserUpdateInput{
-		FirstName: trimPointer(payload.FirstName),
-		LastName:  trimPointer(payload.LastName),
-		Roles:     payload.Roles,
-		Status:    trimPointer(payload.Status),
-		UserType:  trimPointer(payload.UserType),
-	}
+	updateReq := payload.Build()
 
 	updated, err := h.service.Update(c.Request.Context(), id, updateReq)
-	if err != nil {
-		writeUserServiceError(c, err)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("user")) {
 		return
 	}
 
@@ -138,8 +102,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 
 func (h *UserHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
-	if err := h.service.Delete(c.Request.Context(), id); err != nil {
-		writeUserServiceError(c, err)
+	if rest.HandleGRPCError(c, h.service.Delete(c.Request.Context(), id), rest.WithNamespace("user")) {
 		return
 	}
 
@@ -154,12 +117,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	type profilePayload struct {
-		FirstName *string `json:"firstName" validate:"omitempty,min=2"`
-		LastName  *string `json:"lastName" validate:"omitempty,min=2"`
-	}
-
-	var payload profilePayload
+	var payload dto.ProfilePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		rest.Error(c, http.StatusBadRequest, "invalid request payload",
 			rest.WithErrorCode("validation.invalid_payload"))
@@ -172,62 +130,12 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	profileReq := &service.ProfileUpdateInput{
-		FirstName: trimPointer(payload.FirstName),
-		LastName:  trimPointer(payload.LastName),
-	}
+	profileReq := payload.Build()
 
 	updated, err := h.service.UpdateProfile(c.Request.Context(), user.ID, profileReq)
-	if err != nil {
-		writeUserServiceError(c, err)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("user")) {
 		return
 	}
 
 	rest.Ok(c, updated)
-}
-
-func trimPointer(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
-}
-
-func writeUserServiceError(c *gin.Context, err error) {
-	if err == nil {
-		return
-	}
-
-	if st, ok := status.FromError(err); ok {
-		switch st.Code() {
-		case codes.InvalidArgument, codes.FailedPrecondition:
-			rest.Error(c, http.StatusBadRequest, st.Message(),
-				rest.WithErrorCode("user.invalid_request"))
-		case codes.AlreadyExists:
-			rest.Error(c, http.StatusConflict, st.Message(),
-				rest.WithErrorCode("user.already_exists"))
-		case codes.NotFound:
-			rest.Error(c, http.StatusNotFound, st.Message(),
-				rest.WithErrorCode("user.not_found"))
-		case codes.Unauthenticated:
-			rest.Error(c, http.StatusUnauthorized, st.Message(),
-				rest.WithErrorCode("user.unauthenticated"))
-		case codes.PermissionDenied:
-			rest.Error(c, http.StatusForbidden, st.Message(),
-				rest.WithErrorCode("user.permission_denied"))
-		default:
-			rest.Error(c, http.StatusBadGateway, "user service error",
-				rest.WithErrorCode("user.service_error"),
-				rest.WithErrorDetails(st.Message()))
-		}
-		return
-	}
-
-	rest.Error(c, http.StatusBadGateway, "user service unavailable",
-		rest.WithErrorCode("user.unavailable"),
-		rest.WithErrorDetails(err.Error()))
 }
