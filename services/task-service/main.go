@@ -13,6 +13,7 @@ import (
 	"github.com/aliirah/task-flow/services/task-service/internal/service"
 	"github.com/aliirah/task-flow/shared/db/gormdb"
 	"github.com/aliirah/task-flow/shared/env"
+	"github.com/aliirah/task-flow/shared/grpcutil"
 	log "github.com/aliirah/task-flow/shared/logging"
 	"github.com/aliirah/task-flow/shared/messaging"
 	taskpb "github.com/aliirah/task-flow/shared/proto/task/v1"
@@ -80,10 +81,32 @@ func main() {
 	}
 	defer rabbitMQ.Close()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer shutdown(ctx)
+	
+	// gRPC connections
+	authAddr := env.GetString("AUTH_SERVICE_ADDR", "auth-service:50051")
+	userAddr := env.GetString("USER_SERVICE_ADDR", "user-service:50052")
+	orgAddr := env.GetString("ORG_SERVICE_ADDR", "organization-service:50053")
+	taskAddr := env.GetString("TASK_SERVICE_ADDR", "task-service:50054")
+
+	grpcClients, err := grpcutil.Dial(ctx, grpcutil.Config{
+		AuthAddr:         authAddr,
+		UserAddr:         userAddr,
+		OrganizationAddr: orgAddr,
+		TaskAddr:         taskAddr,
+	})
+	if err != nil {
+		log.Error(fmt.Errorf("failed to connect downstream services: %w", err))
+		os.Exit(1)
+	}
+	defer grpcClients.Close()
+
 	// Initialize task event publisher
 	taskPublisher := event.NewTaskPublisher(rabbitMQ)
 
-	taskSvc := service.New(db, taskPublisher)
+	taskSvc := service.New(db, taskPublisher, grpcClients.User)
 	taskHandler := handler.NewTaskHandler(taskSvc)
 
 	addr := env.GetString("TASK_GRPC_ADDR", ":50054")

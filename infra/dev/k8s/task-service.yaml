@@ -28,6 +28,10 @@ spec:
           env:
             - name: TASK_GRPC_ADDR
               value: ":50054"
+            - name: USER_GRPC_ADDR
+              value: ":50052"
+            - name: AUTH_GRPC_ADDR
+              value: ":50051"
             - name: ENVIRONMENT
               value: "development"
             - name: JAEGER_ENDPOINT

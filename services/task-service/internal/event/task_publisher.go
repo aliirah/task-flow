@@ -8,11 +8,13 @@ import (
 	"github.com/aliirah/task-flow/services/task-service/internal/models"
 	"github.com/aliirah/task-flow/shared/contracts"
 	"github.com/aliirah/task-flow/shared/messaging"
+
+	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 )
 
 // TaskEventPublisher describes the behaviour required to broadcast task lifecycle events.
 type TaskEventPublisher interface {
-	TaskCreated(ctx context.Context, task *models.Task) error
+	TaskCreated(ctx context.Context, task *models.Task, reporter, assignee *userpb.User) error
 }
 
 // NewTaskPublisher builds a RabbitMQ-backed TaskEventPublisher
@@ -27,7 +29,7 @@ type taskPublisher struct {
 	mq *messaging.RabbitMQ
 }
 
-func (p *taskPublisher) TaskCreated(ctx context.Context, task *models.Task) error {
+func (p *taskPublisher) TaskCreated(ctx context.Context, task *models.Task, reporter, assignee *userpb.User) error {
 	if p == nil || p.mq == nil || task == nil {
 		return nil
 	}
@@ -41,6 +43,26 @@ func (p *taskPublisher) TaskCreated(ctx context.Context, task *models.Task) erro
 		Priority:       task.Priority,
 		AssigneeID:     task.AssigneeID.String(),
 		ReporterID:     task.ReporterID.String(),
+	}
+
+	// Add reporter details if available
+	if reporter != nil {
+		eventData.Reporter = &contracts.TaskUser{
+			ID:        reporter.Id,
+			FirstName: reporter.FirstName,
+			LastName:  reporter.LastName,
+			Email:     reporter.Email,
+		}
+	}
+
+	// Add assignee details if available
+	if assignee != nil {
+		eventData.Assignee = &contracts.TaskUser{
+			ID:        assignee.Id,
+			FirstName: assignee.FirstName,
+			LastName:  assignee.LastName,
+			Email:     assignee.Email,
+		}
 	}
 
 	if task.DueAt != nil {
@@ -70,4 +92,6 @@ func (p *taskPublisher) TaskCreated(ctx context.Context, task *models.Task) erro
 
 type noopTaskPublisher struct{}
 
-func (noopTaskPublisher) TaskCreated(context.Context, *models.Task) error { return nil }
+func (noopTaskPublisher) TaskCreated(context.Context, *models.Task, *userpb.User, *userpb.User) error {
+	return nil
+}

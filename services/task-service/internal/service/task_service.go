@@ -8,19 +8,24 @@ import (
 
 	"github.com/aliirah/task-flow/services/task-service/internal/event"
 	"github.com/aliirah/task-flow/services/task-service/internal/models"
+	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
 )
 
 type Service struct {
 	db        *gorm.DB
 	publisher event.TaskEventPublisher
+	userSvc   userpb.UserServiceClient
 }
 
-func New(db *gorm.DB, publisher event.TaskEventPublisher) *Service {
+func New(db *gorm.DB, publisher event.TaskEventPublisher, userSvc userpb.UserServiceClient) *Service {
 	return &Service{
 		db:        db,
 		publisher: publisher,
+		userSvc:   userSvc,
 	}
 }
 
@@ -51,7 +56,34 @@ func (s *Service) CreateTask(ctx context.Context, input CreateTaskInput) (*model
 		return nil, err
 	}
 
-	if err := s.publisher.TaskCreated(ctx, task); err != nil {
+	// Fetch reporter details
+	var reporter *userpb.User
+	resp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{
+		Id: task.ReporterID.String(),
+	})
+	if err != nil && status.Code(err) != codes.NotFound {
+		return nil, fmt.Errorf("failed to fetch reporter details: %w", err)
+	}
+	if resp != nil {
+		reporter = resp
+	}
+
+	// Fetch assignee details if assigned
+	var assignee *userpb.User
+	if task.AssigneeID != uuid.Nil {
+		resp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{
+			Id: task.AssigneeID.String(),
+		})
+		if err != nil && status.Code(err) != codes.NotFound {
+			return nil, fmt.Errorf("failed to fetch assignee details: %w", err)
+		}
+		if resp != nil {
+			assignee = resp
+		}
+	}
+
+	// Create task with enriched user details
+	if err := s.publisher.TaskCreated(ctx, task, reporter, assignee); err != nil {
 		return nil, fmt.Errorf("failed to publish task created event: %w", err)
 	}
 
