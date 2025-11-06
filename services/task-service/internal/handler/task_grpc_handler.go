@@ -184,19 +184,27 @@ func toProtoTask(task *models.Task) *taskpb.Task {
 		due = timestamppb.New(*task.DueAt)
 	}
 
-	return &taskpb.Task{
+	protoTask := &taskpb.Task{
 		Id:             task.ID.String(),
 		Title:          task.Title,
 		Description:    task.Description,
 		Status:         task.Status,
 		Priority:       task.Priority,
 		OrganizationId: task.OrganizationID.String(),
-		AssigneeId:     task.AssigneeID.String(),
-		ReporterId:     task.ReporterID.String(),
 		DueAt:          due,
 		CreatedAt:      timestamppb.New(task.CreatedAt),
 		UpdatedAt:      timestamppb.New(task.UpdatedAt),
 	}
+
+	// Only include IDs if they are not zero UUID
+	if task.AssigneeID != uuid.Nil {
+		protoTask.AssigneeId = task.AssigneeID.String()
+	}
+	if task.ReporterID != uuid.Nil {
+		protoTask.ReporterId = task.ReporterID.String()
+	}
+
+	return protoTask
 }
 
 func parseUUID(value string) (uuid.UUID, error) {
