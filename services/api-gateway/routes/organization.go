@@ -20,6 +20,7 @@ func registerOrganizationRoutes(api *gin.RouterGroup, handler *httphandler.Organ
 	orgs.GET("/mine", handler.ListUserMemberships)
 	orgs.GET("/:id", handler.Get)
 	orgs.PATCH("/:id", handler.Update)
+	orgs.PUT("/:id", handler.Update)
 	orgs.DELETE("/:id", handler.Delete)
 
 	orgs.POST("/:id/members", handler.AddMember)

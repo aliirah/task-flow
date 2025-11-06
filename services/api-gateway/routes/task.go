@@ -19,5 +19,6 @@ func registerTaskRoutes(api *gin.RouterGroup, handler *httphandler.TaskHandler, 
 	group.GET("", handler.List)
 	group.GET("/:id", handler.Get)
 	group.PATCH("/:id", handler.Update)
+	group.PUT("/:id", handler.Update)
 	group.DELETE("/:id", handler.Delete)
 }

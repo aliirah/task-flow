@@ -92,3 +92,50 @@ export class ApiError extends Error {
     )
   }
 }
+
+export type Organization = {
+  id: string
+  name: string
+  description?: string
+  ownerId: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type OrganizationMember = {
+  id: string
+  organizationId: string
+  userId: string
+  role: 'owner' | 'admin' | 'member'
+  status: string
+  createdAt?: string
+  user?: User
+  organization?: Organization
+}
+
+export type TaskStatus = 'open' | 'in_progress' | 'completed' | 'blocked' | 'cancelled'
+export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
+
+export type Task = {
+  id: string
+  title: string
+  description?: string
+  status: TaskStatus
+  priority: TaskPriority
+  organizationId: string
+  assigneeId?: string
+  reporterId?: string
+  dueAt?: string
+  createdAt?: string
+  updatedAt?: string
+  organization?: Organization
+  assignee?: User
+  reporter?: User
+}
+
+export interface TaskListResponse {
+  items: Task[]
+  page: number
+  limit: number
+  hasMore: boolean
+}

@@ -112,7 +112,7 @@ func (s *Service) ListTasks(ctx context.Context, params ListTasksParams) ([]mode
 		params.Page = 1
 	}
 	if params.Limit <= 0 {
-		params.Limit = 20
+		params.Limit = 10
 	}
 	offset := (params.Page - 1) * params.Limit
 

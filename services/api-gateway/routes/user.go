@@ -14,6 +14,7 @@ func registerUserRoutes(api *gin.RouterGroup, handler *httphandler.UserHandler, 
 	users.POST("", handler.Create)
 	users.GET("/:id", handler.Get)
 	users.PATCH("/:id", handler.Update)
+	users.PUT("/:id", handler.Update)
 	users.DELETE("/:id", handler.Delete)
 
 	profile := api.Group("/profile")

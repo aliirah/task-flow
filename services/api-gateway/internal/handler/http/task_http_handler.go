@@ -78,12 +78,12 @@ func (h *TaskHandler) Create(c *gin.Context) {
 // List handles GET /api/tasks.
 func (h *TaskHandler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	if page < 1 {
 		page = 1
 	}
 	if limit < 1 {
-		limit = 20
+		limit = 10
 	}
 
 	status, err := stringset.Normalize(c.Query("status"), "status", taskdomain.StatusSet, "")
@@ -99,7 +99,7 @@ func (h *TaskHandler) List(c *gin.Context) {
 		ReporterId:     c.Query("reporterId"),
 		Status:         status,
 		Page:           int32(page),
-		Limit:          int32(limit),
+		Limit:          int32(limit + 1),
 	}
 
 	resp, err := h.taskService.List(c.Request.Context(), req)
@@ -107,7 +107,13 @@ func (h *TaskHandler) List(c *gin.Context) {
 		return
 	}
 
-	items, err := h.taskService.BuildView(c.Request.Context(), resp.GetItems())
+	protoItems := resp.GetItems()
+	hasMore := len(protoItems) > limit
+	if hasMore {
+		protoItems = protoItems[:limit]
+	}
+
+	items, err := h.taskService.BuildView(c.Request.Context(), protoItems)
 	if err != nil {
 		if rest.HandleGRPCError(c, err, rest.WithNamespace("task")) {
 			return
@@ -116,7 +122,12 @@ func (h *TaskHandler) List(c *gin.Context) {
 		return
 	}
 
-	rest.Ok(c, gin.H{"items": items})
+	rest.Ok(c, gin.H{
+		"items":   items,
+		"page":    page,
+		"limit":   limit,
+		"hasMore": hasMore,
+	})
 }
 
 // Get handles GET /api/tasks/:id.
