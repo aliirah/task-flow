@@ -11,12 +11,19 @@ spec:
     metadata:
       labels:
         app: api-gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: api-gateway
           image: task-flow/api-gateway
           ports:
             - containerPort: 8081
+              name: http
+            - containerPort: 9090
+              name: metrics
           resources:
             requests:
               memory: "128Mi"

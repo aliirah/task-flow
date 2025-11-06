@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/aliirah/task-flow/shared/contracts"
+	"github.com/aliirah/task-flow/shared/metrics"
 	"github.com/aliirah/task-flow/shared/retry"
 	"github.com/aliirah/task-flow/shared/tracing"
 
@@ -134,7 +135,10 @@ func (r *RabbitMQ) PublishMessage(ctx context.Context, routingKey string, messag
 		Body:         jsonMsg,
 	}
 
-	return tracing.TracedPublisher(ctx, EventExchange, routingKey, msg, r.publish)
+	// Wrap the publish operation with metrics
+	return metrics.RecordRabbitMQMetrics(routingKey, message.EventType, int64(len(jsonMsg)), func() error {
+		return tracing.TracedPublisher(ctx, EventExchange, routingKey, msg, r.publish)
+	})
 }
 
 func (r *RabbitMQ) publish(ctx context.Context, exchange, routingKey string, msg amqp.Publishing) error {

@@ -193,3 +193,11 @@ local_resource(
 k8s_yaml('./infra/dev/k8s/jaeger.yaml')
 k8s_resource('jaeger', port_forwards=['16686:16686', '14268:14268'], labels="tooling")
 ### End of Jaeger ###
+
+### Monitoring Stack ###
+k8s_yaml('./infra/dev/k8s/prometheus.yaml')
+k8s_resource('prometheus', port_forwards='9090:9090', labels="tooling")
+
+k8s_yaml('./infra/dev/k8s/grafana-deployment.yaml')
+k8s_resource('grafana', port_forwards='3000:3000', labels="tooling")
+### End of Monitoring Stack ###

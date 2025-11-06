@@ -12,6 +12,10 @@ spec:
     metadata:
       labels:
         app: jaeger
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "14269"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: jaeger
@@ -22,6 +26,13 @@ spec:
           env:
             - name: COLLECTOR_OTLP_ENABLED
               value: "true"
+          resources:
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
 ---
 apiVersion: v1
 kind: Service
@@ -34,7 +45,7 @@ spec:
     - name: ui
       port: 16686
       targetPort: 16686
-    - name: collector
+    - name: collector-http
       port: 14268
       targetPort: 14268
-  type: ClusterIP 
+  type: ClusterIP

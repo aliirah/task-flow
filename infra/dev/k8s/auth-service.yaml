@@ -11,6 +11,10 @@ spec:
     metadata:
       labels:
         app: auth-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: auth-service
@@ -18,6 +22,9 @@ spec:
           imagePullPolicy: Never
           ports:
             - containerPort: 50051
+              name: grpc
+            - containerPort: 9090
+              name: metrics
           resources:
             requests:
               cpu: "100m"

@@ -9,6 +9,7 @@ import (
 
 	requestid "github.com/gin-contrib/requestid"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	gatewayevent "github.com/aliirah/task-flow/services/api-gateway/internal/event"
 	httphandler "github.com/aliirah/task-flow/services/api-gateway/internal/handler/http"
@@ -20,12 +21,14 @@ import (
 	grpcutil "github.com/aliirah/task-flow/shared/grpcutil"
 	log "github.com/aliirah/task-flow/shared/logging"
 	"github.com/aliirah/task-flow/shared/messaging"
+	"github.com/aliirah/task-flow/shared/metrics"
 	"github.com/aliirah/task-flow/shared/tracing"
 	"go.uber.org/zap"
 )
 
 var (
 	httpAddr    = env.GetString("HTTP_ADDR", ":8081")
+	metricsAddr = env.GetString("METRICS_ADDR", ":9090")
 	rabbitMqURI = env.GetString("RABBITMQ_URI", "amqp://guest:guest@rabbitmq:5672/")
 )
 
@@ -105,13 +108,18 @@ func main() {
 	}()
 	fmt.Println("Task event consumer successfully initialized")
 
+	// Initialize router with metrics middleware
 	router := gin.Default()
 	router.Use(
 		requestid.New(),
 		gatewaymiddleware.RequestContext(),
 		gatewaymiddleware.ErrorHandler(),
 		gatewaymiddleware.HTTPTracing(),
+		metrics.GinMiddleware("api-gateway"),
 	)
+
+	// Add metrics endpoint
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	healthHandler := httphandler.NewHealthHandler(gatewayservice.NewHealthService())
 	authSvc := gatewayservice.NewAuthService(grpcClients.Auth)
 	userSvc := gatewayservice.NewUserService(grpcClients.User)

@@ -7,12 +7,16 @@ import (
 	"os"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/aliirah/task-flow/services/organization-service/internal/handler"
 	"github.com/aliirah/task-flow/services/organization-service/internal/models"
 	"github.com/aliirah/task-flow/services/organization-service/internal/service"
 	"github.com/aliirah/task-flow/shared/db/gormdb"
 	"github.com/aliirah/task-flow/shared/env"
 	log "github.com/aliirah/task-flow/shared/logging"
+	"github.com/aliirah/task-flow/shared/metrics"
 	organizationpb "github.com/aliirah/task-flow/shared/proto/organization/v1"
 	"github.com/aliirah/task-flow/shared/tracing"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -74,10 +78,30 @@ func main() {
 
 	addr := env.GetString("ORG_GRPC_ADDR", ":50053")
 
+	// Initialize gRPC server with metrics interceptor
 	grpcServer := grpc.NewServer(
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.UnaryInterceptor(metrics.UnaryServerInterceptor()),
 	)
 	organizationpb.RegisterOrganizationServiceServer(grpcServer, orgHandler)
+
+	// Start metrics HTTP server
+	metricsAddr := env.GetString("METRICS_ADDR", ":9090")
+	go func() {
+		gin.SetMode(gin.ReleaseMode)
+		router := gin.New()
+		router.Use(gin.Recovery())
+		router.Use(metrics.GinMiddleware("organization-service"))
+
+		// Add metrics endpoint
+		router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+		log.Infof("Metrics server listening on %s", metricsAddr)
+		if err := router.Run(metricsAddr); err != nil {
+			log.Error(fmt.Errorf("metrics server stopped: %w", err))
+			os.Exit(1)
+		}
+	}()
 
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
