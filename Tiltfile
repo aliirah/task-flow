@@ -190,14 +190,14 @@ local_resource(
 ## End Seeders ##
 
 ### Web Client Frontend ###
-docker_build(
-  'task-flow/web-client',
-  '.',
-  dockerfile='./infra/dev/docker/web-client.Dockerfile',
-)
+# docker_build(
+#   'task-flow/web-client',
+#   '.',
+#   dockerfile='./infra/dev/docker/web-client.Dockerfile',
+# )
 
-k8s_yaml('./infra/dev/k8s/web-client-deployment.yaml')
-k8s_resource('web-client', port_forwards=3000, labels="frontend")
+# k8s_yaml('./infra/dev/k8s/web-client-deployment.yaml')
+# k8s_resource('web-client', port_forwards=3000, labels="frontend")
 
 ### End of Web Frontend ###
 

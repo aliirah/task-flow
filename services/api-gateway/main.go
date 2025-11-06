@@ -114,6 +114,7 @@ func main() {
 		requestid.New(),
 		gatewaymiddleware.RequestContext(),
 		gatewaymiddleware.ErrorHandler(),
+		gatewaymiddleware.CORS(),
 		gatewaymiddleware.HTTPTracing(),
 		metrics.GinMiddleware("api-gateway"),
 	)

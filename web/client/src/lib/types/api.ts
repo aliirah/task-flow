@@ -38,6 +38,23 @@ export interface RegisterData {
   lastName: string
 }
 
+type ApiErrorPayload = {
+  error?: {
+    code?: string
+    message?: string
+    details?: unknown
+  }
+}
+
+function isValidationErrorPayload(value: unknown): value is ValidationError {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const candidate = value as Record<string, unknown>
+  return typeof candidate.field === 'string' && typeof candidate.message === 'string'
+}
+
 export class ApiError extends Error {
   constructor(
     public code: string,
@@ -48,21 +65,30 @@ export class ApiError extends Error {
     this.name = 'ApiError'
   }
 
-  static fromResponse(data: any): ApiError {
-    if (data.error?.code === 'VALIDATION_ERROR' && Array.isArray(data.error.details)) {
+  static fromResponse(data: unknown): ApiError {
+    const payload = (data ?? {}) as ApiErrorPayload
+    const { error } = payload
+
+    if (
+      error?.code === 'VALIDATION_ERROR' &&
+      Array.isArray(error.details)
+    ) {
+      const details = error.details
+        .filter(isValidationErrorPayload)
+        .map((detail) => ({
+          field: detail.field,
+          message: detail.message,
+        }))
       return new ApiError(
         'VALIDATION_ERROR',
         'Validation failed',
-        data.error.details.map((detail: any) => ({
-          field: detail.field,
-          message: detail.message
-        }))
+        details
       )
     }
 
     return new ApiError(
-      data.error?.code || 'UNKNOWN_ERROR',
-      data.error?.message || 'An unexpected error occurred'
+      error?.code ?? 'UNKNOWN_ERROR',
+      error?.message ?? 'An unexpected error occurred'
     )
   }
 }

@@ -10,30 +10,67 @@ export async function apiClient<T>(endpoint: string, options: RequestInit = {}):
   const authStore = useAuthStore.getState()
   const { accessToken } = authStore
 
-  const headers = new Headers({
+  const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
     ...(options.headers as Record<string, string>),
-  })
+  }
 
   if (accessToken) {
-    headers.set('Authorization', `Bearer ${accessToken}`)
+    defaultHeaders['Authorization'] = `Bearer ${accessToken}`
   }
 
   try {
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
-      headers: headers as HeadersInit,
+      headers: defaultHeaders,
       credentials: 'include',
+      mode: 'cors'
     })
 
     let data
     try {
       data = await response.json()
     } catch (e) {
-      throw new ApiError(
-        'NETWORK_ERROR',
-        'Unable to connect to server. Please check your connection.'
-      )
+      console.error('Response parsing error:', e)
+      
+      // Handle preflight errors
+      if (response.status === 0) {
+        throw new ApiError(
+          'CORS_ERROR',
+          'Unable to connect to the server due to CORS restrictions.'
+        )
+      }
+      
+      // Handle specific HTTP status codes
+      switch (response.status) {
+        case 404:
+          throw new ApiError(
+            'NOT_FOUND',
+            'The requested resource was not found.'
+          )
+        case 403:
+          throw new ApiError(
+            'FORBIDDEN',
+            'You do not have permission to access this resource.'
+          )
+        case 500:
+          throw new ApiError(
+            'SERVER_ERROR',
+            'An internal server error occurred. Please try again later.'
+          )
+        default:
+          if (!response.ok) {
+            throw new ApiError(
+              'NETWORK_ERROR',
+              'Unable to connect to server. Please check your connection or try again later.'
+            )
+          }
+          throw new ApiError(
+            'PARSE_ERROR',
+            'Unable to process the server response.'
+          )
+      }
     }
 
     if (!response.ok) {
@@ -48,7 +85,7 @@ export async function apiClient<T>(endpoint: string, options: RequestInit = {}):
       throw ApiError.fromResponse(data)
     }
 
-    if (endpoint === '/auth/login' && data.status === 'success') {
+    if (endpoint === '/api/auth/login' && data.status === 'success') {
       // Set the access token as a cookie for the middleware
       Cookies.set('accessToken', (data.data as AuthResponse).accessToken, {
         expires: new Date((data.data as AuthResponse).expiresAt),
@@ -75,7 +112,7 @@ export async function refreshToken(): Promise<boolean> {
   if (!refreshToken) return false
 
   try {
-    const response = await fetch(`${API_URL}/auth/refresh`, {
+    const response = await fetch(`${API_URL}/api/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

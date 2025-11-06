@@ -5,19 +5,19 @@ import type { AuthResponse, RegisterData } from '@/lib/types/api'
 
 export const authApi = {
   login: (email: string, password: string) =>
-    apiClient<AuthResponse>('/auth/login', {
+    apiClient<AuthResponse>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier: email, password }),
     }),
 
   register: (data: RegisterData) =>
-    apiClient<void>('/auth/register', {
+    apiClient<void>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   logout: () =>
-    apiClient<void>('/auth/logout', {
+    apiClient<void>('/api/auth/logout', {
       method: 'POST',
     }),
 }

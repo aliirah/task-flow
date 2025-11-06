@@ -16,8 +16,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { LoginSchema, loginSchema } from '@/lib/validations/auth'
 import { useAuthStore } from '@/store/auth'
-import { authApi, ApiError } from '@/lib/api'
+import { authApi } from '@/lib/api'
 import { toast } from 'sonner'
+import { handleApiError } from '@/lib/utils/error-handler'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -26,6 +27,7 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    clearErrors,
     setError,
     formState: { errors, isSubmitting },
   } = useForm<LoginSchema>({
@@ -38,56 +40,47 @@ export default function LoginPage() {
       setAuth(response.data)
       toast.success('Successfully logged in!')
       router.push('/dashboard')
-    } catch (error: any) {
-      if (error instanceof ApiError) {
-        if (error.code === 'VALIDATION_ERROR' && error.validationErrors) {
-          // Handle validation errors by setting form errors
-          error.validationErrors.forEach((validationError) => {
-            setError(validationError.field as keyof LoginSchema, {
-              type: 'server',
-              message: validationError.message,
-            })
-          })
-        } else if (error.code === 'NETWORK_ERROR') {
-          toast.error('Connection Error', {
-            description: error.message,
-          })
-        } else if (error.code === 'INVALID_CREDENTIALS') {
-          toast.error('Invalid Credentials', {
-            description: 'Please check your email and password',
-          })
-        } else {
-          // Show other API errors in toast
-          toast.error('Error', {
-            description: error.message || 'An unexpected error occurred',
-          })
-        }
-      } else {
-        // Handle unexpected errors
-        console.error('Login error:', error)
-        toast.error('Error', {
-          description: 'An unexpected error occurred. Please try again later.',
-        })
-      }
+    } catch (error) {
+      handleApiError({
+        error,
+        setError,
+        clearErrors,
+        fields: ['email', 'password'],
+      })
     }
   }
 
   return (
-    <div className="container flex h-screen w-screen flex-col items-center justify-center">
-      <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
-        <Card className="grid gap-6 p-2">
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-gradient-to-br from-slate-100 via-white to-slate-100 px-4 py-12 text-slate-900">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(148,163,184,0.35),_transparent_60%)]" />
+      <div className="relative z-10 w-full max-w-md">
+        <div className="mb-10 text-center">
+          <span className="inline-flex items-center rounded-full bg-white/70 px-3 py-1 text-xs font-medium uppercase tracking-widest text-slate-600 shadow-sm backdrop-blur">
+            Task Flow
+          </span>
+          <h1 className="mt-6 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+            Welcome back
+          </h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Sign in to continue orchestrating your organisation.
+          </p>
+        </div>
+
+        <Card className="border border-white/40 bg-white/90 shadow-xl shadow-slate-200 backdrop-blur">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center font-semibold tracking-tight">
-              Welcome back
-            </CardTitle>
-            <CardDescription className="text-center">
-              Enter your credentials to sign in to your account
+            <CardTitle className="text-xl font-semibold text-slate-900">Sign in</CardTitle>
+            <CardDescription className="text-slate-600">
+              Let’s pick up where you left off.
             </CardDescription>
           </CardHeader>
+
           <form onSubmit={handleSubmit(onSubmit)}>
-            <CardContent className="grid gap-4">
+            <CardContent className="grid gap-5">
               <div className="grid gap-2">
-                <label htmlFor="email" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                <label
+                  htmlFor="email"
+                  className="text-sm font-medium text-slate-700"
+                >
                   Email
                 </label>
                 <Input
@@ -97,34 +90,53 @@ export default function LoginPage() {
                   autoCapitalize="none"
                   autoCorrect="off"
                   disabled={isSubmitting}
-                  placeholder="name@example.com"
+                  placeholder="name@company.com"
+                  className="bg-white text-slate-900 placeholder:text-slate-400 focus-visible:ring-slate-300"
                   {...register('email')}
                 />
                 {errors?.email && (
-                  <p className="text-sm font-medium text-red-500">{errors.email.message}</p>
+                  <p className="text-sm font-medium text-rose-500">
+                    {errors.email.message}
+                  </p>
                 )}
               </div>
+
               <div className="grid gap-2">
-                <label htmlFor="password" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  Password
-                </label>
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="password"
+                    className="text-sm font-medium text-slate-700"
+                  >
+                    Password
+                  </label>
+                  <Link
+                    href="/auth/forgot-password"
+                    className="text-xs font-medium text-slate-500 transition hover:text-slate-700"
+                  >
+                    Forgot?
+                  </Link>
+                </div>
                 <Input
                   id="password"
                   type="password"
                   autoComplete="current-password"
                   disabled={isSubmitting}
-                  placeholder="Enter your password"
+                  placeholder="••••••••"
+                  className="bg-white text-slate-900 placeholder:text-slate-400 focus-visible:ring-slate-300"
                   {...register('password')}
                 />
                 {errors?.password && (
-                  <p className="text-sm font-medium text-red-500">{errors.password.message}</p>
+                  <p className="text-sm font-medium text-rose-500">
+                    {errors.password.message}
+                  </p>
                 )}
               </div>
             </CardContent>
-            <CardFooter className="flex flex-col gap-4">
-              <Button 
-                type="submit" 
-                className="w-full mt-4"
+
+            <CardFooter className="flex flex-col gap-5">
+              <Button
+                type="submit"
+                className="mt-4 w-full bg-slate-900 text-white shadow-lg shadow-slate-500/20 transition hover:bg-slate-800"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
@@ -149,19 +161,20 @@ export default function LoginPage() {
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       />
                     </svg>
-                    Signing in...
+                    Signing in…
                   </>
                 ) : (
                   'Sign in'
                 )}
               </Button>
-              <p className="px-8 text-center text-sm text-muted-foreground">
-                Don&apos;t have an account?{' '}
-                <Link 
-                  href="/auth/register" 
-                  className="underline underline-offset-4 hover:text-primary"
+
+              <p className="text-center text-sm text-slate-600">
+                Need an account?{' '}
+                <Link
+                  href="/auth/register"
+                  className="font-medium text-slate-900 underline-offset-4 transition hover:text-slate-700"
                 >
-                  Sign up
+                  Create one
                 </Link>
               </p>
             </CardFooter>

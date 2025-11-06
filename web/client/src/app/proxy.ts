@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
     try {
       const parsed = JSON.parse(authData.value)
       isValidAuth = !!(parsed.state?.accessToken && parsed.state?.user)
-    } catch (e) {
+    } catch {
       isValidAuth = false
     }
   }
