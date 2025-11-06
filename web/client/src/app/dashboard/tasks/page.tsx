@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Plus } from 'lucide-react'
 
-import { organizationApi, taskApi } from '@/lib/api'
-import { Organization, Task, TaskPriority, TaskStatus } from '@/lib/types/api'
+import { useDashboard } from '@/components/dashboard/dashboard-shell'
+import { taskApi } from '@/lib/api'
+import { Task, TaskPriority, TaskStatus } from '@/lib/types/api'
 import { handleApiError } from '@/lib/utils/error-handler'
 import { Button } from '@/components/ui/button'
 import {
@@ -46,51 +47,27 @@ export default function TasksIndexPage() {
   const searchParams = useSearchParams()
   const initialOrgId = searchParams.get('orgId') ?? undefined
 
-  const [organizations, setOrganizations] = useState<Organization[]>([])
-  const [selectedOrgId, setSelectedOrgId] = useState<string | undefined>(
-    initialOrgId
-  )
+  const {
+    organizations,
+    selectedOrganizationId,
+    setSelectedOrganizationId,
+  } = useDashboard()
+
   const [tasks, setTasks] = useState<Task[]>([])
   const [filter, setFilter] = useState<'all' | TaskStatus>('all')
   const [page, setPage] = useState(0)
-  const [loading, setLoading] = useState(false)
   const [loadingTasks, setLoadingTasks] = useState(false)
   const [hasMore, setHasMore] = useState(false)
 
   useEffect(() => {
-    const fetchMemberships = async () => {
-      setLoading(true)
-      try {
-        const response = await organizationApi.listMine()
-        const items = response.data?.items ?? []
-        const unique = new Map<string, Organization>()
-        items.forEach((membership) => {
-          if (membership.organization) {
-            unique.set(membership.organization.id, membership.organization)
-          }
-        })
-        const available = Array.from(unique.values())
-        setOrganizations(available)
-
-        if (!initialOrgId && available.length > 0) {
-          setSelectedOrgId(available[0].id)
-        } else if (
-          initialOrgId &&
-          available.every((org) => org.id !== initialOrgId)
-        ) {
-          setSelectedOrgId(available[0]?.id)
-        }
-      } catch (error) {
-        handleApiError({ error })
-      } finally {
-        setLoading(false)
-      }
+    if (!initialOrgId) return
+    if (organizations.some((org) => org.id === initialOrgId)) {
+      setSelectedOrganizationId(initialOrgId)
     }
-    fetchMemberships()
-  }, [initialOrgId])
+  }, [initialOrgId, organizations, setSelectedOrganizationId])
 
   useEffect(() => {
-    if (!selectedOrgId) {
+    if (!selectedOrganizationId) {
       setTasks([])
       setHasMore(false)
       return
@@ -99,7 +76,7 @@ export default function TasksIndexPage() {
       setLoadingTasks(true)
       try {
         const response = await taskApi.list({
-          organizationId: selectedOrgId,
+          organizationId: selectedOrganizationId,
           page: page + 1,
           limit: PAGE_SIZE,
           status: filter === 'all' ? undefined : filter,
@@ -124,11 +101,11 @@ export default function TasksIndexPage() {
       }
     }
     fetchTasks()
-  }, [selectedOrgId, page, filter])
+  }, [selectedOrganizationId, page, filter])
 
   useEffect(() => {
     setPage(0)
-  }, [filter, selectedOrgId])
+  }, [filter, selectedOrganizationId])
 
   const range = useMemo(() => {
     if (tasks.length === 0) {
@@ -150,8 +127,10 @@ export default function TasksIndexPage() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Select
-            value={selectedOrgId}
-            onChange={(event) => setSelectedOrgId(event.target.value || undefined)}
+            value={selectedOrganizationId ?? ''}
+            onChange={(event) =>
+              setSelectedOrganizationId(event.target.value || null)
+            }
           >
             <option value="">Select organization</option>
             {organizations.map((org) => (
@@ -162,13 +141,13 @@ export default function TasksIndexPage() {
           </Select>
           <Button
             asChild
-            disabled={!selectedOrgId}
+            disabled={!selectedOrganizationId}
             className="gap-2"
           >
             <Link
               href={
-                selectedOrgId
-                  ? `/dashboard/tasks/new?orgId=${selectedOrgId}`
+                selectedOrganizationId
+                  ? `/dashboard/tasks/new?orgId=${selectedOrganizationId}`
                   : '/dashboard/tasks/new'
               }
             >
@@ -203,11 +182,11 @@ export default function TasksIndexPage() {
           </Select>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          {!selectedOrgId ? (
+          {!selectedOrganizationId ? (
             <p className="py-6 text-sm text-slate-500">
               Choose an organization to see its tasks.
             </p>
-          ) : loading || loadingTasks ? (
+          ) : loadingTasks ? (
             <p className="py-6 text-sm text-slate-500">Loading…</p>
           ) : tasks.length === 0 ? (
             <p className="py-6 text-sm text-slate-500">
