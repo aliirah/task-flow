@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
-import { ApiError } from '@/lib/api'
 import {
   Card,
   CardContent,
@@ -17,7 +16,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { LoginSchema, loginSchema } from '@/lib/validations/auth'
 import { useAuthStore } from '@/store/auth'
-import { auth } from '@/lib/api'
+import { authApi, ApiError } from '@/lib/api'
 import { toast } from 'sonner'
 
 export default function LoginPage() {
@@ -35,7 +34,7 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginSchema) => {
     try {
-      const response = await auth.login(data.email, data.password)
+      const response = await authApi.login(data.email, data.password)
       setAuth(response.data)
       toast.success('Successfully logged in!')
       router.push('/dashboard')
@@ -49,18 +48,25 @@ export default function LoginPage() {
               message: validationError.message,
             })
           })
+        } else if (error.code === 'NETWORK_ERROR') {
+          toast.error('Connection Error', {
+            description: error.message,
+          })
+        } else if (error.code === 'INVALID_CREDENTIALS') {
+          toast.error('Invalid Credentials', {
+            description: 'Please check your email and password',
+          })
         } else {
           // Show other API errors in toast
-          toast.error(error.message, {
-            description: error.code === 'INVALID_CREDENTIALS' 
-              ? 'Please check your email and password'
-              : undefined,
+          toast.error('Error', {
+            description: error.message || 'An unexpected error occurred',
           })
         }
       } else {
         // Handle unexpected errors
-        toast.error('An unexpected error occurred', {
-          description: 'Please try again later',
+        console.error('Login error:', error)
+        toast.error('Error', {
+          description: 'An unexpected error occurred. Please try again later.',
         })
       }
     }

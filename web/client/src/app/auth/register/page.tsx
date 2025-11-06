@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
-import { ApiError, ValidationError } from '@/lib/api'
+import { ApiError, ValidationError, authApi } from '@/lib/api'
 import {
   Card,
   CardContent,
@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { RegisterSchema, registerSchema } from '@/lib/validations/auth'
-import { auth } from '@/lib/api'
 import { toast } from 'sonner'
 
 export default function RegisterPage() {
@@ -33,7 +32,7 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: RegisterSchema) => {
     try {
-      await auth.register(data)
+      await authApi.register(data)
       toast.success('Registration successful!', {
         description: 'You can now log in with your credentials',
       })
