@@ -12,10 +12,39 @@ interface ApiResponse<T> {
   }
 }
 
-class ApiError extends Error {
-  constructor(public code: string, message: string) {
+export interface ValidationError {
+  field: string
+  message: string
+}
+
+export class ApiError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public validationErrors?: ValidationError[]
+  ) {
     super(message)
     this.name = 'ApiError'
+  }
+
+  static fromResponse(data: any): ApiError {
+    // Handle validation errors
+    if (data.error?.code === 'VALIDATION_ERROR' && Array.isArray(data.error.details)) {
+      return new ApiError(
+        'VALIDATION_ERROR',
+        'Validation failed',
+        data.error.details.map((detail: any) => ({
+          field: detail.field,
+          message: detail.message
+        }))
+      )
+    }
+
+    // Handle other API errors
+    return new ApiError(
+      data.error?.code || 'UNKNOWN_ERROR',
+      data.error?.message || 'An unexpected error occurred'
+    )
   }
 }
 
@@ -53,7 +82,7 @@ export async function api<T>(
       // If refresh failed, clear auth and throw error
       authStore.clearAuth()
     }
-    throw new ApiError(data.error?.code || 'UNKNOWN_ERROR', data.error?.message || 'An unknown error occurred')
+    throw ApiError.fromResponse(data)
   }
 
   return data

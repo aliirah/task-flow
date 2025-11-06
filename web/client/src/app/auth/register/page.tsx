@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
+import { ApiError, ValidationError } from '@/lib/api'
 import {
   Card,
   CardContent,
@@ -24,6 +25,7 @@ export default function RegisterPage() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<RegisterSchema>({
     resolver: zodResolver(registerSchema),
@@ -32,10 +34,34 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterSchema) => {
     try {
       await auth.register(data)
-      toast.success('Registration successful! Please login.')
+      toast.success('Registration successful!', {
+        description: 'You can now log in with your credentials',
+      })
       router.push('/auth/login')
     } catch (error: any) {
-      toast.error(error.message)
+      if (error instanceof ApiError) {
+        if (error.code === 'VALIDATION_ERROR' && error.validationErrors) {
+          error.validationErrors.forEach((validationError: ValidationError) => {
+            setError(validationError.field as keyof RegisterSchema, {
+              type: 'server',
+              message: validationError.message,
+            })
+          })
+        } else if (error.code === 'EMAIL_ALREADY_EXISTS') {
+          setError('email', {
+            type: 'server',
+            message: 'This email is already registered',
+          })
+        } else {
+          toast.error(error.message, {
+            description: 'Please try again or contact support if the problem persists',
+          })
+        }
+      } else {
+        toast.error('Failed to create account', {
+          description: 'Please try again later',
+        })
+      }
     }
   }
 

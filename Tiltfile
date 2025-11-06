@@ -189,6 +189,18 @@ local_resource(
   labels="seeders", trigger_mode=TRIGGER_MODE_MANUAL, auto_init=False)
 ## End Seeders ##
 
+### Web Client Frontend ###
+docker_build(
+  'task-flow/web-client',
+  '.',
+  dockerfile='./infra/dev/docker/web-client.Dockerfile',
+)
+
+k8s_yaml('./infra/dev/k8s/web-client-deployment.yaml')
+k8s_resource('web-client', port_forwards=3000, labels="frontend")
+
+### End of Web Frontend ###
+
 ### Jaeger ###
 k8s_yaml('./infra/dev/k8s/jaeger.yaml')
 k8s_resource('jaeger', port_forwards=['16686:16686', '14268:14268'], labels="tooling")
@@ -199,5 +211,5 @@ k8s_yaml('./infra/dev/k8s/prometheus.yaml')
 k8s_resource('prometheus', port_forwards='9090:9090', labels="tooling")
 
 k8s_yaml('./infra/dev/k8s/grafana-deployment.yaml')
-k8s_resource('grafana', port_forwards='3000:3000', labels="tooling")
+k8s_resource('grafana', port_forwards='7001:7001', labels="tooling")
 ### End of Monitoring Stack ###

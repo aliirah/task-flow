@@ -16,8 +16,11 @@ spec:
       - name: grafana
         image: grafana/grafana:10.1.0
         ports:
-        - containerPort: 3000
+        - containerPort: 7001
+          name: http
         env:
+        - name: GF_SERVER_HTTP_PORT
+          value: "7001"
         - name: GF_SECURITY_ADMIN_PASSWORD
           valueFrom:
             secretKeyRef:
@@ -45,5 +48,6 @@ spec:
   selector:
     app: grafana
   ports:
-  - port: 3000
-    targetPort: 3000
+  - port: 7001
+    targetPort: 7001
+    name: http

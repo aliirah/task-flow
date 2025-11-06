@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
+import { ApiError } from '@/lib/api'
 import {
   Card,
   CardContent,
@@ -26,6 +27,7 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
@@ -35,9 +37,32 @@ export default function LoginPage() {
     try {
       const response = await auth.login(data.email, data.password)
       setAuth(response.data)
-      router.push('/')
+      toast.success('Successfully logged in!')
+      router.push('/dashboard')
     } catch (error: any) {
-      toast.error(error.message)
+      if (error instanceof ApiError) {
+        if (error.code === 'VALIDATION_ERROR' && error.validationErrors) {
+          // Handle validation errors by setting form errors
+          error.validationErrors.forEach((validationError) => {
+            setError(validationError.field as keyof LoginSchema, {
+              type: 'server',
+              message: validationError.message,
+            })
+          })
+        } else {
+          // Show other API errors in toast
+          toast.error(error.message, {
+            description: error.code === 'INVALID_CREDENTIALS' 
+              ? 'Please check your email and password'
+              : undefined,
+          })
+        }
+      } else {
+        // Handle unexpected errors
+        toast.error('An unexpected error occurred', {
+          description: 'Please try again later',
+        })
+      }
     }
   }
 
