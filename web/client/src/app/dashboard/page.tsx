@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import * as z from 'zod'
 import {
   Activity,
   CalendarDays,
@@ -40,15 +42,33 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
+import { DateTimePickerField } from '@/components/ui/date-time-picker'
 
-type TaskFormValues = {
-  title: string
-  description: string
-  assigneeId: string
-  priority: TaskPriority
-  status: TaskStatus
-  dueAt: string
-}
+const organizationFormSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters').max(128),
+  description: z
+    .string()
+    .max(1024, 'Description must be under 1024 characters')
+    .optional()
+    .or(z.literal('')),
+})
+type OrganizationFormValues = z.infer<typeof organizationFormSchema>
+
+const memberFormSchema = z.object({
+  email: z.string().email('Enter a valid email address'),
+  role: z.enum(['owner', 'admin', 'member']),
+})
+type MemberFormValues = z.infer<typeof memberFormSchema>
+
+const taskFormSchema = z.object({
+  title: z.string().min(3, 'Title must be at least 3 characters'),
+  description: z.string().max(4096).optional().or(z.literal('')),
+  assigneeId: z.string().optional().or(z.literal('')),
+  priority: z.enum(['low', 'medium', 'high', 'critical']),
+  status: z.enum(['open', 'in_progress', 'completed', 'blocked', 'cancelled']),
+  dueAt: z.string().optional().or(z.literal('')),
+})
+type TaskFormValues = z.infer<typeof taskFormSchema>
 
 const STATUS_LABELS: Record<
   TaskStatus,
@@ -112,17 +132,22 @@ export default function DashboardPage() {
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null)
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
-  const createOrgForm = useForm<{ name: string; description: string }>({
+  const createOrgForm = useForm<OrganizationFormValues>({
+    resolver: zodResolver(organizationFormSchema),
     defaultValues: { name: '', description: '' },
   })
-  const editOrgForm = useForm<{ name: string; description: string }>({
+  const editOrgForm = useForm<OrganizationFormValues>({
+    resolver: zodResolver(organizationFormSchema),
     defaultValues: { name: '', description: '' },
   })
-  const memberForm = useForm<{ email: string; role: 'owner' | 'admin' | 'member' }>(
-    { defaultValues: { email: '', role: 'member' } }
-  )
+  const memberForm = useForm<MemberFormValues>({
+    resolver: zodResolver(memberFormSchema),
+    defaultValues: { email: '', role: 'member' },
+  })
   const taskForm = useForm<TaskFormValues>({
+    resolver: zodResolver(taskFormSchema),
     defaultValues: {
       title: '',
       description: '',
@@ -359,6 +384,7 @@ export default function DashboardPage() {
   const handleDeleteTask = async () => {
     if (!selectedOrganizationId || !taskToDelete) return
     try {
+      setDeleteLoading(true)
       await taskApi.remove(taskToDelete.id)
       toast.success('Task deleted')
       setTaskToDelete(null)
@@ -366,6 +392,8 @@ export default function DashboardPage() {
       fetchTaskSummary(selectedOrganizationId)
     } catch (error) {
       handleApiError({ error })
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -390,9 +418,7 @@ export default function DashboardPage() {
       assigneeId: task.assigneeId ?? '',
       priority: task.priority,
       status: task.status,
-      dueAt: task.dueAt
-        ? new Date(task.dueAt).toISOString().slice(0, 16)
-        : '',
+      dueAt: task.dueAt ?? '',
     })
     setTaskModalOpen(true)
   }
@@ -575,7 +601,7 @@ export default function DashboardPage() {
               onChange={(event) =>
                 setTaskFilter(event.target.value as 'all' | TaskStatus)
               }
-              containerClassName="min-w-[160px]"
+              containerClassName="w-full min-w-[160px] max-w-xs md:max-w-[200px]"
             >
               <option value="all">All statuses</option>
               <option value="open">Open</option>
@@ -885,6 +911,7 @@ export default function DashboardPage() {
             <Button
               type="submit"
               form="create-org-form"
+              className="min-w-[120px]"
               disabled={createOrgForm.formState.isSubmitting}
             >
               {createOrgForm.formState.isSubmitting ? 'Creating…' : 'Create'}
@@ -899,16 +926,7 @@ export default function DashboardPage() {
         >
           <div className="grid gap-1.5">
             <label className="text-sm font-medium text-slate-700">Name</label>
-            <Input
-              placeholder="Acme Inc."
-              {...createOrgForm.register('name', {
-                required: 'Name is required',
-                minLength: {
-                  value: 2,
-                  message: 'Name should be at least 2 characters',
-                },
-              })}
-            />
+            <Input placeholder="Acme Inc." {...createOrgForm.register('name')} />
             {createOrgForm.formState.errors.name && (
               <p className="text-xs text-rose-500">
                 {createOrgForm.formState.errors.name.message}
@@ -949,6 +967,7 @@ export default function DashboardPage() {
             <Button
               type="submit"
               form="edit-org-form"
+              className="min-w-[130px]"
               disabled={editOrgForm.formState.isSubmitting}
             >
               {editOrgForm.formState.isSubmitting ? 'Saving…' : 'Save changes'}
@@ -963,16 +982,7 @@ export default function DashboardPage() {
         >
           <div className="grid gap-1.5">
             <label className="text-sm font-medium text-slate-700">Name</label>
-            <Input
-              placeholder="Acme Inc."
-              {...editOrgForm.register('name', {
-                required: 'Name is required',
-                minLength: {
-                  value: 2,
-                  message: 'Name should be at least 2 characters',
-                },
-              })}
-            />
+            <Input placeholder="Acme Inc." {...editOrgForm.register('name')} />
             {editOrgForm.formState.errors.name && (
               <p className="text-xs text-rose-500">
                 {editOrgForm.formState.errors.name.message}
@@ -1001,7 +1011,11 @@ export default function DashboardPage() {
             <Button variant="ghost" onClick={() => setDeleteOrgTarget(null)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteOrganization}>
+            <Button
+              variant="destructive"
+              className="min-w-[110px]"
+              onClick={handleDeleteOrganization}
+            >
               Delete
             </Button>
           </>
@@ -1035,6 +1049,7 @@ export default function DashboardPage() {
             <Button
               type="submit"
               form="member-form"
+              className="min-w-[120px]"
               disabled={memberForm.formState.isSubmitting}
             >
               {memberForm.formState.isSubmitting ? 'Inviting…' : 'Send invite'}
@@ -1048,7 +1063,7 @@ export default function DashboardPage() {
             <Input
               type="email"
               placeholder="name@example.com"
-              {...memberForm.register('email', { required: 'Email is required' })}
+              {...memberForm.register('email')}
             />
             {memberForm.formState.errors.email && (
               <p className="text-xs text-rose-500">
@@ -1077,7 +1092,11 @@ export default function DashboardPage() {
             <Button variant="ghost" onClick={() => setMemberToRemove(null)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleRemoveMember}>
+            <Button
+              variant="destructive"
+              className="min-w-[110px]"
+              onClick={handleRemoveMember}
+            >
               Remove
             </Button>
           </>
@@ -1136,6 +1155,7 @@ export default function DashboardPage() {
             <Button
               type="submit"
               form="task-form"
+              className="min-w-[130px]"
               disabled={taskForm.formState.isSubmitting}
             >
               {taskForm.formState.isSubmitting
@@ -1222,7 +1242,17 @@ export default function DashboardPage() {
               <label className="text-sm font-medium text-slate-700">
                 Due date
               </label>
-              <Input type="datetime-local" {...taskForm.register('dueAt')} />
+              <Controller
+                control={taskForm.control}
+                name="dueAt"
+                render={({ field }) => (
+                  <DateTimePickerField
+                    value={field.value || undefined}
+                    onChange={field.onChange}
+                    placeholder="Select a date"
+                  />
+                )}
+              />
             </div>
           </div>
         </form>
@@ -1230,16 +1260,25 @@ export default function DashboardPage() {
 
       <Modal
         open={Boolean(taskToDelete)}
-        onClose={() => setTaskToDelete(null)}
+        onClose={() => (deleteLoading ? null : setTaskToDelete(null))}
         title="Delete task"
         description="This action cannot be undone."
         footer={
           <>
-            <Button variant="ghost" onClick={() => setTaskToDelete(null)}>
+            <Button
+              variant="ghost"
+              onClick={() => setTaskToDelete(null)}
+              disabled={deleteLoading}
+            >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteTask}>
-              Delete task
+            <Button
+              variant="destructive"
+              className="min-w-[110px]"
+              onClick={handleDeleteTask}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? 'Deleting…' : 'Delete task'}
             </Button>
           </>
         }

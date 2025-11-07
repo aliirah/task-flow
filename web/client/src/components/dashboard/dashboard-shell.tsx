@@ -21,17 +21,19 @@ import {
   LogOut,
   Menu,
   Settings,
-  UserCircle,
 } from 'lucide-react'
 
 import { authApi, organizationApi } from '@/lib/api'
 import type { Organization, OrganizationMember } from '@/lib/types/api'
 import { handleApiError } from '@/lib/utils/error-handler'
 import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
 import { useAuthStore } from '@/store/auth'
+import { toast } from 'sonner'
+import Cookies from 'js-cookie'
 
 type DashboardContextValue = {
   organizations: Organization[]
@@ -74,13 +76,16 @@ interface DashboardShellProps {
 export function DashboardShell({ children }: DashboardShellProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { user, clearAuth } = useAuthStore()
+  const { user, refreshToken, clearAuth } = useAuthStore()
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [orgMenuOpen, setOrgMenuOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [orgQuery, setOrgQuery] = useState('')
   const orgMenuRef = useRef<HTMLDivElement | null>(null)
+  const userMenuRef = useRef<HTMLDivElement | null>(null)
   const storedOrgRef = useRef<string | null>(null)
 
   const [memberships, setMemberships] = useState<OrganizationMember[]>([])
@@ -98,6 +103,13 @@ export function DashboardShell({ children }: DashboardShellProps) {
   }, [])
 
   const refreshOrganizations = useCallback(async () => {
+    if (!user) {
+      setMemberships([])
+      setOrganizations([])
+      setSelectedOrganizationIdState(null)
+      setSelectionHydrated(true)
+      return
+    }
     setLoadingOrganizations(true)
     try {
       const response = await organizationApi.listMine()
@@ -133,7 +145,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
       setLoadingOrganizations(false)
       setSelectionHydrated(true)
     }
-  }, [])
+  }, [user])
 
   useEffect(() => {
     refreshOrganizations()
@@ -162,6 +174,32 @@ export function DashboardShell({ children }: DashboardShellProps) {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [orgMenuOpen])
 
+  useEffect(() => {
+    if (!orgMenuOpen) {
+      setOrgQuery('')
+    }
+  }, [orgMenuOpen])
+
+  useEffect(() => {
+    if (!orgMenuOpen) {
+      setOrgQuery('')
+    }
+  }, [orgMenuOpen])
+
+  useEffect(() => {
+    if (!userMenuOpen) return
+    const onClick = (event: MouseEvent) => {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
+        setUserMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [userMenuOpen])
+
   const setSelectedOrganizationId = useCallback(
     (orgId: string | null) => {
       if (orgId && !organizations.some((org) => org.id === orgId)) {
@@ -177,6 +215,18 @@ export function DashboardShell({ children }: DashboardShellProps) {
     () => organizations.find((org) => org.id === selectedOrganizationId),
     [organizations, selectedOrganizationId]
   )
+
+  const filteredOrganizations = useMemo(() => {
+    if (!orgQuery.trim()) {
+      return organizations
+    }
+    const query = orgQuery.toLowerCase()
+    return organizations.filter((org) =>
+      [org.name, org.description].some((value) =>
+        value?.toLowerCase().includes(query)
+      )
+    )
+  }, [organizations, orgQuery])
 
   const selectedMembership = useMemo(
     () =>
@@ -196,15 +246,19 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const handleLogout = useCallback(async () => {
     setIsLoggingOut(true)
     try {
-      await authApi.logout()
+      if (refreshToken) {
+        await authApi.logout(refreshToken)
+      }
+      toast.success('Signed out')
     } catch (error) {
       console.error('logout failed', error)
     } finally {
       clearAuth()
+      Cookies.remove('accessToken')
+      setSelectedOrganizationIdState(null)
       setIsLoggingOut(false)
       setLogoutConfirmOpen(false)
       router.replace('/auth/login')
-      router.refresh()
     }
   }, [clearAuth, router])
 
@@ -259,8 +313,10 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
           <nav className="flex flex-1 flex-col gap-1 px-3 py-6">
             {NAV_ITEMS.map(({ icon: Icon, label, href }) => {
-              const isActive =
-                pathname === href || pathname?.startsWith(`${href}/`)
+              const isRoot = href === '/dashboard'
+              const isActive = isRoot
+                ? pathname === '/dashboard'
+                : pathname === href || pathname?.startsWith(`${href}/`)
               const content = (
                 <span
                   className={cn(
@@ -299,16 +355,17 @@ export function DashboardShell({ children }: DashboardShellProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden"
+                className="rounded-full border border-slate-200 bg-white shadow-sm"
                 onClick={() => setSidebarCollapsed((prev) => !prev)}
+                aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               >
-                <Menu className="size-5" />
+                <Menu className="size-5 text-slate-600" />
               </Button>
 
               <div className="relative" ref={orgMenuRef}>
                 <Button
                   variant="outline"
-                  className="flex cursor-pointer items-center gap-2 rounded-full border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:border-slate-300"
+                  className="flex cursor-pointer items-center gap-3 rounded-full border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-slate-300"
                   onClick={() => setOrgMenuOpen((prev) => !prev)}
                   disabled={loadingOrganizations}
                 >
@@ -329,35 +386,22 @@ export function DashboardShell({ children }: DashboardShellProps) {
                       <Input
                         placeholder="Search…"
                         className="mt-2 h-9 w-full rounded-lg bg-slate-50"
-                        onChange={(event) => {
-                          const value = event.target.value.toLowerCase()
-                          const container = orgMenuRef.current?.querySelector(
-                            '[data-org-list]'
-                          )
-                          if (!container) return
-                          const items =
-                            container.querySelectorAll<HTMLButtonElement>(
-                              '[data-org-item]'
-                            )
-                          items.forEach((item) => {
-                            const match = item.dataset.name
-                              ?.toLowerCase()
-                              .includes(value)
-                            item.style.display = match ? 'flex' : 'none'
-                          })
-                        }}
+                        value={orgQuery}
+                        onChange={(event) => setOrgQuery(event.target.value)}
                       />
                     </div>
                     <div
                       className="max-h-64 overflow-y-auto py-1"
                       data-org-list
                     >
-                      {organizations.length === 0 ? (
+                      {filteredOrganizations.length === 0 ? (
                         <p className="px-4 py-6 text-sm text-slate-500">
-                          You&apos;re not part of any organization yet.
+                          {orgQuery
+                            ? 'No organizations match your search.'
+                            : 'You are not part of any organization yet.'}
                         </p>
                       ) : (
-                        organizations.map((org) => {
+                        filteredOrganizations.map((org) => {
                           const membership = memberships.find(
                             (item) =>
                               item.organizationId === org.id ||
@@ -376,7 +420,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
                               )}
                               onClick={() => setSelectedOrganizationId(org.id)}
                             >
-                              <div className="flex size-9 items-center justify-center rounded-lg bg-slate-900/10 text-sm font-semibold text-slate-700">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-900/10 text-sm font-semibold text-slate-700">
                                 {org.name
                                   .split(' ')
                                   .map((part) => part[0])
@@ -384,78 +428,124 @@ export function DashboardShell({ children }: DashboardShellProps) {
                                   .slice(0, 2)
                                   .toUpperCase()}
                               </div>
-                              <div>
+                              <div className="flex flex-col">
                                 <p className="font-semibold text-slate-900">
                                   {org.name}
                                 </p>
                                 <p className="text-xs text-slate-500">
-                                  {membership?.role
-                                    ? membership.role.charAt(0).toUpperCase() +
-                                      membership.role.slice(1)
-                                    : 'Member'}
+                                  {org.description || 'No description yet'}
                                 </p>
                               </div>
+                              <Badge tone="default" className="ml-auto">
+                                {membership?.role
+                                  ? membership.role.charAt(0).toUpperCase() +
+                                    membership.role.slice(1)
+                                  : 'Member'}
+                              </Badge>
                             </button>
                           )
                         })
                       )}
                     </div>
-                    <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
-                      <span>
-                        Total organizations: {organizations.length || '—'}
-                      </span>
-                      <button
-                        type="button"
-                        className="text-slate-700 underline"
-                        onClick={() => {
-                          setOrgMenuOpen(false)
-                          router.push('/dashboard/organizations/new')
-                        }}
-                      >
-                        New
-                      </button>
+                    <div className="flex flex-col gap-2 border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
+                      <div className="flex items-center justify-between">
+                        <span>
+                          Total organizations: {organizations.length || '—'}
+                        </span>
+                        <span className="text-slate-400">
+                          {loadingOrganizations ? 'Refreshing…' : ''}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            setOrgMenuOpen(false)
+                            router.push('/dashboard/organizations')
+                          }}
+                        >
+                          Manage
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            setOrgMenuOpen(false)
+                            router.push('/dashboard/organizations/new')
+                          }}
+                        >
+                          New
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="ml-auto flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  className="hidden cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-left text-sm shadow-sm md:flex"
-                  onClick={() => router.push('/dashboard/profile')}
-                >
-                  <div className="flex size-9 items-center justify-center rounded-full bg-slate-900/10 text-sm font-semibold text-slate-700">
-                    {initials}
-                  </div>
-                  <div className="flex flex-col items-start text-left">
-                    <span className="text-sm font-semibold text-slate-900">
-                      {user ? `${user.firstName} ${user.lastName}` : 'Team Flow'}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {selectedMembership?.role
-                        ? selectedMembership.role.charAt(0).toUpperCase() +
-                          selectedMembership.role.slice(1)
-                        : user?.email ?? 'team@taskflow.app'}
-                    </span>
-                  </div>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full text-slate-500 hover:text-slate-900"
-                  onClick={() => router.push('/dashboard/profile')}
-                >
-                  <UserCircle className="size-5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full text-slate-500 hover:text-slate-900"
-                  onClick={() => setLogoutConfirmOpen(true)}
-                >
-                  <LogOut className="size-5" />
-                </Button>
+              <div className="ml-auto flex items-center gap-4">
+                <div className="relative" ref={userMenuRef}>
+                  <Button
+                    variant="ghost"
+                    className="flex cursor-pointer items-center gap-4 rounded-full border border-slate-200 bg-white px-4 py-2 text-left text-sm shadow-sm"
+                    onClick={() => setUserMenuOpen((prev) => !prev)}
+                  >
+                    <div className="flex size-8 items-center justify-center rounded-full bg-slate-900/10 text-sm font-semibold text-slate-700">
+                      {initials}
+                    </div>
+                    <div className="hidden flex-col text-left md:flex">
+                      <span className="text-sm font-semibold text-slate-900">
+                        {user ? `${user.firstName} ${user.lastName}` : 'Team Flow'}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {selectedMembership?.role
+                          ? selectedMembership.role.charAt(0).toUpperCase() +
+                            selectedMembership.role.slice(1)
+                          : user?.email ?? 'team@taskflow.app'}
+                      </span>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        'size-4 text-slate-400 transition-transform',
+                        userMenuOpen && 'rotate-180'
+                      )}
+                    />
+                  </Button>
+                  {userMenuOpen && (
+                    <div className="absolute right-0 top-full z-30 mt-2 w-56 rounded-xl border border-slate-200 bg-white shadow-lg shadow-slate-200/50">
+                      <div className="border-b border-slate-100 px-4 py-3 text-sm">
+                        <p className="font-semibold text-slate-900">
+                          {user ? `${user.firstName} ${user.lastName}` : '—'}
+                        </p>
+                        <p className="text-xs text-slate-500">{user?.email}</p>
+                      </div>
+                      <div className="flex flex-col px-1 py-1 text-sm">
+                        <button
+                          type="button"
+                          className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-slate-600 hover:bg-slate-50"
+                          onClick={() => {
+                            setUserMenuOpen(false)
+                            router.push('/dashboard/profile')
+                          }}
+                        >
+                          Profile
+                        </button>
+                        <button
+                          type="button"
+                          className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-rose-500 hover:bg-rose-50"
+                          onClick={() => {
+                            setUserMenuOpen(false)
+                            setLogoutConfirmOpen(true)
+                          }}
+                        >
+                          <LogOut className="size-4" />
+                          Sign out
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </header>

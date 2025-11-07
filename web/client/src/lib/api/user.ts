@@ -17,4 +17,9 @@ export const userApi = {
     )
   },
   get: (id: string) => apiClient<User>(`/api/users/${id}`),
+  updateProfile: (payload: { firstName: string; lastName: string }) =>
+    apiClient<User>('/api/profile', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useForm, useWatch } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CheckSquare } from 'lucide-react'
 import * as z from 'zod'
@@ -22,6 +22,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
+import { DateTimePickerField } from '@/components/ui/date-time-picker'
 
 const schema = z.object({
   organizationId: z.string().uuid('Select an organization'),
@@ -240,7 +241,17 @@ export default function TaskCreatePage() {
                 <label className="text-sm font-medium text-slate-700">
                   Due date
                 </label>
-                <Input type="datetime-local" {...form.register('dueAt')} />
+                <Controller
+                  control={form.control}
+                  name="dueAt"
+                  render={({ field }) => (
+                    <DateTimePickerField
+                      value={field.value || undefined}
+                      onChange={field.onChange}
+                      placeholder="Select a date"
+                    />
+                  )}
+                />
               </div>
             </div>
             <div className="flex items-center justify-end gap-2">

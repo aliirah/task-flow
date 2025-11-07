@@ -119,16 +119,28 @@ export default function OrganizationsIndexPage() {
                           {ROLE_LABELS[membership.role] ?? membership.role}
                         </Badge>
                       )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        asChild
-                        className="gap-2"
-                      >
-                        <Link href={`/dashboard/organizations/${org.id}/edit`}>
-                          Edit
-                        </Link>
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          asChild
+                          className="gap-2"
+                        >
+                          <Link href={`/dashboard/organizations/${org.id}`}>
+                            View
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          asChild
+                          className="gap-2 text-slate-500 hover:text-slate-900"
+                        >
+                          <Link href={`/dashboard/organizations/${org.id}/edit`}>
+                            Edit
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )

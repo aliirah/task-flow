@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm, useWatch } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CheckSquare, Trash2 } from 'lucide-react'
 import * as z from 'zod'
@@ -28,6 +28,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
+import { DateTimePickerField } from '@/components/ui/date-time-picker'
 
 const schema = z.object({
   organizationId: z.string().uuid('Select an organization'),
@@ -43,15 +44,6 @@ type FormValues = z.infer<typeof schema>
 
 interface TaskEditPageProps {
   params: { id: string }
-}
-
-const toLocalDateTimeInput = (value?: string | null) => {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const offset = date.getTimezoneOffset()
-  const local = new Date(date.getTime() - offset * 60_000)
-  return local.toISOString().slice(0, 16)
 }
 
 export default function TaskEditPage({ params }: TaskEditPageProps) {
@@ -119,7 +111,7 @@ export default function TaskEditPage({ params }: TaskEditPageProps) {
           assigneeId: current.assigneeId ?? '',
           priority: current.priority as TaskPriority,
           status: current.status as TaskStatus,
-          dueAt: toLocalDateTimeInput(current.dueAt),
+          dueAt: current.dueAt ?? '',
         })
 
         if (current.organizationId) {
@@ -323,7 +315,17 @@ export default function TaskEditPage({ params }: TaskEditPageProps) {
                   <label className="text-sm font-medium text-slate-700">
                     Due date
                   </label>
-                  <Input type="datetime-local" {...form.register('dueAt')} />
+                  <Controller
+                    control={form.control}
+                    name="dueAt"
+                    render={({ field }) => (
+                      <DateTimePickerField
+                        value={field.value || undefined}
+                        onChange={field.onChange}
+                        placeholder="Select a date"
+                      />
+                    )}
+                  />
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">

@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { useDashboard } from '@/components/dashboard/dashboard-shell'
 import { taskApi } from '@/lib/api'
@@ -18,6 +19,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
 
 const STATUS_LABELS: Record<
@@ -49,6 +51,7 @@ export default function TasksIndexPage() {
 
   const {
     organizations,
+    selectedOrganization,
     selectedOrganizationId,
     setSelectedOrganizationId,
   } = useDashboard()
@@ -58,6 +61,8 @@ export default function TasksIndexPage() {
   const [page, setPage] = useState(0)
   const [loadingTasks, setLoadingTasks] = useState(false)
   const [hasMore, setHasMore] = useState(false)
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   useEffect(() => {
     if (!initialOrgId) return
@@ -116,29 +121,52 @@ export default function TasksIndexPage() {
     return { from, to }
   }, [tasks.length, page])
 
+  const handleDeleteTask = async () => {
+    if (!taskToDelete) return
+    try {
+      setDeleteLoading(true)
+      await taskApi.remove(taskToDelete.id)
+      toast.success('Task deleted')
+      setTaskToDelete(null)
+      const lastPage = page
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0)
+      })
+      if (selectedOrganizationId) {
+        // reload current page
+        const response = await taskApi.list({
+          organizationId: selectedOrganizationId,
+          page: lastPage + 1,
+          limit: PAGE_SIZE,
+          status: filter === 'all' ? undefined : filter,
+        })
+        const payload = response.data
+        setTasks(payload?.items ?? [])
+        setHasMore(Boolean(payload?.hasMore))
+      }
+    } catch (error) {
+      handleApiError({ error })
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+
   return (
+    <>
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:px-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Tasks</h1>
           <p className="text-sm text-slate-500">
-            View and manage tasks across your organizations.
+            View and manage tasks for your active organization.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Select
-            value={selectedOrganizationId ?? ''}
-            onChange={(event) =>
-              setSelectedOrganizationId(event.target.value || null)
-            }
-          >
-            <option value="">Select organization</option>
-            {organizations.map((org) => (
-              <option key={org.id} value={org.id}>
-                {org.name}
-              </option>
-            ))}
-          </Select>
+          <div className="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600 shadow-sm">
+            {selectedOrganization
+              ? selectedOrganization.name
+              : 'Select an organization from the header'}
+          </div>
           <Button
             asChild
             disabled={!selectedOrganizationId}
@@ -209,7 +237,12 @@ export default function TasksIndexPage() {
                   {tasks.map((task) => (
                     <tr key={task.id} className="align-top">
                       <td className="py-3 pr-4">
-                        <p className="font-medium text-slate-900">{task.title}</p>
+                        <Link
+                          href={`/dashboard/tasks/${task.id}`}
+                          className="font-medium text-slate-900 hover:underline"
+                        >
+                          {task.title}
+                        </Link>
                         {task.description && (
                           <p className="text-xs text-slate-500">
                             {task.description}
@@ -237,11 +270,22 @@ export default function TasksIndexPage() {
                           : '—'}
                       </td>
                       <td className="py-3 text-right">
-                        <Button variant="link" size="sm" asChild>
-                          <Link href={`/dashboard/tasks/${task.id}/edit`}>
-                            Edit
-                          </Link>
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="link" size="sm" asChild>
+                            <Link href={`/dashboard/tasks/${task.id}/edit`}>
+                              Edit
+                            </Link>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-rose-400 hover:text-rose-600"
+                            aria-label={`Delete ${task.title}`}
+                            onClick={() => setTaskToDelete(task)}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -281,5 +325,37 @@ export default function TasksIndexPage() {
         </CardContent>
       </Card>
     </div>
+
+      <Modal
+        open={Boolean(taskToDelete)}
+        onClose={() => (deleteLoading ? null : setTaskToDelete(null))}
+        title="Delete task"
+        description="Are you sure you want to permanently delete this task?"
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => setTaskToDelete(null)}
+              disabled={deleteLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="min-w-[110px]"
+              onClick={handleDeleteTask}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? 'Deleting…' : 'Delete'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          This will remove <strong>{taskToDelete?.title}</strong> and any related
+          comments or updates.
+        </p>
+      </Modal>
+    </>
   )
 }

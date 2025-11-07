@@ -23,6 +23,7 @@ interface AuthState {
     expiresAt: string
   }) => void
   clearAuth: () => void
+  updateUser: (user: Partial<User>) => void
 }
 
 type AuthStorePersist = (
@@ -39,6 +40,13 @@ export const useAuthStore = create<AuthState>()(
       expiresAt: null,
       setAuth: (auth: { user: User; accessToken: string; refreshToken: string; expiresAt: string }) => set(auth),
       clearAuth: () => set({ user: null, accessToken: null, refreshToken: null, expiresAt: null }),
+      updateUser: (user: Partial<User>) =>
+        set((state) =>
+          ({
+            ...state,
+            user: state.user ? { ...state.user, ...user } : state.user,
+          }) as AuthState
+        ),
     }),
     {
       name: 'auth-storage',
