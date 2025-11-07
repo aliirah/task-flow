@@ -21,6 +21,8 @@ import {
   TaskPriorityInlineSelect,
   TaskStatusInlineSelect,
 } from '@/components/tasks/task-inline-controls'
+import { useTaskEvents } from '@/hooks/useTaskEvents'
+import type { TaskEventMessage } from '@/lib/types/ws'
 
 const PAGE_SIZE = 10
 
@@ -40,57 +42,60 @@ export default function MyTasksPage() {
     []
   )
 
-  useEffect(() => {
+  const fetchMyTasks = useCallback(async () => {
     if (!user?.id) {
       setTasks([])
       setHasMore(false)
       return
     }
+    setLoading(true)
+    try {
+      const response = await taskApi.list({
+        assigneeId: user.id,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        page: page + 1,
+        limit: PAGE_SIZE,
+      })
 
-    let cancelled = false
-    const load = async () => {
-      setLoading(true)
-      try {
-        const response = await taskApi.list({
-          assigneeId: user.id,
-          status: statusFilter === 'all' ? undefined : statusFilter,
-          page: page + 1,
-          limit: PAGE_SIZE,
-        })
+      const payload = response.data
+      const items = payload?.items ?? []
+      const more = Boolean(payload?.hasMore)
 
-        const payload = response.data
-        const items = payload?.items ?? []
-        const more = Boolean(payload?.hasMore)
-
-        if (page > 0 && items.length === 0 && !more) {
-          setPage((prev) => Math.max(0, prev - 1))
-          return
-        }
-
-        if (cancelled) {
-          return
-        }
-        setTasks(items)
-        setHasMore(more)
-      } catch (error) {
-        handleApiError({ error })
-      } finally {
-        if (cancelled) {
-          return
-        }
-        setLoading(false)
+      if (page > 0 && items.length === 0 && !more) {
+        setPage((prev) => Math.max(0, prev - 1))
+        return
       }
-    }
 
-    load()
-    return () => {
-      cancelled = true
+      setTasks(items)
+      setHasMore(more)
+    } catch (error) {
+      handleApiError({ error })
+    } finally {
+      setLoading(false)
     }
   }, [user?.id, statusFilter, page])
 
   useEffect(() => {
+    fetchMyTasks()
+  }, [fetchMyTasks])
+
+  useEffect(() => {
     setPage(0)
   }, [statusFilter, user?.id])
+
+  useTaskEvents(
+    useCallback(
+      (event: TaskEventMessage) => {
+        if (!user?.id) return
+        const { data } = event
+        if (data.assigneeId !== user.id) {
+          return
+        }
+        fetchMyTasks()
+      },
+      [user?.id, fetchMyTasks]
+    )
+  )
 
   const range = useMemo(() => {
     if (tasks.length === 0) {

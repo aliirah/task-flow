@@ -25,6 +25,8 @@ import {
   TaskPriorityInlineSelect,
   TaskStatusInlineSelect,
 } from '@/components/tasks/task-inline-controls'
+import { useTaskEvents } from '@/hooks/useTaskEvents'
+import type { TaskEventMessage } from '@/lib/types/ws'
 
 const PAGE_SIZE = 10
 
@@ -65,8 +67,8 @@ export default function TasksIndexPage() {
 
   useEffect(() => {
     if (!selectedOrganizationId) {
-      setTasks([])
       setMembers([])
+      setTasks([])
       setHasMore(false)
       return
     }
@@ -79,40 +81,73 @@ export default function TasksIndexPage() {
       }
     }
     fetchMembers()
-    const fetchTasks = async () => {
-      setLoadingTasks(true)
-      try {
-        const response = await taskApi.list({
-          organizationId: selectedOrganizationId,
-          page: page + 1,
-          limit: PAGE_SIZE,
-          status: filter === 'all' ? undefined : filter,
-        })
-        const payload = response.data
-        const items = payload?.items ?? []
-        const more = Boolean(payload?.hasMore)
+  }, [selectedOrganizationId])
 
-        if (page > 0 && items.length === 0 && !more) {
-          setPage((prev) => Math.max(0, prev - 1))
-          setTasks([])
-          setHasMore(false)
-          return
-        }
-
-        setTasks(items)
-        setHasMore(more)
-      } catch (error) {
-        handleApiError({ error })
-      } finally {
-        setLoadingTasks(false)
-      }
+  const fetchTasks = useCallback(async () => {
+    if (!selectedOrganizationId) {
+      setTasks([])
+      setHasMore(false)
+      return
     }
-    fetchTasks()
+    setLoadingTasks(true)
+    try {
+      const response = await taskApi.list({
+        organizationId: selectedOrganizationId,
+        page: page + 1,
+        limit: PAGE_SIZE,
+        status: filter === 'all' ? undefined : filter,
+      })
+      const payload = response.data
+      const items = payload?.items ?? []
+      const more = Boolean(payload?.hasMore)
+
+      if (page > 0 && items.length === 0 && !more) {
+        setPage((prev) => Math.max(0, prev - 1))
+        setTasks([])
+        setHasMore(false)
+        return
+      }
+
+      setTasks(items)
+      setHasMore(more)
+    } catch (error) {
+      handleApiError({ error })
+    } finally {
+      setLoadingTasks(false)
+    }
   }, [selectedOrganizationId, page, filter])
+
+  useEffect(() => {
+    fetchTasks()
+  }, [fetchTasks])
 
   useEffect(() => {
     setPage(0)
   }, [filter, selectedOrganizationId])
+
+  useTaskEvents(
+    useCallback(
+      (event: TaskEventMessage) => {
+        if (!selectedOrganizationId) return
+        const { data } = event
+        if (data.organizationId !== selectedOrganizationId) {
+          return
+        }
+        const matchesFilter = filter === 'all' || data.status === filter
+        if (event.type === 'task.event.created') {
+          if (matchesFilter) {
+            fetchTasks()
+          }
+        } else if (event.type === 'task.event.updated') {
+          const isVisible = tasks.some((task) => task.id === data.taskId)
+          if (isVisible || matchesFilter) {
+            fetchTasks()
+          }
+        }
+      },
+      [selectedOrganizationId, filter, fetchTasks, tasks]
+    )
+  )
 
   const range = useMemo(() => {
     if (tasks.length === 0) {
@@ -157,22 +192,7 @@ export default function TasksIndexPage() {
       await taskApi.remove(taskToDelete.id)
       toast.success('Task deleted')
       setTaskToDelete(null)
-      const lastPage = page
-      await new Promise((resolve) => {
-        setTimeout(resolve, 0)
-      })
-      if (selectedOrganizationId) {
-        // reload current page
-        const response = await taskApi.list({
-          organizationId: selectedOrganizationId,
-          page: lastPage + 1,
-          limit: PAGE_SIZE,
-          status: filter === 'all' ? undefined : filter,
-        })
-        const payload = response.data
-        setTasks(payload?.items ?? [])
-        setHasMore(Boolean(payload?.hasMore))
-      }
+      await fetchTasks()
     } catch (error) {
       handleApiError({ error })
     } finally {

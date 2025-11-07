@@ -42,6 +42,8 @@ import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
 import { DateTimePickerField } from '@/components/ui/date-time-picker'
+import { useTaskEvents } from '@/hooks/useTaskEvents'
+import type { TaskEventMessage } from '@/lib/types/ws'
 import {
   TaskAssigneeInlineSelect,
   TaskPriorityInlineSelect,
@@ -269,6 +271,35 @@ export default function DashboardPage() {
   useEffect(() => {
     setTaskPage(0)
   }, [taskFilter, selectedOrganizationId])
+
+  useTaskEvents(
+    useCallback(
+      (event: TaskEventMessage) => {
+        const { data } = event
+        if (!selectedOrganizationId || data.organizationId !== selectedOrganizationId) {
+          return
+        }
+        if (event.type === 'task.event.created') {
+          fetchTasksPage(selectedOrganizationId, taskPage, taskFilter)
+          fetchTaskSummary(selectedOrganizationId)
+        } else if (event.type === 'task.event.updated') {
+          const isVisible = tasks.some((task) => task.id === data.taskId)
+          if (isVisible) {
+            fetchTasksPage(selectedOrganizationId, taskPage, taskFilter)
+          }
+          fetchTaskSummary(selectedOrganizationId)
+        }
+      },
+      [
+        selectedOrganizationId,
+        fetchTasksPage,
+        taskPage,
+        taskFilter,
+        fetchTaskSummary,
+        tasks,
+      ]
+    )
+  )
 
   const handleCreateOrganization = createOrgForm.handleSubmit(async (values) => {
     try {

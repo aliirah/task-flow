@@ -27,6 +27,9 @@ import { authApi, organizationApi } from '@/lib/api'
 import type { Organization, OrganizationMember } from '@/lib/types/api'
 import { handleApiError } from '@/lib/utils/error-handler'
 import { cn } from '@/lib/utils'
+import { buildWsUrl } from '@/lib/utils/ws'
+import { TaskEventContext, TaskEventListener } from '@/hooks/useTaskEvents'
+import type { TaskEventMessage } from '@/lib/types/ws'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -76,7 +79,7 @@ interface DashboardShellProps {
 export function DashboardShell({ children }: DashboardShellProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { user, refreshToken, clearAuth } = useAuthStore()
+  const { user, refreshToken, clearAuth, accessToken } = useAuthStore()
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
@@ -95,6 +98,17 @@ export function DashboardShell({ children }: DashboardShellProps) {
     string | null
   >(null)
   const [selectionHydrated, setSelectionHydrated] = useState(false)
+  const taskEventListenersRef = useRef<Set<TaskEventListener>>(new Set())
+  const userRef = useRef(user)
+  const selectedOrgRef = useRef<string | null>(selectedOrganizationId)
+
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
+
+  useEffect(() => {
+    selectedOrgRef.current = selectedOrganizationId
+  }, [selectedOrganizationId])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -200,6 +214,96 @@ export function DashboardShell({ children }: DashboardShellProps) {
     return () => document.removeEventListener('mousedown', onClick)
   }, [userMenuOpen])
 
+  const subscribeTaskEvents = useCallback((listener: TaskEventListener) => {
+    taskEventListenersRef.current.add(listener)
+    return () => {
+      taskEventListenersRef.current.delete(listener)
+    }
+  }, [])
+
+  const broadcastTaskEvent = useCallback((event: TaskEventMessage) => {
+    taskEventListenersRef.current.forEach((listener) => {
+      try {
+        listener(event)
+      } catch {
+        // ignore listener errors
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!accessToken) {
+      return
+    }
+    let stop = false
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let socket: WebSocket | null = null
+
+    const connect = () => {
+      const wsUrl = buildWsUrl(`/api/ws?token=${encodeURIComponent(accessToken)}`)
+      socket = new WebSocket(wsUrl)
+
+      socket.onclose = () => {
+        if (stop) {
+          return
+        }
+        retryTimer = setTimeout(connect, 5000)
+      }
+
+      socket.onerror = () => {
+        socket?.close()
+      }
+
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data)
+          if (!message?.type) {
+            return
+          }
+          if (message.type === 'connection.established') {
+            return
+          }
+          const isTaskEvent =
+            message.type === 'task.event.created' ||
+            message.type === 'task.event.updated'
+          if (!isTaskEvent || !message.data) {
+            return
+          }
+          if (message.data.reporterId && message.data.reporterId === userRef.current?.id) {
+            return
+          }
+          const taskEvent = message as TaskEventMessage
+          broadcastTaskEvent(taskEvent)
+          if (
+            message.data.organizationId &&
+            message.data.organizationId === selectedOrgRef.current
+          ) {
+            toast.success(
+              message.type === 'task.event.created'
+                ? 'Task created'
+                : 'Task updated',
+              {
+                description: message.data.title ?? 'Task updated',
+              }
+            )
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+
+    connect()
+
+    return () => {
+      stop = true
+      if (retryTimer) {
+        clearTimeout(retryTimer)
+      }
+      socket?.close()
+    }
+  }, [accessToken, broadcastTaskEvent])
+
   const setSelectedOrganizationId = useCallback(
     (orgId: string | null) => {
       if (orgId && !organizations.some((org) => org.id === orgId)) {
@@ -294,15 +398,23 @@ export function DashboardShell({ children }: DashboardShellProps) {
     ]
   )
 
+  const taskEventContextValue = useMemo(
+    () => ({
+      subscribe: subscribeTaskEvents,
+    }),
+    [subscribeTaskEvents]
+  )
+
   return (
-    <DashboardContext.Provider value={contextValue}>
-      <div className="flex min-h-screen bg-slate-50">
-        <aside
-          className={cn(
-            'hidden min-h-screen border-r border-slate-200 bg-white/80 backdrop-blur-md transition-all duration-300 md:flex md:flex-col',
-            sidebarCollapsed ? 'w-[84px]' : 'w-64'
-          )}
-        >
+    <TaskEventContext.Provider value={taskEventContextValue}>
+      <DashboardContext.Provider value={contextValue}>
+          <div className="flex min-h-screen bg-slate-50">
+            <aside
+              className={cn(
+                'hidden min-h-screen border-r border-slate-200 bg-white/80 backdrop-blur-md transition-all duration-300 md:flex md:flex-col',
+                sidebarCollapsed ? 'w-[84px]' : 'w-64'
+              )}
+            >
           <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
             <div className="flex size-10 items-center justify-center rounded-xl bg-slate-900 text-sm font-semibold text-white shadow-lg">
               TF
@@ -558,42 +670,43 @@ export function DashboardShell({ children }: DashboardShellProps) {
             </div>
           </header>
 
-          <main className="flex flex-1 flex-col px-4 pb-10 pt-6 md:px-8">
-            <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col">
-              {children}
-            </div>
-          </main>
-        </div>
-      </div>
+            <main className="flex flex-1 flex-col px-4 pb-10 pt-6 md:px-8">
+              <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col">
+                {children}
+              </div>
+            </main>
+          </div>
 
-      <Modal
-        open={logoutConfirmOpen}
-        onClose={() => (isLoggingOut ? null : setLogoutConfirmOpen(false))}
-        title="Sign out"
-        description="Are you sure you want to sign out? You will need to enter your credentials again to access Task Flow."
-        footer={
-          <>
-            <Button
-              variant="ghost"
-              onClick={() => setLogoutConfirmOpen(false)}
-              disabled={isLoggingOut}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-            >
-              {isLoggingOut ? 'Signing out…' : 'Sign out'}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-slate-600">
-          Signing out will close any open sessions associated with this browser.
-        </p>
-      </Modal>
-    </DashboardContext.Provider>
+          <Modal
+            open={logoutConfirmOpen}
+            onClose={() => (isLoggingOut ? null : setLogoutConfirmOpen(false))}
+            title="Sign out"
+            description="Are you sure you want to sign out? You will need to enter your credentials again to access Task Flow."
+            footer={
+              <>
+                <Button
+                  variant="ghost"
+                  onClick={() => setLogoutConfirmOpen(false)}
+                  disabled={isLoggingOut}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                >
+                  {isLoggingOut ? 'Signing out…' : 'Sign out'}
+                </Button>
+              </>
+            }
+          >
+            <p className="text-sm text-slate-600">
+              Signing out will close any open sessions associated with this browser.
+            </p>
+          </Modal>
+        </div>
+      </DashboardContext.Provider>
+    </TaskEventContext.Provider>
   )
 }
