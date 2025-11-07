@@ -11,7 +11,7 @@ export const authApi = {
     }),
 
   register: (data: RegisterData) =>
-    apiClient<void>('/api/auth/register', {
+    apiClient<void>('/api/auth/signup', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
