@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
-import { useDashboard } from '@/components/dashboard/dashboard-shell'
 import { taskApi } from '@/lib/api'
 import type { Task, TaskStatus } from '@/lib/types/api'
 import { handleApiError } from '@/lib/utils/error-handler'
@@ -18,6 +17,7 @@ import {
 } from '@/components/ui/card'
 import { Select } from '@/components/ui/select'
 import {
+  TaskAssigneeInlineSelect,
   TaskPriorityInlineSelect,
   TaskStatusInlineSelect,
 } from '@/components/tasks/task-inline-controls'
@@ -26,10 +26,8 @@ const PAGE_SIZE = 10
 
 export default function MyTasksPage() {
   const { user } = useAuthStore()
-  const { organizations } = useDashboard()
   const [tasks, setTasks] = useState<Task[]>([])
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all')
-  const [organizationFilter, setOrganizationFilter] = useState<string>('all')
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -55,8 +53,6 @@ export default function MyTasksPage() {
       try {
         const response = await taskApi.list({
           assigneeId: user.id,
-          organizationId:
-            organizationFilter === 'all' ? undefined : organizationFilter,
           status: statusFilter === 'all' ? undefined : statusFilter,
           page: page + 1,
           limit: PAGE_SIZE,
@@ -90,11 +86,11 @@ export default function MyTasksPage() {
     return () => {
       cancelled = true
     }
-  }, [user?.id, organizationFilter, statusFilter, page])
+  }, [user?.id, statusFilter, page])
 
   useEffect(() => {
     setPage(0)
-  }, [organizationFilter, statusFilter, user?.id])
+  }, [statusFilter, user?.id])
 
   const range = useMemo(() => {
     if (tasks.length === 0) {
@@ -104,6 +100,18 @@ export default function MyTasksPage() {
     const to = page * PAGE_SIZE + tasks.length
     return { from, to }
   }, [tasks.length, page])
+
+  const formatAssignee = useCallback((task: Task) => {
+    if (task.assignee) {
+      return (
+        `${task.assignee.firstName ?? ''} ${task.assignee.lastName ?? ''}`.trim() ||
+        task.assignee.email ||
+        task.assigneeId ||
+        'Unassigned'
+      )
+    }
+    return task.assigneeId || 'Unassigned'
+  }, [])
 
   if (!user) {
     return (
@@ -131,22 +139,10 @@ export default function MyTasksPage() {
               Task list
             </CardTitle>
             <CardDescription className="text-sm text-slate-500">
-              Filter by status or organization to focus on what matters.
+              Filter by status to focus on what matters.
             </CardDescription>
           </div>
           <div className="flex flex-col gap-3 text-sm md:flex-row md:items-center">
-            <Select
-              value={organizationFilter}
-              onChange={(event) => setOrganizationFilter(event.target.value)}
-              containerClassName="min-w-[200px]"
-            >
-              <option value="all">All organizations</option>
-              {organizations.map((org) => (
-                <option key={org.id} value={org.id}>
-                  {org.name}
-                </option>
-              ))}
-            </Select>
             <Select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value as 'all' | TaskStatus)}
@@ -176,6 +172,7 @@ export default function MyTasksPage() {
                     <th className="py-2 pr-4">Title</th>
                     <th className="py-2 pr-4">Status</th>
                     <th className="py-2 pr-4">Priority</th>
+                    <th className="py-2 pr-4">Assignee</th>
                     <th className="py-2 pr-4">Organization</th>
                     <th className="py-2 pr-4">Due</th>
                     <th className="py-2 text-right">Actions</th>
@@ -215,6 +212,21 @@ export default function MyTasksPage() {
                             handleInlineUpdate(task.id, { priority: nextPriority })
                           }
                           className="min-w-[130px] text-xs"
+                        />
+                      </td>
+                      <td className="py-3 pr-4">
+                        <TaskAssigneeInlineSelect
+                          taskId={task.id}
+                          value={task.assigneeId ?? ''}
+                          organizationId={task.organizationId}
+                          fallbackLabel={formatAssignee(task)}
+                          onUpdated={(nextId, user) =>
+                            handleInlineUpdate(task.id, {
+                              assigneeId: nextId || undefined,
+                              assignee: user ?? (nextId ? task.assignee : undefined),
+                            })
+                          }
+                          className="min-w-[150px] text-xs"
                         />
                       </td>
                       <td className="py-3 pr-4 text-slate-600">

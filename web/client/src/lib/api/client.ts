@@ -5,6 +5,7 @@ import { ApiError, ApiResponse, AuthResponse } from '@/lib/types/api'
 import Cookies from 'js-cookie'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
+let refreshPromise: Promise<boolean> | null = null
 
 export async function apiClient<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   const authStore = useAuthStore.getState()
@@ -109,37 +110,51 @@ export async function apiClient<T>(endpoint: string, options: RequestInit = {}):
 }
 
 export async function refreshToken(): Promise<boolean> {
-  const authStore = useAuthStore.getState()
-  const { refreshToken } = authStore
+  if (refreshPromise) {
+    return refreshPromise
+  }
 
-  if (!refreshToken) return false
+  refreshPromise = (async () => {
+    const authStore = useAuthStore.getState()
+    const storedRefreshToken = authStore.refreshToken
 
-  try {
-    const response = await fetch(`${API_URL}/api/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ refreshToken }),
-      credentials: 'include',
-    })
-
-    if (!response.ok) {
+    if (!storedRefreshToken) {
+      refreshPromise = null
       return false
     }
 
-    const data = await response.json()
-    if (data.status === 'success') {
-      authStore.setAuth(data.data)
-      // Update the cookie when refreshing the token
-      Cookies.set('accessToken', data.data.accessToken, {
-        expires: new Date(data.data.expiresAt),
-        sameSite: 'lax'
+    try {
+      const response = await fetch(`${API_URL}/api/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken: storedRefreshToken }),
+        credentials: 'include',
       })
-      return true
+
+      if (!response.ok) {
+        refreshPromise = null
+        return false
+      }
+
+      const data = await response.json()
+      if (data.status === 'success') {
+        authStore.setAuth(data.data)
+        Cookies.set('accessToken', data.data.accessToken, {
+          expires: new Date(data.data.expiresAt),
+          sameSite: 'lax',
+        })
+        refreshPromise = null
+        return true
+      }
+      refreshPromise = null
+      return false
+    } catch {
+      refreshPromise = null
+      return false
     }
-    return false
-  } catch {
-    return false
-  }
+  })()
+
+  return refreshPromise
 }

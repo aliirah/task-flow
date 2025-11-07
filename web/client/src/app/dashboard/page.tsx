@@ -43,6 +43,7 @@ import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
 import { DateTimePickerField } from '@/components/ui/date-time-picker'
 import {
+  TaskAssigneeInlineSelect,
   TaskPriorityInlineSelect,
   TaskStatusInlineSelect,
 } from '@/components/tasks/task-inline-controls'
@@ -439,6 +440,33 @@ export default function DashboardPage() {
     }
   }, [allTasks])
 
+  const assigneeOptions = useMemo(
+    () =>
+      members
+        .filter((member) => member.user)
+        .map((member) => ({
+          value: member.userId,
+          label:
+            `${member.user?.firstName ?? ''} ${member.user?.lastName ?? ''}`.trim() ||
+            member.user?.email ||
+            member.userId,
+          user: member.user,
+        })),
+    [members]
+  )
+
+  const formatAssignee = useCallback((task: Task) => {
+    if (task.assignee) {
+      return (
+        `${task.assignee.firstName ?? ''} ${task.assignee.lastName ?? ''}`.trim() ||
+        task.assignee.email ||
+        task.assigneeId ||
+        'Unassigned'
+      )
+    }
+    return task.assigneeId || 'Unassigned'
+  }, [])
+
   const upcomingTasks = useMemo(() => {
     const now = Date.now()
     return allTasks
@@ -652,9 +680,19 @@ export default function DashboardPage() {
                         />
                       </td>
                       <td className="py-3 pr-4 text-slate-600">
-                        {task.assignee
-                          ? `${task.assignee.firstName} ${task.assignee.lastName}`
-                          : 'Unassigned'}
+                        <TaskAssigneeInlineSelect
+                          taskId={task.id}
+                          value={task.assigneeId ?? ''}
+                          options={assigneeOptions}
+                          fallbackLabel={formatAssignee(task)}
+                          onUpdated={(nextId, user) =>
+                            applyTaskPatch(task.id, {
+                              assigneeId: nextId || undefined,
+                              assignee: user ?? (nextId ? task.assignee : undefined),
+                            })
+                          }
+                          className="min-w-[150px] text-xs"
+                        />
                       </td>
                       <td className="py-3 pr-4 text-slate-500">
                         {task.dueAt
@@ -803,9 +841,10 @@ export default function DashboardPage() {
                 </p>
               ) : (
                 upcomingTasks.map((task) => (
-                  <div
+                  <Link
                     key={task.id}
-                    className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white px-3 py-2 shadow-sm"
+                    href={`/dashboard/tasks/${task.id}`}
+                    className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white px-3 py-2 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                   >
                     <div>
                       <p className="text-sm font-semibold text-slate-900">
@@ -818,7 +857,7 @@ export default function DashboardPage() {
                     <Badge tone={STATUS_LABELS[task.status].tone}>
                       {STATUS_LABELS[task.status].label}
                     </Badge>
-                  </div>
+                  </Link>
                 ))
               )}
             </CardContent>
@@ -843,9 +882,10 @@ export default function DashboardPage() {
               </p>
             ) : (
               recentActivity.map((task) => (
-                <div
+                <Link
                   key={task.id}
-                  className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white px-4 py-3 shadow-sm"
+                  href={`/dashboard/tasks/${task.id}`}
+                  className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-white px-4 py-3 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   <div>
                     <p className="text-sm font-semibold text-slate-900">
@@ -861,7 +901,7 @@ export default function DashboardPage() {
                   <Badge tone={STATUS_LABELS[task.status].tone}>
                     {STATUS_LABELS[task.status].label}
                   </Badge>
-                </div>
+                </Link>
               ))
             )}
           </CardContent>

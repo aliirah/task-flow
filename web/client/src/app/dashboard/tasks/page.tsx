@@ -7,8 +7,8 @@ import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useDashboard } from '@/components/dashboard/dashboard-shell'
-import { taskApi } from '@/lib/api'
-import { Task, TaskStatus } from '@/lib/types/api'
+import { organizationApi, taskApi } from '@/lib/api'
+import { Task, TaskStatus, OrganizationMember } from '@/lib/types/api'
 import { handleApiError } from '@/lib/utils/error-handler'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,6 +21,7 @@ import {
 import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
 import {
+  TaskAssigneeInlineSelect,
   TaskPriorityInlineSelect,
   TaskStatusInlineSelect,
 } from '@/components/tasks/task-inline-controls'
@@ -39,6 +40,7 @@ export default function TasksIndexPage() {
   } = useDashboard()
 
   const [tasks, setTasks] = useState<Task[]>([])
+  const [members, setMembers] = useState<OrganizationMember[]>([])
   const [filter, setFilter] = useState<'all' | TaskStatus>('all')
   const [page, setPage] = useState(0)
   const [loadingTasks, setLoadingTasks] = useState(false)
@@ -64,9 +66,19 @@ export default function TasksIndexPage() {
   useEffect(() => {
     if (!selectedOrganizationId) {
       setTasks([])
+      setMembers([])
       setHasMore(false)
       return
     }
+    const fetchMembers = async () => {
+      try {
+        const response = await organizationApi.listMembers(selectedOrganizationId)
+        setMembers(response.data?.items ?? [])
+      } catch (error) {
+        handleApiError({ error })
+      }
+    }
+    fetchMembers()
     const fetchTasks = async () => {
       setLoadingTasks(true)
       try {
@@ -110,6 +122,33 @@ export default function TasksIndexPage() {
     const to = page * PAGE_SIZE + tasks.length
     return { from, to }
   }, [tasks.length, page])
+
+  const assigneeOptions = useMemo(
+    () =>
+      members
+        .filter((member) => member.user)
+        .map((member) => ({
+          value: member.userId,
+          label:
+            `${member.user?.firstName ?? ''} ${member.user?.lastName ?? ''}`.trim() ||
+            member.user?.email ||
+            member.userId,
+          user: member.user,
+        })),
+    [members]
+  )
+
+  const formatUserLabel = useCallback((task: Task) => {
+    if (task.assignee) {
+      return (
+        `${task.assignee.firstName ?? ''} ${task.assignee.lastName ?? ''}`.trim() ||
+        task.assignee.email ||
+        task.assigneeId ||
+        'Unassigned'
+      )
+    }
+    return task.assigneeId || 'Unassigned'
+  }, [])
 
   const handleDeleteTask = async () => {
     if (!taskToDelete) return
@@ -260,9 +299,19 @@ export default function TasksIndexPage() {
                         />
                       </td>
                       <td className="py-3 pr-4 text-slate-600">
-                        {task.assignee
-                          ? `${task.assignee.firstName} ${task.assignee.lastName}`
-                          : 'Unassigned'}
+                        <TaskAssigneeInlineSelect
+                          taskId={task.id}
+                          value={task.assigneeId ?? ''}
+                          options={assigneeOptions}
+                          fallbackLabel={formatUserLabel(task)}
+                          onUpdated={(nextId, user) =>
+                            handleLocalTaskUpdate(task.id, {
+                              assigneeId: nextId || undefined,
+                              assignee: user ?? (nextId ? task.assignee : undefined),
+                            })
+                          }
+                          className="min-w-[150px] text-xs"
+                        />
                       </td>
                       <td className="py-3 pr-4 text-slate-500">
                         {task.dueAt
