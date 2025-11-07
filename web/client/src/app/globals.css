@@ -120,3 +120,11 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Ensure RSuite pickers render above modals */
+.rs-picker-menu,
+.rs-picker-daterange-menu,
+.rs-picker-time-menu,
+.rs-picker-datetime-menu {
+  z-index: 2000 !important;
+}
