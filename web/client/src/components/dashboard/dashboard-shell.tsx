@@ -21,6 +21,7 @@ import {
   LogOut,
   Menu,
   Settings,
+  UserCheck,
 } from 'lucide-react'
 
 import { authApi, organizationApi } from '@/lib/api'
@@ -63,6 +64,7 @@ const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Overview', href: '/dashboard' },
   { icon: Layers, label: 'Organizations', href: '/dashboard/organizations' },
   { icon: CheckSquare, label: 'Tasks', href: '/dashboard/tasks' },
+  { icon: UserCheck, label: 'My Tasks', href: '/dashboard/my-tasks' },
   { icon: Activity, label: 'Profile', href: '/dashboard/profile' },
   { icon: Settings, label: 'Settings', href: '/dashboard/settings' },
 ]

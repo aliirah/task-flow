@@ -52,8 +52,9 @@ export default function ProfilePage() {
         const response = await userApi.get(user.id)
         if (response.data) {
           form.reset({
-            firstName: response.data.firstName ?? '',
-            lastName: response.data.lastName ?? '',
+            firstName:
+              response.data.firstName ?? user.firstName ?? '',
+            lastName: response.data.lastName ?? user.lastName ?? '',
           })
         }
       } catch (error) {
@@ -66,9 +67,19 @@ export default function ProfilePage() {
   const onSubmit = form.handleSubmit(async (values) => {
     try {
       const response = await userApi.updateProfile(values)
-      if (response.data) {
-        updateUser(response.data)
-      }
+      const nextFirstName =
+        response.data?.firstName ?? values.firstName ?? user?.firstName ?? ''
+      const nextLastName =
+        response.data?.lastName ?? values.lastName ?? user?.lastName ?? ''
+      form.reset({
+        firstName: nextFirstName,
+        lastName: nextLastName,
+      })
+      updateUser({
+        ...response.data,
+        firstName: nextFirstName,
+        lastName: nextLastName,
+      })
       toast.success('Profile updated')
     } catch (error) {
       handleApiError({ error, setError: form.setError })
