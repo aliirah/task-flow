@@ -20,7 +20,6 @@ import {
   Layers,
   LogOut,
   Menu,
-  Settings,
   UserCheck,
 } from 'lucide-react'
 
@@ -66,7 +65,6 @@ const NAV_ITEMS = [
   { icon: CheckSquare, label: 'Tasks', href: '/dashboard/tasks' },
   { icon: UserCheck, label: 'My Tasks', href: '/dashboard/my-tasks' },
   { icon: Activity, label: 'Profile', href: '/dashboard/profile' },
-  { icon: Settings, label: 'Settings', href: '/dashboard/settings' },
 ]
 
 const STORAGE_KEY = 'dashboard:selected-org'
@@ -207,10 +205,18 @@ export function DashboardShell({ children }: DashboardShellProps) {
       if (orgId && !organizations.some((org) => org.id === orgId)) {
         return
       }
-      setSelectedOrganizationIdState(orgId)
+      setSelectedOrganizationIdState((current) => {
+        if (current === orgId) {
+          return current
+        }
+        if (orgId) {
+          router.push('/dashboard')
+        }
+        return orgId
+      })
       setOrgMenuOpen(false)
     },
-    [organizations]
+    [organizations, router]
   )
 
   const selectedOrganization = useMemo(

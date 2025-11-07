@@ -1,14 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
 import { useDashboard } from '@/components/dashboard/dashboard-shell'
 import { taskApi } from '@/lib/api'
-import type { Task, TaskPriority, TaskStatus } from '@/lib/types/api'
+import type { Task, TaskStatus } from '@/lib/types/api'
 import { handleApiError } from '@/lib/utils/error-handler'
 import { useAuthStore } from '@/store/auth'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -18,27 +17,10 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Select } from '@/components/ui/select'
-
-const STATUS_LABELS: Record<
-  TaskStatus,
-  { label: string; tone: 'default' | 'info' | 'success' | 'warning' | 'danger' }
-> = {
-  open: { label: 'Open', tone: 'info' },
-  in_progress: { label: 'In progress', tone: 'info' },
-  completed: { label: 'Completed', tone: 'success' },
-  blocked: { label: 'Blocked', tone: 'danger' },
-  cancelled: { label: 'Cancelled', tone: 'default' },
-}
-
-const PRIORITY_LABELS: Record<
-  TaskPriority,
-  { label: string; tone: 'default' | 'info' | 'warning' | 'danger' }
-> = {
-  low: { label: 'Low', tone: 'default' },
-  medium: { label: 'Medium', tone: 'info' },
-  high: { label: 'High', tone: 'warning' },
-  critical: { label: 'Critical', tone: 'danger' },
-}
+import {
+  TaskPriorityInlineSelect,
+  TaskStatusInlineSelect,
+} from '@/components/tasks/task-inline-controls'
 
 const PAGE_SIZE = 10
 
@@ -51,6 +33,14 @@ export default function MyTasksPage() {
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(false)
+  const handleInlineUpdate = useCallback(
+    (taskId: string, updates: Partial<Task>) => {
+      setTasks((prev) =>
+        prev.map((task) => (task.id === taskId ? { ...task, ...updates } : task))
+      )
+    },
+    []
+  )
 
   useEffect(() => {
     if (!user?.id) {
@@ -184,9 +174,9 @@ export default function MyTasksPage() {
                 <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
                   <tr>
                     <th className="py-2 pr-4">Title</th>
-                    <th className="py-2 pr-4">Organization</th>
                     <th className="py-2 pr-4">Status</th>
                     <th className="py-2 pr-4">Priority</th>
+                    <th className="py-2 pr-4">Organization</th>
                     <th className="py-2 pr-4">Due</th>
                     <th className="py-2 text-right">Actions</th>
                   </tr>
@@ -207,18 +197,28 @@ export default function MyTasksPage() {
                           </p>
                         )}
                       </td>
+                      <td className="py-3 pr-4">
+                        <TaskStatusInlineSelect
+                          taskId={task.id}
+                          value={task.status}
+                          onUpdated={(nextStatus) =>
+                            handleInlineUpdate(task.id, { status: nextStatus })
+                          }
+                          className="min-w-[140px] text-xs"
+                        />
+                      </td>
+                      <td className="py-3 pr-4">
+                        <TaskPriorityInlineSelect
+                          taskId={task.id}
+                          value={task.priority}
+                          onUpdated={(nextPriority) =>
+                            handleInlineUpdate(task.id, { priority: nextPriority })
+                          }
+                          className="min-w-[130px] text-xs"
+                        />
+                      </td>
                       <td className="py-3 pr-4 text-slate-600">
                         {task.organization?.name ?? '—'}
-                      </td>
-                      <td className="py-3 pr-4">
-                        <Badge tone={STATUS_LABELS[task.status].tone}>
-                          {STATUS_LABELS[task.status].label}
-                        </Badge>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <Badge tone={PRIORITY_LABELS[task.priority].tone}>
-                          {PRIORITY_LABELS[task.priority].label}
-                        </Badge>
                       </td>
                       <td className="py-3 pr-4 text-slate-500">
                         {task.dueAt ? new Date(task.dueAt).toLocaleString() : '—'}

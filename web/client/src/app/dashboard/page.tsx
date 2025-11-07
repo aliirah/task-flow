@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -9,7 +10,6 @@ import {
   CalendarDays,
   CheckSquare,
   Clock4,
-  Pencil,
   Plus,
   Trash2,
 } from 'lucide-react'
@@ -26,7 +26,6 @@ import type {
   Organization,
   OrganizationMember,
   Task,
-  TaskPriority,
   TaskStatus,
 } from '@/lib/types/api'
 import { Button } from '@/components/ui/button'
@@ -43,6 +42,10 @@ import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
 import { DateTimePickerField } from '@/components/ui/date-time-picker'
+import {
+  TaskPriorityInlineSelect,
+  TaskStatusInlineSelect,
+} from '@/components/tasks/task-inline-controls'
 
 const organizationFormSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(128),
@@ -79,16 +82,6 @@ const STATUS_LABELS: Record<
   completed: { label: 'Completed', tone: 'success' },
   blocked: { label: 'Blocked', tone: 'danger' },
   cancelled: { label: 'Cancelled', tone: 'default' },
-}
-
-const PRIORITY_LABELS: Record<
-  TaskPriority,
-  { label: string; tone: 'default' | 'info' | 'warning' | 'danger' }
-> = {
-  low: { label: 'Low', tone: 'default' },
-  medium: { label: 'Medium', tone: 'info' },
-  high: { label: 'High', tone: 'warning' },
-  critical: { label: 'Critical', tone: 'danger' },
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -130,9 +123,19 @@ export default function DashboardPage() {
   )
 
   const [taskModalOpen, setTaskModalOpen] = useState(false)
-  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null)
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const applyTaskPatch = useCallback(
+    (taskId: string, updates: Partial<Task>) => {
+      setTasks((prev) =>
+        prev.map((task) => (task.id === taskId ? { ...task, ...updates } : task))
+      )
+      setAllTasks((prev) =>
+        prev.map((task) => (task.id === taskId ? { ...task, ...updates } : task))
+      )
+    },
+    []
+  )
 
   const createOrgForm = useForm<OrganizationFormValues>({
     resolver: zodResolver(organizationFormSchema),
@@ -357,15 +360,9 @@ export default function DashboardPage() {
         status: values.status,
         dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : undefined,
       }
-      if (taskToEdit) {
-        await taskApi.update(taskToEdit.id, payload)
-        toast.success('Task updated')
-      } else {
-        await taskApi.create(payload)
-        toast.success('Task created')
-      }
+      await taskApi.create(payload)
+      toast.success('Task created')
       setTaskModalOpen(false)
-      setTaskToEdit(null)
       taskForm.reset({
         title: '',
         description: '',
@@ -405,20 +402,6 @@ export default function DashboardPage() {
       priority: 'medium',
       status: 'open',
       dueAt: '',
-    })
-    setTaskToEdit(null)
-    setTaskModalOpen(true)
-  }
-
-  const openEditTaskModal = (task: Task) => {
-    setTaskToEdit(task)
-    taskForm.reset({
-      title: task.title,
-      description: task.description ?? '',
-      assigneeId: task.assigneeId ?? '',
-      priority: task.priority,
-      status: task.status,
-      dueAt: task.dueAt ?? '',
     })
     setTaskModalOpen(true)
   }
@@ -625,42 +608,53 @@ export default function DashboardPage() {
                 <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
                   <tr>
                     <th className="py-2 pr-4">Title</th>
-                    <th className="py-2 pr-4">Assignee</th>
-                    <th className="py-2 pr-4">Priority</th>
                     <th className="py-2 pr-4">Status</th>
+                    <th className="py-2 pr-4">Priority</th>
+                    <th className="py-2 pr-4">Assignee</th>
                     <th className="py-2 pr-4">Due</th>
                     <th className="py-2 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {tasks.map((task) => (
-                    <tr
-                      key={task.id}
-                      className="cursor-pointer align-top transition hover:bg-slate-50"
-                      onClick={() => openEditTaskModal(task)}
-                    >
+                    <tr key={task.id} className="align-top">
                       <td className="py-3 pr-4">
-                        <p className="font-medium text-slate-900">{task.title}</p>
+                        <Link
+                          href={`/dashboard/tasks/${task.id}`}
+                          className="font-medium text-slate-900 hover:underline"
+                        >
+                          {task.title}
+                        </Link>
                         {task.description && (
                           <p className="text-xs text-slate-500">
                             {task.description}
                           </p>
                         )}
                       </td>
+                      <td className="py-3 pr-4">
+                        <TaskStatusInlineSelect
+                          taskId={task.id}
+                          value={task.status}
+                          onUpdated={(nextStatus) =>
+                            applyTaskPatch(task.id, { status: nextStatus })
+                          }
+                          className="min-w-[140px] text-xs"
+                        />
+                      </td>
+                      <td className="py-3 pr-4">
+                        <TaskPriorityInlineSelect
+                          taskId={task.id}
+                          value={task.priority}
+                          onUpdated={(nextPriority) =>
+                            applyTaskPatch(task.id, { priority: nextPriority })
+                          }
+                          className="min-w-[130px] text-xs"
+                        />
+                      </td>
                       <td className="py-3 pr-4 text-slate-600">
                         {task.assignee
                           ? `${task.assignee.firstName} ${task.assignee.lastName}`
                           : 'Unassigned'}
-                      </td>
-                      <td className="py-3 pr-4">
-                        <Badge tone={PRIORITY_LABELS[task.priority].tone}>
-                          {PRIORITY_LABELS[task.priority].label}
-                        </Badge>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <Badge tone={STATUS_LABELS[task.status].tone}>
-                          {STATUS_LABELS[task.status].label}
-                        </Badge>
                       </td>
                       <td className="py-3 pr-4 text-slate-500">
                         {task.dueAt
@@ -672,23 +666,8 @@ export default function DashboardPage() {
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            className="text-slate-400 hover:text-slate-700"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              openEditTaskModal(task)
-                            }}
-                            aria-label="Edit task"
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
                             className="text-rose-400 hover:text-rose-600"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setTaskToDelete(task)
-                            }}
+                            onClick={() => setTaskToDelete(task)}
                             aria-label="Delete task"
                           >
                             <Trash2 className="size-4" />
@@ -1117,7 +1096,6 @@ export default function DashboardPage() {
         open={taskModalOpen}
         onClose={() => {
           setTaskModalOpen(false)
-          setTaskToEdit(null)
           taskForm.reset({
             title: '',
             description: '',
@@ -1127,19 +1105,14 @@ export default function DashboardPage() {
             dueAt: '',
           })
         }}
-        title={taskToEdit ? 'Edit task' : 'Create task'}
-        description={
-          taskToEdit
-            ? 'Update task details and assignments.'
-            : 'Assign ownership and set expectations for this task.'
-        }
+        title="Create task"
+        description="Assign ownership and set expectations for this task."
         footer={
           <>
             <Button
               variant="ghost"
               onClick={() => {
                 setTaskModalOpen(false)
-                setTaskToEdit(null)
                 taskForm.reset({
                   title: '',
                   description: '',
@@ -1158,13 +1131,7 @@ export default function DashboardPage() {
               className="min-w-[130px]"
               disabled={taskForm.formState.isSubmitting}
             >
-              {taskForm.formState.isSubmitting
-                ? taskToEdit
-                  ? 'Saving…'
-                  : 'Creating…'
-                : taskToEdit
-                  ? 'Save changes'
-                  : 'Create task'}
+              {taskForm.formState.isSubmitting ? 'Creating…' : 'Create task'}
             </Button>
           </>
         }
