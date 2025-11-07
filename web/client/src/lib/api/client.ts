@@ -95,6 +95,9 @@ export async function apiClient<T>(endpoint: string, options: RequestInit = {}):
 
     return data
   } catch (error) {
+    if ((error as DOMException)?.name === 'AbortError') {
+      throw error
+    }
     if (error instanceof ApiError) {
       throw error
     }

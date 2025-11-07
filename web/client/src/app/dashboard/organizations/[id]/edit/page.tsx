@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Trash2, Layers } from 'lucide-react'
@@ -29,15 +29,14 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-interface EditPageProps {
-  params: { id: string }
-}
-
-export default function OrganizationEditPage({ params }: EditPageProps) {
+export default function OrganizationEditPage() {
   const router = useRouter()
+  const params = useParams<{ id?: string }>()
+  const organizationId = params?.id
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
+  const [fetched, setFetched] = useState(false)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -45,27 +44,60 @@ export default function OrganizationEditPage({ params }: EditPageProps) {
   })
 
   useEffect(() => {
+    if (!organizationId) {
+      return
+    }
+
+    let cancelled = false
+    const controller = new AbortController()
+
     const fetch = async () => {
       setLoading(true)
+      setFetched(false)
       try {
-        const response = await organizationApi.get(params.id)
-        setOrganization(response.data)
+        const response = await organizationApi.get(organizationId, {
+          signal: controller.signal,
+        })
+        if (cancelled) {
+          return
+        }
+        setOrganization(response.data ?? null)
         form.reset({
           name: response.data?.name ?? '',
           description: response.data?.description ?? '',
         })
+        setFetched(true)
       } catch (error) {
+        if ((error as DOMException)?.name === 'AbortError') {
+          return
+        }
+        if (cancelled) {
+          return
+        }
         handleApiError({ error })
+        setFetched(true)
       } finally {
+        if (cancelled) {
+          return
+        }
         setLoading(false)
       }
     }
     fetch()
-  }, [params.id, form])
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [organizationId, form])
 
   const onSubmit = form.handleSubmit(async (values) => {
+    if (!organizationId) {
+      toast.error('Invalid organization')
+      return
+    }
     try {
-      await organizationApi.update(params.id, values)
+      await organizationApi.update(organizationId, values)
       toast.success('Organization updated')
       router.push('/dashboard/organizations')
       router.refresh()
@@ -75,9 +107,13 @@ export default function OrganizationEditPage({ params }: EditPageProps) {
   })
 
   const onDelete = async () => {
+    if (!organizationId) {
+      toast.error('Invalid organization')
+      return
+    }
     try {
       setDeleting(true)
-      await organizationApi.remove(params.id)
+      await organizationApi.remove(organizationId)
       toast.success('Organization deleted')
       router.push('/dashboard/organizations')
       router.refresh()
@@ -114,7 +150,7 @@ export default function OrganizationEditPage({ params }: EditPageProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {loading || !fetched ? (
             <p className="text-sm text-slate-500">Loading…</p>
           ) : !organization ? (
             <p className="text-sm text-slate-500">

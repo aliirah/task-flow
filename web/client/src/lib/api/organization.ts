@@ -3,10 +3,12 @@
 import { apiClient } from './client'
 import type { Organization, OrganizationMember } from '@/lib/types/api'
 
+type RequestOptions = RequestInit | undefined
+
 export const organizationApi = {
-  list: () => apiClient<{ items: Organization[] }>('/api/organizations'),
-  listMine: () => apiClient<{ items: OrganizationMember[] }>('/api/organizations/mine'),
-  get: (id: string) => apiClient<Organization>(`/api/organizations/${id}`),
+  list: (options?: RequestOptions) => apiClient<{ items: Organization[] }>('/api/organizations', options),
+  listMine: (options?: RequestOptions) => apiClient<{ items: OrganizationMember[] }>('/api/organizations/mine', options),
+  get: (id: string, options?: RequestOptions) => apiClient<Organization>(`/api/organizations/${id}`, options),
   create: (payload: { name: string; description?: string }) =>
     apiClient<Organization>('/api/organizations', {
       method: 'POST',
@@ -19,8 +21,8 @@ export const organizationApi = {
     }),
   remove: (id: string) =>
     apiClient<void>(`/api/organizations/${id}`, { method: 'DELETE' }),
-  listMembers: (id: string) =>
-    apiClient<{ items: OrganizationMember[] }>(`/api/organizations/${id}/members`),
+  listMembers: (id: string, options?: RequestOptions) =>
+    apiClient<{ items: OrganizationMember[] }>(`/api/organizations/${id}/members`, options),
   addMember: (id: string, payload: { userId: string; role?: string }) =>
     apiClient<OrganizationMember>(`/api/organizations/${id}/members`, {
       method: 'POST',
