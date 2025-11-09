@@ -16,10 +16,10 @@ import {
 import { toast } from 'sonner'
 
 import { useDashboard } from '@/components/dashboard/dashboard-shell'
+import { UserEmailSelect } from '@/components/organizations/user-email-select'
 import {
   organizationApi,
   taskApi,
-  userApi,
 } from '@/lib/api'
 import { handleApiError } from '@/lib/utils/error-handler'
 import type {
@@ -27,6 +27,7 @@ import type {
   OrganizationMember,
   Task,
   TaskStatus,
+  User,
 } from '@/lib/types/api'
 import { Button } from '@/components/ui/button'
 import {
@@ -62,6 +63,7 @@ type OrganizationFormValues = z.infer<typeof organizationFormSchema>
 
 const memberFormSchema = z.object({
   email: z.string().email('Enter a valid email address'),
+  userId: z.string().min(1, 'Select a user from the dropdown'),
   role: z.enum(['owner', 'admin', 'member']),
 })
 type MemberFormValues = z.infer<typeof memberFormSchema>
@@ -124,6 +126,11 @@ export default function DashboardPage() {
   const [memberToRemove, setMemberToRemove] = useState<OrganizationMember | null>(
     null
   )
+  const [selectedInvitee, setSelectedInvitee] = useState<User | null>(null)
+  const memberUserIds = useMemo(
+    () => members.map((member) => member.userId),
+    [members]
+  )
 
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
@@ -150,7 +157,7 @@ export default function DashboardPage() {
   })
   const memberForm = useForm<MemberFormValues>({
     resolver: zodResolver(memberFormSchema),
-    defaultValues: { email: '', role: 'member' },
+    defaultValues: { email: '', userId: '', role: 'member' },
   })
   const taskForm = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
@@ -343,25 +350,14 @@ export default function DashboardPage() {
   const handleInviteMember = memberForm.handleSubmit(async (values) => {
     if (!selectedOrganizationId) return
     try {
-      const usersResponse = await userApi.list({
-        q: values.email,
-        limit: 1,
-      })
-      const targetUser = usersResponse.data?.items?.[0]
-      if (!targetUser) {
-        toast.error('User not found', {
-          description: 'Make sure the user has an account.',
-        })
-        return
-      }
-
       await organizationApi.addMember(selectedOrganizationId, {
-        userId: targetUser.id,
+        userId: values.userId,
         role: values.role,
       })
       toast.success('Member added')
       setMemberModalOpen(false)
-      memberForm.reset()
+      setSelectedInvitee(null)
+      memberForm.reset({ email: '', userId: '', role: 'member' })
       fetchMembers(selectedOrganizationId)
     } catch (error) {
       handleApiError({ error, setError: memberForm.setError })
@@ -1081,7 +1077,8 @@ export default function DashboardPage() {
         open={memberModalOpen}
         onClose={() => {
           setMemberModalOpen(false)
-          memberForm.reset()
+          setSelectedInvitee(null)
+          memberForm.reset({ email: '', userId: '', role: 'member' })
         }}
         title="Invite member"
         description="Add an existing user to this organization."
@@ -1091,7 +1088,8 @@ export default function DashboardPage() {
               variant="ghost"
               onClick={() => {
                 setMemberModalOpen(false)
-                memberForm.reset()
+                setSelectedInvitee(null)
+                memberForm.reset({ email: '', userId: '', role: 'member' })
               }}
             >
               Cancel
@@ -1110,16 +1108,36 @@ export default function DashboardPage() {
         <form id="member-form" onSubmit={handleInviteMember} className="grid gap-4">
           <div className="grid gap-1.5">
             <label className="text-sm font-medium text-slate-700">Email</label>
-            <Input
-              type="email"
-              placeholder="name@example.com"
-              {...memberForm.register('email')}
+            <UserEmailSelect
+              value={memberForm.watch('email') ?? ''}
+              onValueChange={(email) => {
+                setSelectedInvitee(null)
+                memberForm.setValue('email', email, { shouldDirty: true })
+                memberForm.setValue('userId', '', {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }}
+              onUserSelected={(user) => {
+                setSelectedInvitee(user)
+                memberForm.setValue('email', user.email, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+                memberForm.setValue('userId', user.id, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }}
+              selectedUser={selectedInvitee}
+              error={
+                memberForm.formState.errors.email?.message ??
+                memberForm.formState.errors.userId?.message
+              }
+              showError={memberForm.formState.submitCount > 0}
+              disabled={memberForm.formState.isSubmitting}
+              excludeUserIds={memberUserIds}
             />
-            {memberForm.formState.errors.email && (
-              <p className="text-xs text-rose-500">
-                {memberForm.formState.errors.email.message}
-              </p>
-            )}
           </div>
           <div className="grid gap-1.5">
             <label className="text-sm font-medium text-slate-700">Role</label>

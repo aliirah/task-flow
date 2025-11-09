@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -9,7 +9,7 @@ import { Users, UserPlus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { organizationApi } from '@/lib/api'
-import type { Organization, OrganizationMember } from '@/lib/types/api'
+import type { Organization, OrganizationMember, User } from '@/lib/types/api'
 import { handleApiError } from '@/lib/utils/error-handler'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,12 +19,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { UserEmailSelect } from '@/components/organizations/user-email-select'
 import { Select } from '@/components/ui/select'
 import { useAuthStore } from '@/store/auth'
 
 const memberSchema = z.object({
-  userId: z.string().min(1, 'User ID is required'),
+  email: z.string().email('Enter a valid email address'),
+  userId: z.string().min(1, 'Select a user from the dropdown'),
   role: z.enum(['owner', 'admin', 'member']).default('member'),
 })
 
@@ -46,10 +47,15 @@ export default function OrganizationMembersPage() {
   const [loading, setLoading] = useState(true)
   const [fetched, setFetched] = useState(false)
   const [refreshingMembers, setRefreshingMembers] = useState(false)
+  const [selectedInvitee, setSelectedInvitee] = useState<User | null>(null)
+  const memberUserIds = useMemo(
+    () => members.map((member) => member.userId),
+    [members]
+  )
 
   const form = useForm<MemberFormValues>({
     resolver: zodResolver(memberSchema),
-    defaultValues: { userId: '', role: 'member' },
+    defaultValues: { email: '', userId: '', role: 'member' },
   })
 
   const loadOrganization = async (signal: AbortSignal) => {
@@ -123,20 +129,28 @@ export default function OrganizationMembersPage() {
     }
 
     try {
-      const response = await organizationApi.addMember(organizationId, values)
+      const response = await organizationApi.addMember(organizationId, {
+        userId: values.userId,
+        role: values.role,
+      })
       toast.success('Member added')
-      form.reset({ userId: '', role: values.role })
+      form.reset({ email: '', userId: '', role: values.role })
+      setSelectedInvitee(null)
       setMembers((prev) => {
-        if (!response.data) {
+        const payload = response.data
+        if (!payload) {
           return prev
         }
-        const existing = prev.find((member) => member.id === response.data?.id)
+        const enriched = selectedInvitee
+          ? { ...payload, user: payload.user ?? selectedInvitee }
+          : payload
+        const existing = prev.find((member) => member.id === enriched.id)
         if (existing) {
           return prev.map((member) =>
-            member.id === response.data?.id ? response.data! : member,
+            member.id === enriched.id ? enriched : member,
           )
         }
-        return [response.data!, ...prev]
+        return [enriched, ...prev]
       })
     } catch (error) {
       handleApiError({ error, setError: form.setError })
@@ -220,27 +234,51 @@ export default function OrganizationMembersPage() {
         </CardContent>
       </Card>
 
-      <Card className="border border-white/60 bg-white/90 shadow-lg shadow-slate-200/30 backdrop-blur">
+      <Card className="border border-white/60 bg-white/90 shadow-lg shadow-slate-200/30 backdrop-blur overflow-visible">
         <CardHeader>
           <CardTitle className="text-lg font-semibold text-slate-900">
             Invite member
           </CardTitle>
           <CardDescription className="text-sm text-slate-500">
-            Add an existing user by their ID and choose a role.
+            Add an existing user by their email and choose a role.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="grid gap-4 md:grid-cols-[2fr_1fr_auto] md:items-end">
             <div className="grid gap-2">
               <label className="text-sm font-medium text-slate-700">
-                User ID
+                Email
               </label>
-              <Input placeholder="User identifier" {...form.register('userId')} />
-              {form.formState.errors.userId && (
-                <p className="text-xs text-rose-500">
-                  {form.formState.errors.userId.message}
-                </p>
-              )}
+              <UserEmailSelect
+                value={form.watch('email') ?? ''}
+                onValueChange={(email) => {
+                  setSelectedInvitee(null)
+                  form.setValue('email', email, { shouldDirty: true })
+                  form.setValue('userId', '', {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }}
+                onUserSelected={(user) => {
+                  setSelectedInvitee(user)
+                  form.setValue('email', user.email, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                  form.setValue('userId', user.id, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }}
+                selectedUser={selectedInvitee}
+                error={
+                  form.formState.errors.email?.message ??
+                  form.formState.errors.userId?.message
+                }
+                showError={form.formState.submitCount > 0}
+                disabled={form.formState.isSubmitting}
+                excludeUserIds={memberUserIds}
+              />
             </div>
             <div className="grid gap-2">
               <label className="text-sm font-medium text-slate-700">

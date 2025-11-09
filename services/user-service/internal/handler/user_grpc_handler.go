@@ -24,7 +24,13 @@ func NewUserHandler(svc *service.UserService) *UserHandler {
 }
 
 func (h *UserHandler) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (*userpb.ListUsersResponse, error) {
-	users, err := h.svc.List(ctx)
+	filter := service.ListUsersFilter{
+		Query: req.GetQuery(),
+		Role:  req.GetRole(),
+		Page:  int(req.GetPage()),
+		Limit: int(req.GetLimit()),
+	}
+	users, err := h.svc.List(ctx, filter)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}

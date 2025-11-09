@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/aliirah/task-flow/services/user-service/internal/models"
 	"github.com/google/uuid"
@@ -36,6 +37,13 @@ type UpdateUserInput struct {
 	Status    *string
 	UserType  *string
 	Roles     *[]string
+}
+
+type ListUsersFilter struct {
+	Query string
+	Role  string
+	Page  int
+	Limit int
 }
 
 func (s *UserService) Create(ctx context.Context, input CreateUserInput) (*models.User, error) {
@@ -73,12 +81,8 @@ func (s *UserService) Get(ctx context.Context, id uuid.UUID) (*models.User, erro
 	return &user, nil
 }
 
-func (s *UserService) List(ctx context.Context) ([]models.User, error) {
-	var users []models.User
-	if err := s.db.WithContext(ctx).Preload("Roles").Find(&users).Error; err != nil {
-		return nil, err
-	}
-	return users, nil
+func (s *UserService) List(ctx context.Context, filter ListUsersFilter) ([]models.User, error) {
+	return s.listInternal(ctx, filter)
 }
 
 func (s *UserService) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]models.User, error) {
@@ -153,4 +157,42 @@ func defaultString(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func (s *UserService) listInternal(ctx context.Context, filter ListUsersFilter) ([]models.User, error) {
+	var users []models.User
+	tx := s.db.WithContext(ctx).Model(&models.User{}).Preload("Roles")
+
+	query := strings.TrimSpace(filter.Query)
+	if query != "" {
+		q := "%" + strings.ToLower(query) + "%"
+		tx = tx.Where(`
+			LOWER(email) LIKE ? OR
+			LOWER(first_name) LIKE ? OR
+			LOWER(last_name) LIKE ?`,
+			q, q, q,
+		)
+	}
+
+	if filter.Role != "" {
+		tx = tx.Joins("JOIN user_roles ON user_roles.user_id = users.id").
+			Joins("JOIN roles ON roles.id = user_roles.role_id").
+			Where("LOWER(roles.name) = ?", strings.ToLower(filter.Role))
+	}
+
+	limit := filter.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	page := filter.Page
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
+	if err := tx.Order("LOWER(email)").Limit(limit).Offset(offset).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
 }
