@@ -7,6 +7,7 @@ import { Layers } from 'lucide-react'
 import * as z from 'zod'
 import { toast } from 'sonner'
 
+import { useDashboard } from '@/components/dashboard/dashboard-shell'
 import { organizationApi } from '@/lib/api'
 import { handleApiError } from '@/lib/utils/error-handler'
 import { Button } from '@/components/ui/button'
@@ -29,6 +30,7 @@ type FormValues = z.infer<typeof schema>
 
 export default function OrganizationCreatePage() {
   const router = useRouter()
+  const { refreshOrganizations, setSelectedOrganizationId } = useDashboard()
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: '', description: '' },
@@ -40,8 +42,11 @@ export default function OrganizationCreatePage() {
       toast.success(
         `“${response.data?.name ?? values.name}” has been created.`,
       )
+      await refreshOrganizations()
+      if (response.data?.id) {
+        setSelectedOrganizationId(response.data.id)
+      }
       router.push('/dashboard/organizations')
-      router.refresh()
     } catch (error) {
       handleApiError({ error, setError: form.setError })
     }
