@@ -6,12 +6,15 @@ import (
 
 	"github.com/aliirah/task-flow/services/user-service/internal/models"
 	"github.com/google/uuid"
+	"github.com/jackc/pgconn"
 	"gorm.io/gorm"
 )
 
 type UserService struct {
 	db *gorm.DB
 }
+
+var ErrEmailExists = errors.New("user with this email already exists")
 
 func NewUserService(db *gorm.DB) *UserService {
 	return &UserService{db: db}
@@ -46,6 +49,10 @@ func (s *UserService) Create(ctx context.Context, input CreateUserInput) (*model
 	}
 
 	if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "idx_users_email" {
+			return nil, ErrEmailExists
+		}
 		return nil, err
 	}
 

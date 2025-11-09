@@ -198,7 +198,6 @@ local_resource(
 
 # k8s_yaml('./infra/dev/k8s/web-client-deployment.yaml')
 # k8s_resource('web-client', port_forwards=3000, labels="frontend")
-
 ### End of Web Frontend ###
 
 ### Jaeger ###

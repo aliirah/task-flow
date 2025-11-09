@@ -2,6 +2,8 @@ package gormdb
 
 import (
 	"fmt"
+	stdlog "log"
+	"os"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -22,9 +24,20 @@ func Open(cfg Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("gormdb: DSN is required")
 	}
 
-	gormCfg := &gorm.Config{}
-	if cfg.LogLevel != 0 {
-		gormCfg.Logger = logger.Default.LogMode(cfg.LogLevel)
+	logLevel := cfg.LogLevel
+	if logLevel == 0 {
+		logLevel = logger.Warn
+	}
+	gormCfg := &gorm.Config{
+		Logger: logger.New(
+			stdlog.New(os.Stdout, "[gorm] ", stdlog.LstdFlags),
+			logger.Config{
+				SlowThreshold:             200 * time.Millisecond,
+				LogLevel:                  logLevel,
+				IgnoreRecordNotFoundError: true,
+				Colorful:                  false,
+			},
+		),
 	}
 
 	db, err := gorm.Open(postgres.Open(cfg.DSN), gormCfg)

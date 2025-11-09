@@ -413,6 +413,8 @@ func mapUserServiceError(err error) error {
 		return errors.New(st.Message())
 	case codes.NotFound:
 		return errors.New("user profile not found")
+	case codes.AlreadyExists:
+		return ErrEmailExists
 	case codes.Internal:
 		return errors.New("user service error")
 	default:

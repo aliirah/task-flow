@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 
 	"github.com/aliirah/task-flow/services/user-service/internal/models"
 	"github.com/aliirah/task-flow/services/user-service/internal/service"
@@ -98,6 +99,9 @@ func (h *UserHandler) CreateUser(ctx context.Context, req *userpb.CreateUserRequ
 
 	user, err := h.svc.Create(ctx, input)
 	if err != nil {
+		if errors.Is(err, service.ErrEmailExists) {
+			return nil, status.Error(codes.AlreadyExists, err.Error())
+		}
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
