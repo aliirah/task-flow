@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -58,7 +58,7 @@ export default function OrganizationMembersPage() {
     defaultValues: { email: '', userId: '', role: 'member' },
   })
 
-  const loadOrganization = async (signal: AbortSignal) => {
+  const loadOrganization = useCallback(async (signal: AbortSignal) => {
     if (!organizationId) {
       return
     }
@@ -71,9 +71,9 @@ export default function OrganizationMembersPage() {
       }
       handleApiError({ error })
     }
-  }
+  }, [organizationId])
 
-  const loadMembers = async (signal: AbortSignal) => {
+  const loadMembers = useCallback(async (signal: AbortSignal) => {
     if (!organizationId) {
       return
     }
@@ -91,7 +91,7 @@ export default function OrganizationMembersPage() {
     } finally {
       setRefreshingMembers(false)
     }
-  }
+  }, [organizationId])
 
   useEffect(() => {
     if (!organizationId) {
@@ -120,7 +120,7 @@ export default function OrganizationMembersPage() {
       cancelled = true
       controller.abort()
     }
-  }, [organizationId])
+  }, [organizationId, loadMembers, loadOrganization])
 
   const onSubmit = form.handleSubmit(async (values) => {
     if (!organizationId) {

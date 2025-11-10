@@ -37,12 +37,12 @@ export function UserEmailSelect({
   const [results, setResults] = useState<User[]>([])
   const [open, setOpen] = useState(false)
   const [searching, setSearching] = useState(false)
-  const excludeKey = excludeUserIds?.join(',') ?? ''
   const excludeSet = useMemo(() => {
-    const set = new Set<string>()
-    excludeUserIds?.forEach((id) => set.add(id.toLowerCase()))
-    return set
-  }, [excludeKey])
+    if (!excludeUserIds || excludeUserIds.length === 0) {
+      return new Set<string>()
+    }
+    return new Set(excludeUserIds.map((id) => id.toLowerCase()))
+  }, [excludeUserIds])
 
   useEffect(() => {
     const trimmed = value.trim().toLowerCase()

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { Layers, Users } from 'lucide-react'
+import { Layers } from 'lucide-react'
 
 import { organizationApi } from '@/lib/api'
 import type { Organization, OrganizationMember } from '@/lib/types/api'

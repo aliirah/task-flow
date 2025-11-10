@@ -226,20 +226,6 @@ export default function TaskDetailPage() {
     void handleAutoSave()
   }
 
-  const handleOrganizationChange = (value: string) => {
-    const previousAssignee = form.getValues('assigneeId')
-    setMembers([])
-    form.setValue('organizationId', value, {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-    if (previousAssignee) {
-      form.setValue('assigneeId', '', { shouldDirty: true })
-    }
-    void handleAutoSave()
-    setEditingField((prev) => ({ ...prev, organization: false, assignee: false }))
-  }
-
   const handleDueAtChange = (value?: string) => {
     form.setValue('dueAt', value ?? '', {
       shouldDirty: true,
@@ -286,9 +272,6 @@ export default function TaskDetailPage() {
       task.reporterId
     : task?.reporterId || '—'
   const reporterEmail = task?.reporter?.email
-  const organizationDisplay =
-    organizationOptions.find((org) => org.id === organizationId)?.name ||
-    'Select organization'
   const statusDisplay = STATUS_BADGES[watchedStatus].label
   const priorityDisplay = PRIORITY_LABELS[watchedPriority].label
   const dueDateDisplay = dueAtValue
@@ -325,7 +308,7 @@ export default function TaskDetailPage() {
                     value={field.value}
                     placeholder="Untitled task"
                     className="border border-slate-300 bg-white px-3 py-2 text-2xl font-semibold"
-                    onBlur={(event) => {
+                    onBlur={() => {
                       field.onBlur()
                       setEditingField((prev) => ({ ...prev, title: false }))
                       handleFieldBlur()

@@ -101,7 +101,6 @@ const SUMMARY_PAGE_SIZE = 100
 
 export default function DashboardPage() {
   const {
-    memberships,
     selectedOrganization,
     selectedOrganizationId,
     setSelectedOrganizationId,
@@ -171,16 +170,6 @@ export default function DashboardPage() {
       dueAt: '',
     },
   })
-
-  const selectedMembership = useMemo(
-    () =>
-      memberships.find(
-        (membership) =>
-          membership.organizationId === selectedOrganizationId ||
-          membership.organization?.id === selectedOrganizationId
-      ),
-    [memberships, selectedOrganizationId]
-  )
 
   const fetchMembers = useCallback(async (orgId: string) => {
     setLoadingMembers(true)
@@ -545,8 +534,6 @@ export default function DashboardPage() {
     const to = taskPage * PAGE_SIZE + tasks.length
     return { from, to }
   }, [tasks.length, taskPage])
-
-  const organizationRole = selectedMembership?.role
 
   const heroSubtitle = selectedOrganization
     ? `Stay on top of the work for ${selectedOrganization.name}.`

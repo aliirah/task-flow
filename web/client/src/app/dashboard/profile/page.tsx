@@ -37,13 +37,16 @@ export default function ProfilePage() {
     },
   })
 
+  const firstNameValue = user?.firstName ?? ''
+  const lastNameValue = user?.lastName ?? ''
+
   useEffect(() => {
     if (!user) return
     form.reset({
-      firstName: user.firstName ?? '',
-      lastName: user.lastName ?? '',
+      firstName: firstNameValue,
+      lastName: lastNameValue,
     })
-  }, [user, form])
+  }, [user, form, firstNameValue, lastNameValue])
 
   useEffect(() => {
     if (!user?.id) return
@@ -62,7 +65,7 @@ export default function ProfilePage() {
       }
     }
     load()
-  }, [user?.id, form])
+  }, [user?.id, user?.firstName, user?.lastName, form])
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {

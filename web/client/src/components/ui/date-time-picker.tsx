@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useMemo } from 'react'
 import { DatePicker } from 'rsuite'
 import 'rsuite/DatePicker/styles/index.css'
 
@@ -21,15 +21,12 @@ export function DateTimePickerField({
   className,
   label = 'Due date',
 }: DateTimePickerProps) {
-  const [selected, setSelected] = useState<Date | null>(null)
-
-  useEffect(() => {
+  const selected = useMemo(() => {
     if (!value) {
-      setSelected(null)
-      return
+      return null
     }
     const parsed = new Date(value)
-    setSelected(Number.isNaN(parsed.getTime()) ? null : parsed)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
   }, [value])
 
   const formatRFC3339 = (date: Date) => {
@@ -38,7 +35,6 @@ export function DateTimePickerField({
   }
 
   const handleChange = (nextValue: Date | null) => {
-    setSelected(nextValue)
     if (!nextValue) {
       onChange(undefined)
       return
