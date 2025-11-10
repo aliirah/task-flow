@@ -20,6 +20,8 @@ interface TaskEventBase {
   assigneeId?: string
   reporter?: TaskEventUser
   assignee?: TaskEventUser
+  triggeredById?: string
+  triggeredBy?: TaskEventUser
   dueAt?: string
 }
 

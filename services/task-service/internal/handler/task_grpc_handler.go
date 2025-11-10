@@ -7,6 +7,7 @@ import (
 
 	"github.com/aliirah/task-flow/services/task-service/internal/models"
 	"github.com/aliirah/task-flow/services/task-service/internal/service"
+	"github.com/aliirah/task-flow/shared/authctx"
 	taskpb "github.com/aliirah/task-flow/shared/proto/task/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -39,6 +40,8 @@ func (h *TaskHandler) CreateTask(ctx context.Context, req *taskpb.CreateTaskRequ
 		return nil, status.Error(codes.InvalidArgument, "invalid reporter id")
 	}
 
+	initiator, _ := authctx.IncomingUser(ctx)
+
 	task, err := h.svc.CreateTask(ctx, service.CreateTaskInput{
 		Title:          req.GetTitle(),
 		Description:    req.GetDescription(),
@@ -48,7 +51,7 @@ func (h *TaskHandler) CreateTask(ctx context.Context, req *taskpb.CreateTaskRequ
 		AssigneeID:     assigneeID,
 		ReporterID:     reporterID,
 		DueAt:          timestampToTime(req.GetDueAt()),
-	})
+	}, initiator)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -114,6 +117,7 @@ func (h *TaskHandler) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskRequ
 	}
 
 	input := service.UpdateTaskInput{}
+	initiator, _ := authctx.IncomingUser(ctx)
 	if req.GetTitle() != nil {
 		value := req.GetTitle().GetValue()
 		input.Title = &value
@@ -156,7 +160,7 @@ func (h *TaskHandler) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskRequ
 		input.DueAt = &due
 	}
 
-	task, err := h.svc.UpdateTask(ctx, id, input)
+	task, err := h.svc.UpdateTask(ctx, id, input, initiator)
 	if err != nil {
 		return nil, grpcError(err)
 	}

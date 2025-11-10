@@ -141,6 +141,8 @@ func (cm *ConnectionManager) BroadcastToOrg(orgID string, message contracts.WSMe
 		return nil
 	}
 
+	log.Printf("[TODO-remove] broadcasting %s to org %s (%d connections)", message.Type, orgID, len(connIDs))
+
 	for connID := range connIDs {
 		if err := cm.write(connID, message); err != nil {
 			log.Printf("broadcast error to org %s conn %s: %v", orgID, connID, err)

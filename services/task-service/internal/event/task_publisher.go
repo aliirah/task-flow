@@ -14,8 +14,8 @@ import (
 
 // TaskEventPublisher describes the behaviour required to broadcast task lifecycle events.
 type TaskEventPublisher interface {
-	TaskCreated(ctx context.Context, task *models.Task, reporter, assignee *userpb.User) error
-	TaskUpdated(ctx context.Context, task *models.Task, reporter, assignee *userpb.User) error
+	TaskCreated(ctx context.Context, task *models.Task, reporter, assignee *userpb.User, triggeredBy *contracts.TaskUser) error
+	TaskUpdated(ctx context.Context, task *models.Task, reporter, assignee *userpb.User, triggeredBy *contracts.TaskUser) error
 }
 
 // NewTaskPublisher builds a RabbitMQ-backed TaskEventPublisher
@@ -30,7 +30,7 @@ type taskPublisher struct {
 	mq *messaging.RabbitMQ
 }
 
-func (p *taskPublisher) TaskCreated(ctx context.Context, task *models.Task, reporter, assignee *userpb.User) error {
+func (p *taskPublisher) TaskCreated(ctx context.Context, task *models.Task, reporter, assignee *userpb.User, triggeredBy *contracts.TaskUser) error {
 	if p == nil || p.mq == nil || task == nil {
 		return nil
 	}
@@ -44,6 +44,11 @@ func (p *taskPublisher) TaskCreated(ctx context.Context, task *models.Task, repo
 		Priority:       task.Priority,
 		AssigneeID:     task.AssigneeID.String(),
 		ReporterID:     task.ReporterID.String(),
+	}
+
+	if triggeredBy != nil {
+		eventData.TriggeredByID = triggeredBy.ID
+		eventData.TriggeredBy = triggeredBy
 	}
 
 	// Add reporter details if available
@@ -91,7 +96,7 @@ func (p *taskPublisher) TaskCreated(ctx context.Context, task *models.Task, repo
 	return p.mq.PublishMessage(ctx, "task."+task.OrganizationID.String(), msg)
 }
 
-func (p *taskPublisher) TaskUpdated(ctx context.Context, task *models.Task, reporter, assignee *userpb.User) error {
+func (p *taskPublisher) TaskUpdated(ctx context.Context, task *models.Task, reporter, assignee *userpb.User, triggeredBy *contracts.TaskUser) error {
 	if p == nil || p.mq == nil || task == nil {
 		return nil
 	}
@@ -105,6 +110,11 @@ func (p *taskPublisher) TaskUpdated(ctx context.Context, task *models.Task, repo
 		Priority:       task.Priority,
 		AssigneeID:     task.AssigneeID.String(),
 		ReporterID:     task.ReporterID.String(),
+	}
+
+	if triggeredBy != nil {
+		eventData.TriggeredByID = triggeredBy.ID
+		eventData.TriggeredBy = triggeredBy
 	}
 
 	// Add reporter details if available
@@ -151,10 +161,10 @@ func (p *taskPublisher) TaskUpdated(ctx context.Context, task *models.Task, repo
 
 type noopTaskPublisher struct{}
 
-func (noopTaskPublisher) TaskCreated(context.Context, *models.Task, *userpb.User, *userpb.User) error {
+func (noopTaskPublisher) TaskCreated(context.Context, *models.Task, *userpb.User, *userpb.User, *contracts.TaskUser) error {
 	return nil
 }
 
-func (noopTaskPublisher) TaskUpdated(context.Context, *models.Task, *userpb.User, *userpb.User) error {
+func (noopTaskPublisher) TaskUpdated(context.Context, *models.Task, *userpb.User, *userpb.User, *contracts.TaskUser) error {
 	return nil
 }

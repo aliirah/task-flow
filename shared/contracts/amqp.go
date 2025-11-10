@@ -25,6 +25,8 @@ type TaskCreatedEvent struct {
 	AssigneeID     string    `json:"assigneeId"`
 	Reporter       *TaskUser `json:"reporter,omitempty"`
 	Assignee       *TaskUser `json:"assignee,omitempty"`
+	TriggeredByID  string    `json:"triggeredById,omitempty"`
+	TriggeredBy    *TaskUser `json:"triggeredBy,omitempty"`
 	DueAt          string    `json:"dueAt,omitempty"`
 	CreatedAt      string    `json:"createdAt,omitempty"`
 	UpdatedAt      string    `json:"updatedAt,omitempty"`
@@ -41,6 +43,8 @@ type TaskUpdatedEvent struct {
 	AssigneeID     string    `json:"assigneeId"`
 	Reporter       *TaskUser `json:"reporter,omitempty"`
 	Assignee       *TaskUser `json:"assignee,omitempty"`
+	TriggeredByID  string    `json:"triggeredById,omitempty"`
+	TriggeredBy    *TaskUser `json:"triggeredBy,omitempty"`
 	DueAt          string    `json:"dueAt,omitempty"`
 	UpdatedAt      string    `json:"updatedAt,omitempty"`
 }

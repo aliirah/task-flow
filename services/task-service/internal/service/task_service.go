@@ -8,6 +8,8 @@ import (
 
 	"github.com/aliirah/task-flow/services/task-service/internal/event"
 	"github.com/aliirah/task-flow/services/task-service/internal/models"
+	"github.com/aliirah/task-flow/shared/authctx"
+	"github.com/aliirah/task-flow/shared/contracts"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -40,7 +42,7 @@ type CreateTaskInput struct {
 	DueAt          *time.Time
 }
 
-func (s *Service) CreateTask(ctx context.Context, input CreateTaskInput) (*models.Task, error) {
+func (s *Service) CreateTask(ctx context.Context, input CreateTaskInput, initiator authctx.User) (*models.Task, error) {
 	task := &models.Task{
 		Title:          strings.TrimSpace(input.Title),
 		Description:    strings.TrimSpace(input.Description),
@@ -83,7 +85,12 @@ func (s *Service) CreateTask(ctx context.Context, input CreateTaskInput) (*model
 	}
 
 	// Create task with enriched user details
-	if err := s.publisher.TaskCreated(ctx, task, reporter, assignee); err != nil {
+	triggeredBy := taskUserFromAuth(initiator)
+	if triggeredBy == nil {
+		triggeredBy = reporterTaskUserFallback(task.ReporterID, reporter)
+	}
+
+	if err := s.publisher.TaskCreated(ctx, task, reporter, assignee, triggeredBy); err != nil {
 		return nil, fmt.Errorf("failed to publish task created event: %w", err)
 	}
 
@@ -149,7 +156,7 @@ type UpdateTaskInput struct {
 	DueAt          *time.Time
 }
 
-func (s *Service) UpdateTask(ctx context.Context, id uuid.UUID, input UpdateTaskInput) (*models.Task, error) {
+func (s *Service) UpdateTask(ctx context.Context, id uuid.UUID, input UpdateTaskInput, initiator authctx.User) (*models.Task, error) {
 	task, err := s.GetTask(ctx, id)
 	if err != nil {
 		return nil, err
@@ -218,7 +225,12 @@ func (s *Service) UpdateTask(ctx context.Context, id uuid.UUID, input UpdateTask
 		}
 
 		// Publish task updated event with enriched user details
-		if err := s.publisher.TaskUpdated(ctx, task, reporter, assignee); err != nil {
+		triggeredBy := taskUserFromAuth(initiator)
+		if triggeredBy == nil {
+			triggeredBy = reporterTaskUserFallback(task.ReporterID, reporter)
+		}
+
+		if err := s.publisher.TaskUpdated(ctx, task, reporter, assignee, triggeredBy); err != nil {
 			return nil, fmt.Errorf("failed to publish task updated event: %w", err)
 		}
 	}
@@ -235,4 +247,31 @@ func defaultString(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func taskUserFromAuth(user authctx.User) *contracts.TaskUser {
+	if user.ID == "" {
+		return nil
+	}
+	return &contracts.TaskUser{
+		ID:        user.ID,
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Email:     user.Email,
+	}
+}
+
+func reporterTaskUserFallback(reporterID uuid.UUID, reporter *userpb.User) *contracts.TaskUser {
+	if reporter != nil {
+		return &contracts.TaskUser{
+			ID:        reporter.Id,
+			FirstName: reporter.FirstName,
+			LastName:  reporter.LastName,
+			Email:     reporter.Email,
+		}
+	}
+	if reporterID == uuid.Nil {
+		return nil
+	}
+	return &contracts.TaskUser{ID: reporterID.String()}
 }

@@ -257,6 +257,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
       socket.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data)
+          console.debug('[TODO-remove] incoming ws payload', message)
           if (!message?.type) {
             return
           }
@@ -269,10 +270,18 @@ export function DashboardShell({ children }: DashboardShellProps) {
           if (!isTaskEvent || !message.data) {
             return
           }
-          if (message.data.reporterId && message.data.reporterId === userRef.current?.id) {
+          const senderId =
+            message.data.triggeredById ?? message.data.reporterId ?? null
+          if (senderId && senderId === userRef.current?.id) {
+            console.debug(
+              '[TODO-remove] skipping self-originated event',
+              message.type,
+              senderId
+            )
             return
           }
           const taskEvent = message as TaskEventMessage
+          console.debug('[TODO-remove] broadcasting task event', taskEvent)
           broadcastTaskEvent(taskEvent)
           if (
             message.data.organizationId &&
