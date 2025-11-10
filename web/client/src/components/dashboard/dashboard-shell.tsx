@@ -23,7 +23,7 @@ import {
   UserCheck,
 } from 'lucide-react'
 
-import { authApi, organizationApi } from '@/lib/api'
+import { authApi, organizationApi, refreshToken as requestTokenRefresh } from '@/lib/api'
 import type { Organization, OrganizationMember } from '@/lib/types/api'
 import { handleApiError } from '@/lib/utils/error-handler'
 import { cn } from '@/lib/utils'
@@ -80,7 +80,13 @@ interface DashboardShellProps {
 export function DashboardShell({ children }: DashboardShellProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { user, refreshToken, clearAuth, accessToken } = useAuthStore()
+  const {
+    user,
+    refreshToken: storedRefreshToken,
+    clearAuth,
+    accessToken,
+    expiresAt,
+  } = useAuthStore()
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
@@ -102,6 +108,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const taskEventListenersRef = useRef<Set<TaskEventListener>>(new Set())
   const userRef = useRef(user)
   const selectedOrgRef = useRef<string | null>(selectedOrganizationId)
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     userRef.current = user
@@ -116,6 +123,46 @@ export function DashboardShell({ children }: DashboardShellProps) {
     storedOrgRef.current = window.localStorage.getItem(STORAGE_KEY)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = null
+    }
+    if (!storedRefreshToken || !expiresAt) {
+      return
+    }
+    const expiryTime = new Date(expiresAt).getTime()
+    if (Number.isNaN(expiryTime)) {
+      return
+    }
+    const now = Date.now()
+    const leadTime = 60_000
+
+    const scheduleRefresh = async () => {
+      const refreshed = await requestTokenRefresh()
+      if (!refreshed) {
+        clearAuth()
+        Cookies.remove('accessToken')
+        router.replace('/auth/login')
+      }
+    }
+
+    if (expiryTime - now <= leadTime) {
+      scheduleRefresh()
+      return
+    }
+
+    const delay = Math.max(expiryTime - now - leadTime, 5_000)
+    refreshTimerRef.current = setTimeout(scheduleRefresh, delay)
+
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = null
+      }
+    }
+  }, [storedRefreshToken, expiresAt, clearAuth, router])
 
   const refreshOrganizations = useCallback(async () => {
     if (!user) {
@@ -362,8 +409,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const handleLogout = useCallback(async () => {
     setIsLoggingOut(true)
     try {
-      if (refreshToken) {
-        await authApi.logout(refreshToken)
+      if (storedRefreshToken) {
+        await authApi.logout(storedRefreshToken)
       }
       toast.success('Signed out')
     } catch (error) {
@@ -376,7 +423,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
       setLogoutConfirmOpen(false)
       router.replace('/auth/login')
     }
-  }, [clearAuth, router])
+  }, [clearAuth, router, storedRefreshToken])
 
   const contextValue = useMemo<DashboardContextValue>(
     () => ({

@@ -35,6 +35,10 @@ spec:
           env:
             - name: AUTH_GRPC_ADDR
               value: ":50051"
+            - name: AUTH_ACCESS_TOKEN_TTL
+              value: "1h"
+            - name: AUTH_REFRESH_TOKEN_TTL
+              value: "720h"
             - name: ENVIRONMENT
               value: "development"
             - name: JAEGER_ENDPOINT

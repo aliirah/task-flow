@@ -87,8 +87,8 @@ func main() {
 
 	cfg := service.Config{
 		JWTSecret:       []byte(env.GetString("AUTH_JWT_SECRET", "development-secret")),
-		AccessTokenTTL:  parseDuration(env.GetString("AUTH_ACCESS_TOKEN_TTL", "15m"), 15*time.Minute),
-		RefreshTokenTTL: parseDuration(env.GetString("AUTH_REFRESH_TOKEN_TTL", "720h"), 24*time.Hour),
+		AccessTokenTTL:  parseDuration(env.GetString("AUTH_ACCESS_TOKEN_TTL", "1h"), time.Hour),
+		RefreshTokenTTL: parseDuration(env.GetString("AUTH_REFRESH_TOKEN_TTL", "720h"), 30*24*time.Hour),
 	}
 
 	authSvc := service.NewAuthService(db, cfg, userpb.NewUserServiceClient(userConn))

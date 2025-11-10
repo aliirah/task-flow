@@ -1,5 +1,7 @@
+'use client'
+
 import { create, StateCreator } from 'zustand'
-import { persist, PersistOptions } from 'zustand/middleware'
+import { persist, PersistOptions, createJSONStorage } from 'zustand/middleware'
 
 export interface User {
   email: string
@@ -50,6 +52,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      storage: createJSONStorage(() => sessionStorage),
     }
   )
 )
