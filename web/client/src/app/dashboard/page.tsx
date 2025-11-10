@@ -17,10 +17,7 @@ import { toast } from 'sonner'
 
 import { useDashboard } from '@/components/dashboard/dashboard-shell'
 import { UserEmailSelect } from '@/components/organizations/user-email-select'
-import {
-  organizationApi,
-  taskApi,
-} from '@/lib/api'
+import { organizationApi, taskApi } from '@/lib/api'
 import { handleApiError } from '@/lib/utils/error-handler'
 import type {
   Organization,
@@ -45,6 +42,10 @@ import { Select } from '@/components/ui/select'
 import { DateTimePickerField } from '@/components/ui/date-time-picker'
 import { useTaskEvents } from '@/hooks/useTaskEvents'
 import type { TaskEventMessage } from '@/lib/types/ws'
+import {
+  taskEventToTask,
+  upsertTaskWithLimit,
+} from '@/lib/utils/task-events'
 import {
   TaskAssigneeInlineSelect,
   TaskPriorityInlineSelect,
@@ -282,29 +283,44 @@ export default function DashboardPage() {
   useTaskEvents(
     useCallback(
       (event: TaskEventMessage) => {
-        const { data } = event
-        if (!selectedOrganizationId || data.organizationId !== selectedOrganizationId) {
+        if (!selectedOrganizationId) return
+        if (event.data.organizationId !== selectedOrganizationId) {
           return
         }
-        if (event.type === 'task.event.created') {
-          fetchTasksPage(selectedOrganizationId, taskPage, taskFilter)
-          fetchTaskSummary(selectedOrganizationId)
-        } else if (event.type === 'task.event.updated') {
-          const isVisible = tasks.some((task) => task.id === data.taskId)
-          if (isVisible) {
-            fetchTasksPage(selectedOrganizationId, taskPage, taskFilter)
+        const incomingTask = taskEventToTask(event)
+        setAllTasks((prev) => upsertTaskWithLimit(prev, incomingTask, SUMMARY_PAGE_SIZE))
+
+        const matchesFilter = taskFilter === 'all' || incomingTask.status === taskFilter
+        let insertedIntoPage = false
+
+        setTasks((current) => {
+          const index = current.findIndex((task) => task.id === incomingTask.id)
+          if (index >= 0) {
+            if (!matchesFilter) {
+              const next = current.slice()
+              next.splice(index, 1)
+              return next
+            }
+            const next = current.slice()
+            next[index] = { ...next[index], ...incomingTask }
+            return next
           }
-          fetchTaskSummary(selectedOrganizationId)
+          if (event.type === 'task.event.created' && matchesFilter && taskPage === 0) {
+            const next = [incomingTask, ...current]
+            if (next.length > PAGE_SIZE) {
+              insertedIntoPage = true
+              return next.slice(0, PAGE_SIZE)
+            }
+            return next
+          }
+          return current
+        })
+
+        if (insertedIntoPage) {
+          setTaskHasMore(true)
         }
       },
-      [
-        selectedOrganizationId,
-        fetchTasksPage,
-        taskPage,
-        taskFilter,
-        fetchTaskSummary,
-        tasks,
-      ]
+      [selectedOrganizationId, taskFilter, taskPage]
     )
   )
 

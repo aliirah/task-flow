@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils'
 import { buildWsUrl } from '@/lib/utils/ws'
 import { TaskEventContext, TaskEventListener } from '@/hooks/useTaskEvents'
 import type { TaskEventMessage } from '@/lib/types/ws'
+import { describeTaskEvent } from '@/lib/utils/task-events'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -283,18 +284,12 @@ export function DashboardShell({ children }: DashboardShellProps) {
           const taskEvent = message as TaskEventMessage
           console.debug('[TODO-remove] broadcasting task event', taskEvent)
           broadcastTaskEvent(taskEvent)
-          if (
-            message.data.organizationId &&
-            message.data.organizationId === selectedOrgRef.current
-          ) {
-            toast.success(
-              message.type === 'task.event.created'
-                ? 'Task created'
-                : 'Task updated',
-              {
-                description: message.data.title ?? 'Task updated',
-              }
-            )
+          const currentOrg = selectedOrgRef.current
+          if (message.data.organizationId && message.data.organizationId === currentOrg) {
+            const content = describeTaskEvent(taskEvent)
+            toast.success(content.title, {
+              description: content.description,
+            })
           }
         } catch {
           // ignore parse errors

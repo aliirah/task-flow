@@ -27,6 +27,7 @@ import {
 } from '@/components/tasks/task-inline-controls'
 import { useTaskEvents } from '@/hooks/useTaskEvents'
 import type { TaskEventMessage } from '@/lib/types/ws'
+import { taskEventToTask } from '@/lib/utils/task-events'
 
 const PAGE_SIZE = 10
 
@@ -129,23 +130,41 @@ export default function TasksIndexPage() {
     useCallback(
       (event: TaskEventMessage) => {
         if (!selectedOrganizationId) return
-        const { data } = event
-        if (data.organizationId !== selectedOrganizationId) {
+        if (event.data.organizationId !== selectedOrganizationId) {
           return
         }
-        const matchesFilter = filter === 'all' || data.status === filter
-        if (event.type === 'task.event.created') {
-          if (matchesFilter) {
-            fetchTasks()
+        const incomingTask = taskEventToTask(event)
+        const matchesFilter = filter === 'all' || incomingTask.status === filter
+        let insertedToPage = false
+
+        setTasks((current) => {
+          const index = current.findIndex((task) => task.id === incomingTask.id)
+          if (index >= 0) {
+            if (!matchesFilter) {
+              const next = current.slice()
+              next.splice(index, 1)
+              return next
+            }
+            const next = current.slice()
+            next[index] = { ...next[index], ...incomingTask }
+            return next
           }
-        } else if (event.type === 'task.event.updated') {
-          const isVisible = tasks.some((task) => task.id === data.taskId)
-          if (isVisible || matchesFilter) {
-            fetchTasks()
+          if (event.type === 'task.event.created' && matchesFilter && page === 0) {
+            const next = [incomingTask, ...current]
+            if (next.length > PAGE_SIZE) {
+              insertedToPage = true
+              return next.slice(0, PAGE_SIZE)
+            }
+            return next
           }
+          return current
+        })
+
+        if (insertedToPage) {
+          setHasMore(true)
         }
       },
-      [selectedOrganizationId, filter, fetchTasks, tasks]
+      [selectedOrganizationId, filter, page]
     )
   )
 

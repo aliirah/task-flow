@@ -23,6 +23,7 @@ import {
 } from '@/components/tasks/task-inline-controls'
 import { useTaskEvents } from '@/hooks/useTaskEvents'
 import type { TaskEventMessage } from '@/lib/types/ws'
+import { taskEventToTask } from '@/lib/utils/task-events'
 
 const PAGE_SIZE = 10
 
@@ -87,13 +88,40 @@ export default function MyTasksPage() {
     useCallback(
       (event: TaskEventMessage) => {
         if (!user?.id) return
-        const { data } = event
-        if (data.assigneeId !== user.id) {
-          return
+        const incomingTask = taskEventToTask(event)
+        const matchesFilter =
+          statusFilter === 'all' || incomingTask.status === statusFilter
+        const assignedToUser = incomingTask.assigneeId === user.id
+        let insertedToPage = false
+
+        setTasks((current) => {
+          const index = current.findIndex((task) => task.id === incomingTask.id)
+          if (index >= 0) {
+            if (!assignedToUser || !matchesFilter) {
+              const next = current.slice()
+              next.splice(index, 1)
+              return next
+            }
+            const next = current.slice()
+            next[index] = { ...next[index], ...incomingTask }
+            return next
+          }
+          if (assignedToUser && matchesFilter && page === 0) {
+            const next = [incomingTask, ...current]
+            if (next.length > PAGE_SIZE) {
+              insertedToPage = true
+              return next.slice(0, PAGE_SIZE)
+            }
+            return next
+          }
+          return current
+        })
+
+        if (insertedToPage) {
+          setHasMore(true)
         }
-        fetchMyTasks()
       },
-      [user?.id, fetchMyTasks]
+      [user?.id, statusFilter, page]
     )
   )
 
