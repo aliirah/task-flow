@@ -12,6 +12,7 @@ interface DateTimePickerProps {
   disabled?: boolean
   className?: string
   label?: string
+  placeholder?: string
 }
 
 export function DateTimePickerField({
@@ -20,6 +21,7 @@ export function DateTimePickerField({
   disabled,
   className,
   label = 'Due date',
+  placeholder = 'Select a date',
 }: DateTimePickerProps) {
   const selected = useMemo(() => {
     if (!value) {
@@ -58,6 +60,7 @@ export function DateTimePickerField({
         menuStyle={{ zIndex: 3000 }}
         style={{ width: '100%' }}
         disabled={disabled}
+        placeholder={placeholder}
       />
     </div>
   )

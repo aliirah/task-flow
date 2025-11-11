@@ -80,28 +80,32 @@ export const describeTaskEvent = (event: TaskEventMessage) => {
 }
 
 export const taskEventToTask = (event: TaskEventMessage): Task => {
-  const { data } = event
-  const createdAt =
-    event.type === 'task.event.created'
-      ? data.createdAt ?? data.updatedAt
-      : data.createdAt
-  const updatedAt = data.updatedAt ?? data.createdAt
+  const toTask = (data: TaskEventPayload, createdAt?: string) => {
+    const updatedAt = data.updatedAt ?? createdAt
 
-  return {
-    id: data.taskId,
-    title: data.title,
-    description: data.description,
-    status: data.status,
-    priority: data.priority,
-    organizationId: data.organizationId,
-    assigneeId: data.assigneeId || undefined,
-    reporterId: data.reporterId || undefined,
-    dueAt: data.dueAt,
-    createdAt: createdAt ?? undefined,
-    updatedAt: updatedAt ?? undefined,
-    assignee: toUser(data.assignee),
-    reporter: toUser(data.reporter),
+    return {
+      id: data.taskId,
+      title: data.title,
+      description: data.description,
+      status: data.status,
+      priority: data.priority,
+      organizationId: data.organizationId,
+      assigneeId: data.assigneeId || undefined,
+      reporterId: data.reporterId || undefined,
+      dueAt: data.dueAt,
+      createdAt: createdAt ?? undefined,
+      updatedAt: updatedAt ?? undefined,
+      assignee: toUser(data.assignee),
+      reporter: toUser(data.reporter),
+    }
   }
+
+  if (event.type === 'task.event.created') {
+    const { data } = event
+    return toTask(data, data.createdAt ?? data.updatedAt)
+  }
+
+  return toTask(event.data)
 }
 
 export const upsertTaskWithLimit = (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Plus, Trash2 } from 'lucide-react'
@@ -31,7 +31,7 @@ import { taskEventToTask } from '@/lib/utils/task-events'
 
 const PAGE_SIZE = 10
 
-export default function TasksIndexPage() {
+function TasksPageContent() {
   const searchParams = useSearchParams()
   const initialOrgId = searchParams.get('orgId') ?? undefined
 
@@ -445,5 +445,13 @@ export default function TasksIndexPage() {
         </p>
       </Modal>
     </>
+  )
+}
+
+export default function TasksIndexPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:px-8"><p className="text-sm text-slate-500">Loading...</p></div>}>
+      <TasksPageContent />
+    </Suspense>
   )
 }

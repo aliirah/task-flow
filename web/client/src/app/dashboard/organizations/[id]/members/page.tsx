@@ -26,7 +26,7 @@ import { useAuthStore } from '@/store/auth'
 const memberSchema = z.object({
   email: z.string().email('Enter a valid email address'),
   userId: z.string().min(1, 'Select a user from the dropdown'),
-  role: z.enum(['owner', 'admin', 'member']).default('member'),
+  role: z.enum(['owner', 'admin', 'member']),
 })
 
 type MemberFormValues = z.infer<typeof memberSchema>

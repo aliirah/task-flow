@@ -42,6 +42,8 @@ export default function OrganizationDetailPage() {
         }`.trim() || ownerMember.user.email || ownerMember.userId
       : organization?.ownerId ?? '—'
   const ownerEmail = ownerMember?.user?.email
+  const createdAt = organization?.createdAt
+  const updatedAt = organization?.updatedAt
 
   useEffect(() => {
     if (!organizationId) {
@@ -144,7 +146,7 @@ export default function OrganizationDetailPage() {
               <div>
                 <p className="text-xs uppercase text-slate-400">Description</p>
                 <p className="mt-1 text-base text-slate-800">
-                  {organization.description || 'No description provided.'}
+                  {organization?.description ?? 'No description provided.'}
                 </p>
               </div>
               <div className="grid gap-1 md:grid-cols-2 md:gap-4">
@@ -162,9 +164,7 @@ export default function OrganizationDetailPage() {
                     Created at
                   </p>
                   <p className="mt-1 text-base text-slate-800">
-                    {organization.createdAt
-                      ? new Date(organization.createdAt).toLocaleString()
-                      : '—'}
+                    {createdAt ? new Date(createdAt).toLocaleString() : '—'}
                   </p>
                 </div>
               </div>
@@ -172,9 +172,7 @@ export default function OrganizationDetailPage() {
                 <div>
                   <p className="text-xs uppercase text-slate-400">Updated at</p>
                   <p className="mt-1 text-base text-slate-800">
-                    {organization.updatedAt
-                      ? new Date(organization.updatedAt).toLocaleString()
-                      : '—'}
+                    {updatedAt ? new Date(updatedAt).toLocaleString() : '—'}
                   </p>
                 </div>
                 <div>
