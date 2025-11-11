@@ -194,6 +194,13 @@ docker_build(
   'task-flow/web-client',
   '.',
   dockerfile='./infra/dev/docker/web-client.Dockerfile',
+  live_update=[
+    sync('./web/client/src', '/app/src'),
+    sync('./web/client/public', '/app/public'),
+    sync('./web/client/package.json', '/app/package.json'),
+    sync('./web/client/yarn.lock', '/app/yarn.lock'),
+    run('cd /app && yarn install', trigger=['./web/client/package.json', './web/client/yarn.lock']),
+  ],
 )
 
 k8s_yaml('./infra/dev/k8s/web-client-deployment.yaml')

@@ -5,12 +5,10 @@ WORKDIR /app
 COPY web/client/package*.json ./
 COPY web/client/yarn.lock ./
 
-RUN yarn install
+RUN yarn install --frozen-lockfile
 
 COPY web/client ./
 
-RUN yarn build
-
 EXPOSE 3000
 
-CMD ["yarn", "dev"]
+CMD ["yarn", "dev", "--hostname", "0.0.0.0"]

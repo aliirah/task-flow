@@ -2,8 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: web-client
-  labels:
-    app: web-client
+  namespace: default
 spec:
   replicas: 1
   selector:
@@ -17,37 +16,47 @@ spec:
       containers:
       - name: web-client
         image: task-flow/web-client
-        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
-          name: http
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "256Mi"
-          limits:
-            cpu: "500m"
-            memory: "512Mi"
         env:
         - name: NODE_ENV
           value: "development"
-        - name: NEXT_PUBLIC_API_URL
-          value: "http://api-gateway:8081"
-        - name: NEXT_PUBLIC_WEBSOCKET_URL
-          value: "ws://api-gateway:8081/ws"
+        - name: WATCHPACK_POLLING
+          value: "true"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
         readinessProbe:
           httpGet:
             path: /
-            port: http
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 10
-          failureThreshold: 3
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 6
         livenessProbe:
           httpGet:
             path: /
-            port: http
-          initialDelaySeconds: 60
-          periodSeconds: 20
-          timeoutSeconds: 10
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
           failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-client
+  namespace: default
+spec:
+  selector:
+    app: web-client
+  ports:
+  - protocol: TCP
+    port: 3000
+    targetPort: 3000
+  type: ClusterIP
