@@ -145,11 +145,49 @@ func (s *UserService) assignRoles(ctx context.Context, user *models.User, roleNa
 		return err
 	}
 
+	// Create missing roles automatically
 	if len(roles) != len(roleNames) {
-		return errors.New("one or more roles not found")
+		existingRoleNames := make(map[string]bool)
+		for _, role := range roles {
+			existingRoleNames[role.Name] = true
+		}
+
+		// Create roles that don't exist
+		for _, roleName := range roleNames {
+			if !existingRoleNames[roleName] {
+				newRole := models.Role{
+					ID:          uuid.New(),
+					Name:        roleName,
+					Description: generateRoleDescription(roleName),
+				}
+				if err := s.db.WithContext(ctx).Create(&newRole).Error; err != nil {
+					// If creation fails due to race condition (another request created it), try to fetch it
+					var existingRole models.Role
+					if err := s.db.WithContext(ctx).Where("name = ?", roleName).First(&existingRole).Error; err != nil {
+						return err
+					}
+					roles = append(roles, existingRole)
+				} else {
+					roles = append(roles, newRole)
+				}
+			}
+		}
 	}
 
 	return s.db.WithContext(ctx).Model(user).Association("Roles").Replace(roles)
+}
+
+func generateRoleDescription(roleName string) string {
+	descriptions := map[string]string{
+		"admin": "Administrative user with full access",
+		"user":  "Standard user with basic access",
+		"guest": "Guest user with limited access",
+	}
+	
+	if desc, ok := descriptions[roleName]; ok {
+		return desc
+	}
+	return "User role: " + roleName
 }
 
 func defaultString(value, fallback string) string {
