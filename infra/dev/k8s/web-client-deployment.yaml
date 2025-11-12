@@ -18,11 +18,9 @@ spec:
         image: task-flow/web-client
         ports:
         - containerPort: 3000
-        env:
-        - name: NODE_ENV
-          value: "development"
-        - name: WATCHPACK_POLLING
-          value: "true"
+        envFrom:
+        - secretRef:
+            name: web-client-env
         resources:
           requests:
             memory: "512Mi"

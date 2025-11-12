@@ -43,6 +43,8 @@ spec:
               value: "development"
             - name: JAEGER_ENDPOINT
               value: "http://jaeger:14268/api/traces"
+            - name: USER_SERVICE_ADDR
+              value: "user-service:50052"
             - name: AUTH_DB_HOST
               value: auth-db
             - name: AUTH_DB_PORT

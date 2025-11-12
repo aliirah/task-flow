@@ -68,7 +68,7 @@ cd task-flow
 Create your secrets configuration file:
 
 ```bash
-cp infra/dev/k8s/secrets.example.yaml infra/dev/k8s/secrets.yaml
+cp infra/dev/k8s/secrets_example.yaml infra/dev/k8s/secrets.yaml
 ```
 
 Edit `infra/dev/k8s/secrets.yaml` and update the credentials as needed. For development, you can use the default values.

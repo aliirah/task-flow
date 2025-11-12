@@ -35,14 +35,21 @@ spec:
           env:
             - name: TASK_GRPC_ADDR
               value: ":50054"
-            - name: USER_GRPC_ADDR
-              value: ":50052"
-            - name: AUTH_GRPC_ADDR
-              value: ":50051"
+            - name: USER_SERVICE_ADDR
+              value: "user-service:50052"
+            - name: AUTH_SERVICE_ADDR
+              value: "auth-service:50051"
+            - name: ORG_SERVICE_ADDR
+              value: "organization-service:50053"
             - name: ENVIRONMENT
               value: "development"
             - name: JAEGER_ENDPOINT
               value: "http://jaeger:14268/api/traces"
+            - name: RABBITMQ_URI
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: uri
             - name: TASK_DB_HOST
               value: task-db
             - name: TASK_DB_PORT
