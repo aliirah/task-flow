@@ -3,9 +3,13 @@
 import * as React from 'react'
 import {
   ColumnDef,
+  ColumnFiltersState,
   SortingState,
+  VisibilityState,
   flexRender,
   getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
@@ -21,56 +25,60 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Input } from '@/components/ui/input'
+
+
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
-  loading?: boolean
   searchKey?: string
   searchPlaceholder?: string
-  // For server-side operations
+  // Server-side mode props
   manualSorting?: boolean
   manualFiltering?: boolean
-  sorting?: SortingState
+  manualPagination?: boolean
   onSortingChange?: (sorting: SortingState) => void
-  // Filter props - parent manages search state
-  filter?: {
-    search: string
-    setSearch: (value: string) => void
-  }
+  onSearchChange?: (search: string) => void
+  sorting?: SortingState
+  search?: string
+  // Hide built-in pagination when doing server-side pagination
   hidePagination?: boolean
-  emptyMessage?: string
 }
 
-export function DataTable<TData, TValue>({
+function DataTableInner<TData, TValue>({
   columns,
   data,
-  loading = false,
   searchKey,
   searchPlaceholder = 'Search...',
   manualSorting = false,
   manualFiltering = false,
-  sorting: controlledSorting,
+  manualPagination = false,
   onSortingChange,
-  filter,
+  onSearchChange,
+  sorting: controlledSorting,
+  search: controlledSearch,
   hidePagination = false,
-  emptyMessage,
 }: DataTableProps<TData, TValue>) {
   const [internalSorting, setInternalSorting] = React.useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    []
+  )
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({})
+  const [rowSelection, setRowSelection] = React.useState({})
+  
+  // Local search state - completely independent from parent
+  const [localSearch, setLocalSearch] = React.useState('')
 
+  // Use controlled or internal state
   const sorting = controlledSorting ?? internalSorting
 
   const table = useReactTable({
     data,
     columns,
-    state: {
-      sorting,
-    },
     manualSorting,
     manualFiltering,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: manualSorting ? undefined : getSortedRowModel(),
+    manualPagination,
     onSortingChange: (updater) => {
       const newSorting = typeof updater === 'function' ? updater(sorting) : updater
       if (onSortingChange) {
@@ -79,22 +87,52 @@ export function DataTable<TData, TValue>({
         setInternalSorting(newSorting)
       }
     },
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: manualSorting ? undefined : getSortedRowModel(),
+    getFilteredRowModel: manualFiltering ? undefined : getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+    },
   })
 
+  const hasActiveFilters = columnFilters.length > 0
   const hasActiveSorting = sorting.length > 0
-  const hasActiveSearch = filter?.search && filter.search.length > 0
+
+  const handleSearchChange = React.useCallback((value: string) => {
+    // Update local state immediately for responsive UI - NO parent update!
+    setLocalSearch(value)
+    
+    // Directly call parent callback if provided (parent will handle debouncing)
+    if (manualFiltering && onSearchChange) {
+      onSearchChange(value)
+    } else if (searchKey) {
+      table.getColumn(searchKey)?.setFilterValue(value)
+    }
+  }, [manualFiltering, onSearchChange, searchKey, table])
+
+  const clearAllFilters = () => {
+    setLocalSearch('')
+    
+    if (!manualFiltering) {
+      table.resetColumnFilters()
+    }
+    if (onSearchChange) {
+      onSearchChange('')
+    }
+  }
 
   const clearAllSorting = () => {
     if (onSortingChange) {
       onSortingChange([])
-    } else {
-      setInternalSorting([])
-    }
-  }
-
-  const clearAllFilters = () => {
-    if (filter) {
-      filter.setSearch('')
+    } else if (!manualSorting) {
+      table.resetSorting()
     }
   }
 
@@ -106,16 +144,27 @@ export function DataTable<TData, TValue>({
   return (
     <div className="w-full space-y-4">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        {searchKey && filter && (
-          <Input
-            placeholder={searchPlaceholder}
-            value={filter.search}
-            onChange={(e) => filter.setSearch(e.target.value)}
-            className="w-full md:max-w-sm"
-          />
+        {searchKey && (
+          <div className="relative w-full md:max-w-sm">
+            <input
+              type="text"
+              value={localSearch}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            {localSearch && (
+              <button
+                onClick={clearAllFilters}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 hover:bg-slate-100"
+              >
+                <X className="size-4 text-slate-500" />
+              </button>
+            )}
+          </div>
         )}
 
-        {(hasActiveSearch || hasActiveSorting) && (
+        {(hasActiveFilters || hasActiveSorting) && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-slate-600">Active:</span>
             
@@ -132,12 +181,12 @@ export function DataTable<TData, TValue>({
               </Badge>
             )}
 
-            {hasActiveSearch && filter && (
+            {localSearch && (
               <Badge tone="default" className="gap-1">
                 <Filter className="size-3" />
-                Search: &ldquo;{filter.search}&rdquo;
+                Search: &ldquo;{localSearch}&rdquo;
                 <button
-                  onClick={clearAllFilters}
+                  onClick={() => handleSearchChange('')}
                   className="ml-1 hover:text-slate-900"
                 >
                   <X className="size-3" />
@@ -145,19 +194,20 @@ export function DataTable<TData, TValue>({
               </Badge>
             )}
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearAll}
-              className="h-8 px-2 lg:px-3"
-            >
-              Clear all
-            </Button>
+            {(hasActiveFilters || hasActiveSorting) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAll}
+                className="h-7 text-xs"
+              >
+                Clear all
+              </Button>
+            )}
           </div>
         )}
       </div>
-
-      <div className="overflow-x-auto rounded-md border">
+      <div className="overflow-x-auto rounded-md border border-slate-200">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -178,16 +228,7 @@ export function DataTable<TData, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center text-slate-500"
-                >
-                  Loading...
-                </TableCell>
-              </TableRow>
-            ) : table.getRowModel().rows?.length ? (
+            {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
@@ -209,24 +250,30 @@ export function DataTable<TData, TValue>({
                   colSpan={columns.length}
                   className="h-24 text-center text-slate-500"
                 >
-                  {emptyMessage ||
-                    (hasActiveSearch
-                      ? 'No results match your filters.'
-                      : 'No results.')}
+                  {hasActiveFilters || localSearch
+                    ? 'No results match your filters.'
+                    : 'No results.'}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-
       {!hidePagination && (
-        <div className="flex items-center justify-end space-x-2 py-4">
-          <div className="flex-1 text-sm text-muted-foreground">
-            {table.getFilteredSelectedRowModel().rows.length} of{' '}
-            {table.getFilteredRowModel().rows.length} row(s) selected.
+        <div className="flex items-center justify-between py-4">
+          <div className="text-sm text-slate-500">
+            {table.getFilteredRowModel().rows.length > 0 && (
+              <span>
+                Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{' '}
+                {Math.min(
+                  (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                  table.getFilteredRowModel().rows.length
+                )}{' '}
+                of {table.getFilteredRowModel().rows.length} result(s)
+              </span>
+            )}
           </div>
-          <div className="space-x-2">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -253,3 +300,7 @@ export function DataTable<TData, TValue>({
     </div>
   )
 }
+
+// Export without memo - let React handle updates normally
+// The input focus is maintained through internal state management
+export const DataTable = DataTableInner

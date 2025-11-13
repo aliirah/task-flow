@@ -100,6 +100,9 @@ func (h *TaskHandler) List(c *gin.Context) {
 		Status:         status,
 		Page:           int32(page),
 		Limit:          int32(limit + 1),
+		SortBy:         c.Query("sortBy"),
+		SortOrder:      c.Query("sortOrder"),
+		Search:         c.Query("search"),
 	}
 
 	resp, err := h.taskService.List(c.Request.Context(), req)

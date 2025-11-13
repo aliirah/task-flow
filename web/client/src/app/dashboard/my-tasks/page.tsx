@@ -147,6 +147,11 @@ export default function MyTasksPage() {
     [handleInlineUpdate]
   )
 
+  const filterProp = useMemo(
+    () => ({ search, setSearch }),
+    [search, setSearch]
+  )
+
   if (!user) {
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-12 text-center text-sm text-slate-500">
@@ -194,24 +199,25 @@ export default function MyTasksPage() {
         <CardContent>
           {loading ? (
             <p className="py-6 text-sm text-slate-500">Loading…</p>
-          ) : tasks.length === 0 ? (
-            <p className="py-6 text-sm text-slate-500">
-              No tasks match your filters yet.
-            </p>
           ) : (
             <>
               <DataTable
                 columns={columns}
                 data={tasks}
+                loading={loading}
                 searchKey="title"
                 searchPlaceholder="Search tasks..."
                 manualSorting
                 manualFiltering
                 sorting={sorting}
-                search={search}
                 onSortingChange={setSorting}
-                onSearchChange={setSearch}
+                filter={filterProp}
                 hidePagination
+                emptyMessage={
+                  tasks.length === 0 && !search
+                    ? 'No tasks match your filters yet.'
+                    : undefined
+                }
               />
               {(page > 0 || hasMore) && (
                 <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">

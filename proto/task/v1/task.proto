@@ -52,6 +52,9 @@ message ListTasksRequest {
   string status = 4;
   int32 page = 5;
   int32 limit = 6;
+  string sort_by = 7;
+  string sort_order = 8;
+  string search = 9;
 }
 
 message ListTasksResponse {

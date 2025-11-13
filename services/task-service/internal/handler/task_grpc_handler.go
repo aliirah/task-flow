@@ -72,7 +72,14 @@ func (h *TaskHandler) GetTask(ctx context.Context, req *taskpb.GetTaskRequest) (
 }
 
 func (h *TaskHandler) ListTasks(ctx context.Context, req *taskpb.ListTasksRequest) (*taskpb.ListTasksResponse, error) {
-	params := service.ListTasksParams{Page: int(req.GetPage()), Limit: int(req.GetLimit()), Status: req.GetStatus()}
+	params := service.ListTasksParams{
+		Page:      int(req.GetPage()),
+		Limit:     int(req.GetLimit()),
+		Status:    req.GetStatus(),
+		SortBy:    req.GetSortBy(),
+		SortOrder: req.GetSortOrder(),
+		Search:    req.GetSearch(),
+	}
 
 	if req.GetOrganizationId() != "" {
 		id, err := parseUUID(req.GetOrganizationId())

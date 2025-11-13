@@ -112,6 +112,9 @@ type ListTasksParams struct {
 	Status         string
 	Page           int
 	Limit          int
+	SortBy         string
+	SortOrder      string
+	Search         string
 }
 
 func (s *Service) ListTasks(ctx context.Context, params ListTasksParams) ([]models.Task, error) {
@@ -123,8 +126,9 @@ func (s *Service) ListTasks(ctx context.Context, params ListTasksParams) ([]mode
 	}
 	offset := (params.Page - 1) * params.Limit
 
-	query := s.db.WithContext(ctx).Model(&models.Task{}).Order("created_at DESC")
+	query := s.db.WithContext(ctx).Model(&models.Task{})
 
+	// Apply filters
 	if params.OrganizationID != uuid.Nil {
 		query = query.Where("organization_id = ?", params.OrganizationID)
 	}
@@ -137,6 +141,38 @@ func (s *Service) ListTasks(ctx context.Context, params ListTasksParams) ([]mode
 	if params.Status != "" {
 		query = query.Where("status = ?", strings.ToLower(params.Status))
 	}
+
+	// Apply search - search in title and description
+	if params.Search != "" {
+		searchPattern := "%" + params.Search + "%"
+		query = query.Where("title ILIKE ? OR description ILIKE ?", searchPattern, searchPattern)
+	}
+
+	// Apply sorting
+	allowedSortFields := map[string]string{
+		"title":       "title",
+		"status":      "status",
+		"priority":    "priority",
+		"dueAt":       "due_at",
+		"createdAt":   "created_at",
+		"updatedAt":   "updated_at",
+	}
+
+	sortField := "created_at"
+	if params.SortBy != "" {
+		if dbField, ok := allowedSortFields[params.SortBy]; ok {
+			sortField = dbField
+		}
+	}
+
+	sortOrder := "DESC"
+	if params.SortOrder != "" {
+		if strings.ToUpper(params.SortOrder) == "ASC" {
+			sortOrder = "ASC"
+		}
+	}
+
+	query = query.Order(sortField + " " + sortOrder)
 
 	var tasks []models.Task
 	if err := query.Offset(offset).Limit(params.Limit).Find(&tasks).Error; err != nil {

@@ -503,6 +503,14 @@ export default function DashboardPage() {
     [applyTaskPatch, members]
   )
 
+  const filterProp = {
+    search,
+    setSearch: (value: string) => {
+      setSearch(value)
+      setTaskPage(0)
+    },
+  }
+
   const upcomingTasks = useMemo(() => {
     const now = Date.now()
     return allTasks
@@ -659,12 +667,6 @@ export default function DashboardPage() {
           <CardContent>
             {loadingTasks ? (
               <p className="py-6 text-sm text-slate-500">Loading tasks…</p>
-            ) : tasks.length === 0 ? (
-              <p className="py-6 text-sm text-slate-500">
-                {taskFilter === 'all'
-                  ? 'No tasks yet. Create your first task to get started.'
-                  : 'No tasks match this filter.'}
-              </p>
             ) : (
               <>
                 <DataTable
@@ -675,10 +677,16 @@ export default function DashboardPage() {
                   manualSorting
                   manualFiltering
                   sorting={sorting}
-                  search={search}
                   onSortingChange={setSorting}
-                  onSearchChange={setSearch}
+                  filter={filterProp}
                   hidePagination
+                  emptyMessage={
+                    tasks.length === 0
+                      ? taskFilter === 'all' && !search
+                        ? 'No tasks yet. Create your first task to get started.'
+                        : 'No tasks match this filter.'
+                      : undefined
+                  }
                 />
                 {(taskPage > 0 || taskHasMore) && (
                   <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
