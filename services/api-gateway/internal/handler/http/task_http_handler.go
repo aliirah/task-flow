@@ -13,6 +13,7 @@ import (
 	taskdomain "github.com/aliirah/task-flow/shared/domain/task"
 	taskpb "github.com/aliirah/task-flow/shared/proto/task/v1"
 	"github.com/aliirah/task-flow/shared/rest"
+	tasktransform "github.com/aliirah/task-flow/shared/transform/task"
 	"github.com/aliirah/task-flow/shared/util"
 	"github.com/aliirah/task-flow/shared/util/stringset"
 )
@@ -225,7 +226,7 @@ func (h *TaskHandler) CreateComment(c *gin.Context) {
 		return
 	}
 
-	rest.Created(c, comment)
+	rest.Created(c, tasktransform.CommentToMap(comment))
 }
 
 // ListComments handles GET /api/tasks/:id/comments.
@@ -253,8 +254,13 @@ func (h *TaskHandler) ListComments(c *gin.Context) {
 		return
 	}
 
+	items := make([]gin.H, 0, len(resp.GetItems()))
+	for _, comment := range resp.GetItems() {
+		items = append(items, tasktransform.CommentToMap(comment))
+	}
+
 	rest.Ok(c, gin.H{
-		"items":   resp.GetItems(),
+		"items":   items,
 		"page":    page,
 		"limit":   limit,
 		"hasMore": resp.GetHasMore(),
@@ -267,7 +273,7 @@ func (h *TaskHandler) GetComment(c *gin.Context) {
 	if rest.HandleGRPCError(c, err, rest.WithNamespace("comment")) {
 		return
 	}
-	rest.Ok(c, comment)
+	rest.Ok(c, tasktransform.CommentToMap(comment))
 }
 
 // UpdateComment handles PATCH /api/comments/:id.
@@ -291,7 +297,7 @@ func (h *TaskHandler) UpdateComment(c *gin.Context) {
 		return
 	}
 
-	rest.Ok(c, comment)
+	rest.Ok(c, tasktransform.CommentToMap(comment))
 }
 
 // DeleteComment handles DELETE /api/comments/:id.

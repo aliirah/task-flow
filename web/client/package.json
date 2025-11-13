@@ -18,6 +18,7 @@
     "@tiptap/pm": "^3.10.7",
     "@tiptap/react": "^3.10.7",
     "@tiptap/starter-kit": "^3.10.7",
+    "@tiptap/suggestion": "^3.10.7",
     "@types/js-cookie": "^3.0.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -32,6 +33,8 @@
     "rsuite": "^5.83.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
+    "tippy": "^0.0.0",
+    "tippy.js": "^6.3.7",
     "use-debounce": "^10.0.6",
     "zod": "^4.1.12",
     "zustand": "^5.0.8"

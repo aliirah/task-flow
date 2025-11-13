@@ -10,8 +10,10 @@ import { toast } from 'sonner'
 
 import { useDashboard } from '@/components/dashboard/dashboard-shell'
 import { organizationApi, taskApi } from '@/lib/api'
-import { OrganizationMember, Task, TaskPriority, TaskStatus } from '@/lib/types/api'
+import { OrganizationMember, Task, TaskPriority, TaskStatus, User } from '@/lib/types/api'
 import { handleApiError } from '@/lib/utils/error-handler'
+import { CommentList } from '@/components/comments/comment-list'
+import { useAuthStore } from '@/store/auth'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -65,6 +67,7 @@ export default function TaskDetailPage() {
   const params = useParams<{ id?: string }>()
   const taskId = params?.id
   const { organizations: dashboardOrgs } = useDashboard()
+  const currentUserId = useAuthStore((state) => state.user?.id)
 
   const [task, setTask] = useState<Task | null>(null)
   const [loading, setLoading] = useState(true)
@@ -72,6 +75,7 @@ export default function TaskDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [members, setMembers] = useState<OrganizationMember[]>([])
+  const [users, setUsers] = useState<User[]>([])
   const [editingField, setEditingField] = useState({
     title: false,
     description: false,
@@ -173,6 +177,19 @@ export default function TaskDetailPage() {
       cancelled = true
     }
   }, [organizationId])
+
+  // Load users for mentions
+  useEffect(() => {
+    if (members.length === 0) {
+      setUsers([])
+      return
+    }
+    const uniqueUsers = members
+      .filter((m) => m.user)
+      .map((m) => m.user!)
+      .filter((user, index, self) => self.findIndex((u) => u.id === user.id) === index)
+    setUsers(uniqueUsers)
+  }, [members])
 
   const handleAutoSave = async () => {
     if (!taskId || saving) return
@@ -404,6 +421,18 @@ export default function TaskDetailPage() {
                     </button>
                   )}
                 </div>
+
+                {/* Comments Section */}
+                {currentUserId && taskId && (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <h3 className="mb-4 text-base font-semibold text-slate-900">Comments</h3>
+                    <CommentList
+                      taskId={taskId}
+                      currentUserId={currentUserId}
+                      users={users}
+                    />
+                  </div>
+                )}
               </div>
               <div className="space-y-2.5 text-sm">
                 <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
@@ -625,6 +654,23 @@ export default function TaskDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Comments Section */}
+      {currentUserId && taskId && task && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Comments</CardTitle>
+            <CardDescription>Collaborate with your team on this task</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CommentList
+              taskId={taskId}
+              currentUserId={currentUserId}
+              users={users}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Modal
         open={deleteOpen}
