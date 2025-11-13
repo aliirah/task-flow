@@ -268,12 +268,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!selectedOrganizationId) return
-    fetchTasksPage(selectedOrganizationId, taskPage, taskFilter, sorting, search)
-  }, [selectedOrganizationId, taskPage, taskFilter, sorting, search, fetchTasksPage])
+    fetchTasksPage(selectedOrganizationId, taskPage, taskFilter, sorting, debouncedSearch)
+  }, [selectedOrganizationId, taskPage, taskFilter, sorting, debouncedSearch, fetchTasksPage])
 
   useEffect(() => {
     setTaskPage(0)
-  }, [taskFilter, selectedOrganizationId, sorting, search])
+  }, [taskFilter, selectedOrganizationId, sorting, debouncedSearch])
 
   useTaskEvents(
     useCallback(
@@ -503,13 +503,13 @@ export default function DashboardPage() {
     [applyTaskPatch, members]
   )
 
-  const filterProp = {
-    search,
-    setSearch: (value: string) => {
-      setSearch(value)
-      setTaskPage(0)
-    },
-  }
+  const filterProp = useMemo(
+    () => ({
+      search,
+      setSearch,
+    }),
+    [search, setSearch]
+  )
 
   const upcomingTasks = useMemo(() => {
     const now = Date.now()

@@ -148,7 +148,10 @@ export default function MyTasksPage() {
   )
 
   const filterProp = useMemo(
-    () => ({ search, setSearch }),
+    () => ({
+      search,
+      setSearch,
+    }),
     [search, setSearch]
   )
 

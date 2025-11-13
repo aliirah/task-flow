@@ -58,8 +58,22 @@ export function DataTable<TData, TValue>({
   emptyMessage,
 }: DataTableProps<TData, TValue>) {
   const [internalSorting, setInternalSorting] = React.useState<SortingState>([])
+  const searchInputRef = React.useRef<HTMLInputElement>(null)
+  const wasSearchFocused = React.useRef(false)
 
   const sorting = controlledSorting ?? internalSorting
+
+  // Track focus state before render
+  React.useEffect(() => {
+    wasSearchFocused.current = document.activeElement === searchInputRef.current
+  })
+
+  // Restore focus after render if it was focused before
+  React.useEffect(() => {
+    if (wasSearchFocused.current && searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  })
 
   const table = useReactTable({
     data,
@@ -108,6 +122,8 @@ export function DataTable<TData, TValue>({
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         {searchKey && filter && (
           <Input
+            ref={searchInputRef}
+            id={`search-${searchKey}`}
             placeholder={searchPlaceholder}
             value={filter.search}
             onChange={(e) => filter.setSearch(e.target.value)}

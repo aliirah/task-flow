@@ -181,7 +181,10 @@ function TasksPageContent() {
   )
 
   const filterProp = useMemo(
-    () => ({ search, setSearch }),
+    () => ({
+      search,
+      setSearch,
+    }),
     [search, setSearch]
   )
 
