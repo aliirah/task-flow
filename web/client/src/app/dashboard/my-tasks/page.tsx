@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 
 import { taskApi } from '@/lib/api'
 import type { Task, TaskStatus } from '@/lib/types/api'
@@ -16,12 +15,10 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Select } from '@/components/ui/select'
-import {
-  TaskAssigneeInlineSelect,
-  TaskPriorityInlineSelect,
-  TaskStatusInlineSelect,
-} from '@/components/tasks/task-inline-controls'
+import { DataTable } from '@/components/ui/data-table'
+import { createTaskColumns } from '@/components/tasks/task-columns'
 import { useTaskEvents } from '@/hooks/useTaskEvents'
+import { useTableState } from '@/hooks/use-table-state'
 import type { TaskEventMessage } from '@/lib/types/ws'
 import { taskEventToTask } from '@/lib/utils/task-events'
 
@@ -29,6 +26,11 @@ const PAGE_SIZE = 10
 
 export default function MyTasksPage() {
   const { user } = useAuthStore()
+  const { sorting, search, debouncedSearch, setSorting, setSearch } = useTableState({
+    storageKey: 'my-tasks-table-state',
+    enablePersistence: true,
+  })
+
   const [tasks, setTasks] = useState<Task[]>([])
   const [statusFilter, setStatusFilter] = useState<'all' | TaskStatus>('all')
   const [page, setPage] = useState(0)
@@ -56,6 +58,9 @@ export default function MyTasksPage() {
         status: statusFilter === 'all' ? undefined : statusFilter,
         page: page + 1,
         limit: PAGE_SIZE,
+        sortBy: sorting.length > 0 ? sorting[0].id : undefined,
+        sortOrder: sorting.length > 0 ? (sorting[0].desc ? 'desc' : 'asc') : undefined,
+        search: debouncedSearch || undefined,
       })
 
       const payload = response.data
@@ -74,7 +79,7 @@ export default function MyTasksPage() {
     } finally {
       setLoading(false)
     }
-  }, [user?.id, statusFilter, page])
+  }, [user?.id, statusFilter, page, sorting, debouncedSearch])
 
   useEffect(() => {
     fetchMyTasks()
@@ -82,7 +87,7 @@ export default function MyTasksPage() {
 
   useEffect(() => {
     setPage(0)
-  }, [statusFilter, user?.id])
+  }, [statusFilter, user?.id, sorting, debouncedSearch])
 
   useTaskEvents(
     useCallback(
@@ -134,17 +139,13 @@ export default function MyTasksPage() {
     return { from, to }
   }, [tasks.length, page])
 
-  const formatAssignee = useCallback((task: Task) => {
-    if (task.assignee) {
-      return (
-        `${task.assignee.firstName ?? ''} ${task.assignee.lastName ?? ''}`.trim() ||
-        task.assignee.email ||
-        task.assigneeId ||
-        'Unassigned'
-      )
-    }
-    return task.assigneeId || 'Unassigned'
-  }, [])
+  const columns = useMemo(
+    () =>
+      createTaskColumns({
+        onTaskUpdate: handleInlineUpdate,
+      }),
+    [handleInlineUpdate]
+  )
 
   if (!user) {
     return (
@@ -165,7 +166,7 @@ export default function MyTasksPage() {
         </div>
       </header>
 
-      <Card className="border border-white/60 bg-white/90 shadow-lg shadow-slate-200/30 backdrop-blur">
+      <Card className="overflow-hidden border border-white/60 bg-white/90 shadow-lg shadow-slate-200/30 backdrop-blur">
         <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle className="text-lg font-semibold text-slate-900">
@@ -190,7 +191,7 @@ export default function MyTasksPage() {
             </Select>
           </div>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardContent>
           {loading ? (
             <p className="py-6 text-sm text-slate-500">Loading…</p>
           ) : tasks.length === 0 ? (
@@ -199,90 +200,21 @@ export default function MyTasksPage() {
             </p>
           ) : (
             <>
-              <table className="w-full min-w-[720px] text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2 pr-4">Title</th>
-                    <th className="py-2 pr-4">Status</th>
-                    <th className="py-2 pr-4">Priority</th>
-                    <th className="py-2 pr-4">Assignee</th>
-                    <th className="py-2 pr-4">Organization</th>
-                    <th className="py-2 pr-4">Due</th>
-                    <th className="py-2 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {tasks.map((task) => (
-                    <tr key={task.id} className="align-top">
-                      <td className="py-3 pr-4">
-                        <Link
-                          href={`/dashboard/tasks/${task.id}`}
-                          className="font-medium text-slate-900 hover:underline"
-                        >
-                          {task.title}
-                        </Link>
-                        {task.description && (
-                          <p className="text-xs text-slate-500">
-                            {task.description}
-                          </p>
-                        )}
-                      </td>
-                      <td className="py-3 pr-4">
-                        <TaskStatusInlineSelect
-                          taskId={task.id}
-                          value={task.status}
-                          onUpdated={(nextStatus) =>
-                            handleInlineUpdate(task.id, { status: nextStatus })
-                          }
-                          className="min-w-[140px] text-xs"
-                        />
-                      </td>
-                      <td className="py-3 pr-4">
-                        <TaskPriorityInlineSelect
-                          taskId={task.id}
-                          value={task.priority}
-                          onUpdated={(nextPriority) =>
-                            handleInlineUpdate(task.id, { priority: nextPriority })
-                          }
-                          className="min-w-[130px] text-xs"
-                        />
-                      </td>
-                      <td className="py-3 pr-4">
-                        <TaskAssigneeInlineSelect
-                          taskId={task.id}
-                          value={task.assigneeId ?? ''}
-                          organizationId={task.organizationId}
-                          fallbackLabel={formatAssignee(task)}
-                          onUpdated={(nextId, user) =>
-                            handleInlineUpdate(task.id, {
-                              assigneeId: nextId || undefined,
-                              assignee: user ?? (nextId ? task.assignee : undefined),
-                            })
-                          }
-                          className="min-w-[150px] text-xs"
-                        />
-                      </td>
-                      <td className="py-3 pr-4 text-slate-600">
-                        {task.organization?.name ?? '—'}
-                      </td>
-                      <td className="py-3 pr-4 text-slate-500">
-                        {task.dueAt ? new Date(task.dueAt).toLocaleString() : '—'}
-                      </td>
-                      <td className="py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm" asChild>
-                            <Link href={`/dashboard/tasks/${task.id}`}>
-                              Open
-                            </Link>
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {tasks.length > 0 && (page > 0 || hasMore) && (
-                <div className="mt-4 flex flex-col gap-3 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
+              <DataTable
+                columns={columns}
+                data={tasks}
+                searchKey="title"
+                searchPlaceholder="Search tasks..."
+                manualSorting
+                manualFiltering
+                sorting={sorting}
+                search={search}
+                onSortingChange={setSorting}
+                onSearchChange={setSearch}
+                hidePagination
+              />
+              {(page > 0 || hasMore) && (
+                <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
                   <p>
                     Showing {range.from}–{range.to}
                     {hasMore ? ' (more available)' : ''}

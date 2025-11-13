@@ -40,17 +40,15 @@ import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
 import { DateTimePickerField } from '@/components/ui/date-time-picker'
+import { DataTable } from '@/components/ui/data-table'
+import { createMyTaskColumns } from '@/components/tasks/task-columns'
 import { useTaskEvents } from '@/hooks/useTaskEvents'
+import { useTableState } from '@/hooks/use-table-state'
 import type { TaskEventMessage } from '@/lib/types/ws'
 import {
   taskEventToTask,
   upsertTaskWithLimit,
 } from '@/lib/utils/task-events'
-import {
-  TaskAssigneeInlineSelect,
-  TaskPriorityInlineSelect,
-  TaskStatusInlineSelect,
-} from '@/components/tasks/task-inline-controls'
 
 const organizationFormSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(128),
@@ -106,6 +104,11 @@ export default function DashboardPage() {
     setSelectedOrganizationId,
     refreshOrganizations,
   } = useDashboard()
+
+  const { sorting, search, debouncedSearch, setSorting, setSearch } = useTableState({
+    storageKey: 'dashboard-tasks-table-state',
+    enablePersistence: true,
+  })
 
   const [members, setMembers] = useState<OrganizationMember[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
@@ -184,7 +187,7 @@ export default function DashboardPage() {
   }, [])
 
   const fetchTasksPage = useCallback(
-    async (orgId: string, pageIndex: number, status: 'all' | TaskStatus) => {
+    async (orgId: string, pageIndex: number, status: 'all' | TaskStatus, sort: typeof sorting, debouncedSearchValue: string) => {
       setLoadingTasks(true)
       try {
         const response = await taskApi.list({
@@ -192,6 +195,9 @@ export default function DashboardPage() {
           page: pageIndex + 1,
           limit: PAGE_SIZE,
           status: status === 'all' ? undefined : status,
+          sortBy: sort.length > 0 ? sort[0].id : undefined,
+          sortOrder: sort.length > 0 ? (sort[0].desc ? 'desc' : 'asc') : undefined,
+          search: debouncedSearchValue || undefined,
         })
         const payload = response.data
         const items = payload?.items ?? []
@@ -262,12 +268,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!selectedOrganizationId) return
-    fetchTasksPage(selectedOrganizationId, taskPage, taskFilter)
-  }, [selectedOrganizationId, taskPage, taskFilter, fetchTasksPage])
+    fetchTasksPage(selectedOrganizationId, taskPage, taskFilter, sorting, search)
+  }, [selectedOrganizationId, taskPage, taskFilter, sorting, search, fetchTasksPage])
 
   useEffect(() => {
     setTaskPage(0)
-  }, [taskFilter, selectedOrganizationId])
+  }, [taskFilter, selectedOrganizationId, sorting, search])
 
   useTaskEvents(
     useCallback(
@@ -404,7 +410,7 @@ export default function DashboardPage() {
         status: 'open',
         dueAt: '',
       })
-      fetchTasksPage(selectedOrganizationId, taskPage, taskFilter)
+      fetchTasksPage(selectedOrganizationId, taskPage, taskFilter, sorting, search)
       fetchTaskSummary(selectedOrganizationId)
     } catch (error) {
       handleApiError({ error, setError: taskForm.setError })
@@ -418,7 +424,7 @@ export default function DashboardPage() {
       await taskApi.remove(taskToDelete.id)
       toast.success('Task deleted')
       setTaskToDelete(null)
-      fetchTasksPage(selectedOrganizationId, taskPage, taskFilter)
+      fetchTasksPage(selectedOrganizationId, taskPage, taskFilter, sorting, search)
       fetchTaskSummary(selectedOrganizationId)
     } catch (error) {
       handleApiError({ error })
@@ -487,17 +493,15 @@ export default function DashboardPage() {
     [members]
   )
 
-  const formatAssignee = useCallback((task: Task) => {
-    if (task.assignee) {
-      return (
-        `${task.assignee.firstName ?? ''} ${task.assignee.lastName ?? ''}`.trim() ||
-        task.assignee.email ||
-        task.assigneeId ||
-        'Unassigned'
-      )
-    }
-    return task.assigneeId || 'Unassigned'
-  }, [])
+  const taskColumns = useMemo(
+    () =>
+      createMyTaskColumns({
+        onTaskUpdate: applyTaskPatch,
+        onTaskDelete: (task) => setTaskToDelete(task),
+        assigneeOptions: members,
+      }),
+    [applyTaskPatch, members]
+  )
 
   const upcomingTasks = useMemo(() => {
     const now = Date.now()
@@ -627,7 +631,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.6fr,1fr]">
-        <Card className="border border-white/60 bg-white/90 shadow-lg shadow-slate-200/30 backdrop-blur">
+        <Card className="overflow-hidden border border-white/60 bg-white/90 shadow-lg shadow-slate-200/30 backdrop-blur">
           <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <CardTitle className="text-lg font-semibold text-slate-900">
@@ -652,7 +656,7 @@ export default function DashboardPage() {
               <option value="cancelled">Cancelled</option>
             </Select>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
+          <CardContent>
             {loadingTasks ? (
               <p className="py-6 text-sm text-slate-500">Loading tasks…</p>
             ) : tasks.length === 0 ? (
@@ -662,121 +666,52 @@ export default function DashboardPage() {
                   : 'No tasks match this filter.'}
               </p>
             ) : (
-              <table className="w-full min-w-[720px] text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2 pr-4">Title</th>
-                    <th className="py-2 pr-4">Status</th>
-                    <th className="py-2 pr-4">Priority</th>
-                    <th className="py-2 pr-4">Assignee</th>
-                    <th className="py-2 pr-4">Due</th>
-                    <th className="py-2 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {tasks.map((task) => (
-                    <tr key={task.id} className="align-top">
-                      <td className="py-3 pr-4">
-                        <Link
-                          href={`/dashboard/tasks/${task.id}`}
-                          className="font-medium text-slate-900 hover:underline"
-                        >
-                          {task.title}
-                        </Link>
-                        {task.description && (
-                          <p className="text-xs text-slate-500">
-                            {task.description}
-                          </p>
-                        )}
-                      </td>
-                      <td className="py-3 pr-4">
-                        <TaskStatusInlineSelect
-                          taskId={task.id}
-                          value={task.status}
-                          onUpdated={(nextStatus) =>
-                            applyTaskPatch(task.id, { status: nextStatus })
-                          }
-                          className="min-w-[140px] text-xs"
-                        />
-                      </td>
-                      <td className="py-3 pr-4">
-                        <TaskPriorityInlineSelect
-                          taskId={task.id}
-                          value={task.priority}
-                          onUpdated={(nextPriority) =>
-                            applyTaskPatch(task.id, { priority: nextPriority })
-                          }
-                          className="min-w-[130px] text-xs"
-                        />
-                      </td>
-                      <td className="py-3 pr-4 text-slate-600">
-                        <TaskAssigneeInlineSelect
-                          taskId={task.id}
-                          value={task.assigneeId ?? ''}
-                          options={assigneeOptions}
-                          fallbackLabel={formatAssignee(task)}
-                          onUpdated={(nextId, user) =>
-                            applyTaskPatch(task.id, {
-                              assigneeId: nextId || undefined,
-                              assignee: user ?? (nextId ? task.assignee : undefined),
-                            })
-                          }
-                          className="min-w-[150px] text-xs"
-                        />
-                      </td>
-                      <td className="py-3 pr-4 text-slate-500">
-                        {task.dueAt
-                          ? new Date(task.dueAt).toLocaleString()
-                          : '—'}
-                      </td>
-                      <td className="py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-rose-400 hover:text-rose-600"
-                            onClick={() => setTaskToDelete(task)}
-                            aria-label="Delete task"
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {tasks.length > 0 && (taskPage > 0 || taskHasMore) && (
-              <div className="mt-4 flex flex-col gap-3 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
-                <p>
-                  Showing {taskRange.from}–{taskRange.to}
-                  {taskHasMore ? ' (more available)' : ''}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={taskPage === 0}
-                    onClick={() =>
-                      setTaskPage((prev) => Math.max(0, prev - 1))
-                    }
-                  >
-                    Previous
-                  </Button>
-                  <span className="px-2 text-xs font-medium text-slate-600">
-                    Page {taskPage + 1}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!taskHasMore}
-                    onClick={() => setTaskPage((prev) => prev + 1)}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+              <>
+                <DataTable
+                  columns={taskColumns}
+                  data={tasks}
+                  searchKey="title"
+                  searchPlaceholder="Search tasks..."
+                  manualSorting
+                  manualFiltering
+                  sorting={sorting}
+                  search={search}
+                  onSortingChange={setSorting}
+                  onSearchChange={setSearch}
+                  hidePagination
+                />
+                {(taskPage > 0 || taskHasMore) && (
+                  <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
+                    <p>
+                      Showing {taskRange.from}–{taskRange.to}
+                      {taskHasMore ? ' (more available)' : ''}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={taskPage === 0}
+                        onClick={() =>
+                          setTaskPage((prev) => Math.max(0, prev - 1))
+                        }
+                      >
+                        Previous
+                      </Button>
+                      <span className="px-2 text-xs font-medium text-slate-600">
+                        Page {taskPage + 1}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!taskHasMore}
+                        onClick={() => setTaskPage((prev) => prev + 1)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

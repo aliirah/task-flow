@@ -11,6 +11,9 @@ export const taskApi = {
     reporterId?: string
     page?: number
     limit?: number
+    sortBy?: string
+    sortOrder?: 'asc' | 'desc'
+    search?: string
   }) => {
     const search = new URLSearchParams()
     if (params?.organizationId) search.set('organizationId', params.organizationId)
@@ -19,6 +22,9 @@ export const taskApi = {
     if (params?.reporterId) search.set('reporterId', params.reporterId)
     if (params?.page) search.set('page', String(params.page))
     if (params?.limit) search.set('limit', String(params.limit))
+    if (params?.sortBy) search.set('sortBy', params.sortBy)
+    if (params?.sortOrder) search.set('sortOrder', params.sortOrder)
+    if (params?.search) search.set('search', params.search)
 
     const query = search.toString()
     return apiClient<TaskListResponse>(

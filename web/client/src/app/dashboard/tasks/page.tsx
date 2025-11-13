@@ -1,9 +1,8 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useDashboard } from '@/components/dashboard/dashboard-shell'
@@ -20,27 +19,25 @@ import {
 } from '@/components/ui/card'
 import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
-import {
-  TaskAssigneeInlineSelect,
-  TaskPriorityInlineSelect,
-  TaskStatusInlineSelect,
-} from '@/components/tasks/task-inline-controls'
+import { DataTable } from '@/components/ui/data-table'
+import { createMyTaskColumns } from '@/components/tasks/task-columns'
 import { useTaskEvents } from '@/hooks/useTaskEvents'
+import { useTableState } from '@/hooks/use-table-state'
 import type { TaskEventMessage } from '@/lib/types/ws'
 import { taskEventToTask } from '@/lib/utils/task-events'
 
 const PAGE_SIZE = 10
 
 function TasksPageContent() {
-  const searchParams = useSearchParams()
-  const initialOrgId = searchParams.get('orgId') ?? undefined
-
   const {
-    organizations,
     selectedOrganization,
     selectedOrganizationId,
-    setSelectedOrganizationId,
   } = useDashboard()
+
+  const { sorting, search, debouncedSearch, setSorting, setSearch } = useTableState({
+    storageKey: 'tasks-table-state',
+    enablePersistence: true,
+  })
 
   const [tasks, setTasks] = useState<Task[]>([])
   const [members, setMembers] = useState<OrganizationMember[]>([])
@@ -58,13 +55,6 @@ function TasksPageContent() {
     },
     []
   )
-
-  useEffect(() => {
-    if (!initialOrgId) return
-    if (organizations.some((org) => org.id === initialOrgId)) {
-      setSelectedOrganizationId(initialOrgId)
-    }
-  }, [initialOrgId, organizations, setSelectedOrganizationId])
 
   useEffect(() => {
     if (!selectedOrganizationId) {
@@ -97,6 +87,9 @@ function TasksPageContent() {
         page: page + 1,
         limit: PAGE_SIZE,
         status: filter === 'all' ? undefined : filter,
+        sortBy: sorting.length > 0 ? sorting[0].id : undefined,
+        sortOrder: sorting.length > 0 ? (sorting[0].desc ? 'desc' : 'asc') : undefined,
+        search: debouncedSearch || undefined,
       })
       const payload = response.data
       const items = payload?.items ?? []
@@ -116,7 +109,7 @@ function TasksPageContent() {
     } finally {
       setLoadingTasks(false)
     }
-  }, [selectedOrganizationId, page, filter])
+  }, [selectedOrganizationId, page, filter, sorting, debouncedSearch])
 
   useEffect(() => {
     fetchTasks()
@@ -124,7 +117,7 @@ function TasksPageContent() {
 
   useEffect(() => {
     setPage(0)
-  }, [filter, selectedOrganizationId])
+  }, [filter, selectedOrganizationId, sorting, debouncedSearch])
 
   useTaskEvents(
     useCallback(
@@ -177,32 +170,15 @@ function TasksPageContent() {
     return { from, to }
   }, [tasks.length, page])
 
-  const assigneeOptions = useMemo(
+  const taskColumns = useMemo(
     () =>
-      members
-        .filter((member) => member.user)
-        .map((member) => ({
-          value: member.userId,
-          label:
-            `${member.user?.firstName ?? ''} ${member.user?.lastName ?? ''}`.trim() ||
-            member.user?.email ||
-            member.userId,
-          user: member.user,
-        })),
-    [members]
+      createMyTaskColumns({
+        onTaskUpdate: handleLocalTaskUpdate,
+        onTaskDelete: (task) => setTaskToDelete(task),
+        assigneeOptions: members,
+      }),
+    [handleLocalTaskUpdate, members]
   )
-
-  const formatUserLabel = useCallback((task: Task) => {
-    if (task.assignee) {
-      return (
-        `${task.assignee.firstName ?? ''} ${task.assignee.lastName ?? ''}`.trim() ||
-        task.assignee.email ||
-        task.assigneeId ||
-        'Unassigned'
-      )
-    }
-    return task.assigneeId || 'Unassigned'
-  }, [])
 
   const handleDeleteTask = async () => {
     if (!taskToDelete) return
@@ -240,13 +216,7 @@ function TasksPageContent() {
             disabled={!selectedOrganizationId}
             className="gap-2"
           >
-            <Link
-              href={
-                selectedOrganizationId
-                  ? `/dashboard/tasks/new?orgId=${selectedOrganizationId}`
-                  : '/dashboard/tasks/new'
-              }
-            >
+            <Link href="/dashboard/tasks/new">
               <Plus className="size-4" />
               New task
             </Link>
@@ -254,7 +224,7 @@ function TasksPageContent() {
         </div>
       </header>
 
-      <Card className="border border-white/60 bg-white/90 shadow-lg shadow-slate-200/30 backdrop-blur">
+      <Card className="overflow-hidden border border-white/60 bg-white/90 shadow-lg shadow-slate-200/30 backdrop-blur">
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle className="text-lg font-semibold text-slate-900">
@@ -277,7 +247,7 @@ function TasksPageContent() {
             <option value="cancelled">Cancelled</option>
           </Select>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardContent>
           {!selectedOrganizationId ? (
             <p className="py-6 text-sm text-slate-500">
               Choose an organization to see its tasks.
@@ -290,97 +260,21 @@ function TasksPageContent() {
             </p>
           ) : (
             <>
-              <table className="w-full min-w-[720px] text-left text-sm">
-                <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2 pr-4">Title</th>
-                    <th className="py-2 pr-4">Status</th>
-                    <th className="py-2 pr-4">Priority</th>
-                    <th className="py-2 pr-4">Assignee</th>
-                    <th className="py-2 pr-4">Due</th>
-                    <th className="py-2 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {tasks.map((task) => (
-                    <tr key={task.id} className="align-top">
-                      <td className="py-3 pr-4">
-                        <Link
-                          href={`/dashboard/tasks/${task.id}`}
-                          className="font-medium text-slate-900 hover:underline"
-                        >
-                          {task.title}
-                        </Link>
-                        {task.description && (
-                          <p className="text-xs text-slate-500">
-                            {task.description}
-                          </p>
-                        )}
-                      </td>
-                      <td className="py-3 pr-4">
-                        <TaskStatusInlineSelect
-                          taskId={task.id}
-                          value={task.status}
-                          onUpdated={(nextStatus) =>
-                            handleLocalTaskUpdate(task.id, { status: nextStatus })
-                          }
-                          className="min-w-[140px] text-xs"
-                        />
-                      </td>
-                      <td className="py-3 pr-4">
-                        <TaskPriorityInlineSelect
-                          taskId={task.id}
-                          value={task.priority}
-                          onUpdated={(nextPriority) =>
-                            handleLocalTaskUpdate(task.id, { priority: nextPriority })
-                          }
-                          className="min-w-[130px] text-xs"
-                        />
-                      </td>
-                      <td className="py-3 pr-4 text-slate-600">
-                        <TaskAssigneeInlineSelect
-                          taskId={task.id}
-                          value={task.assigneeId ?? ''}
-                          options={assigneeOptions}
-                          fallbackLabel={formatUserLabel(task)}
-                          onUpdated={(nextId, user) =>
-                            handleLocalTaskUpdate(task.id, {
-                              assigneeId: nextId || undefined,
-                              assignee: user ?? (nextId ? task.assignee : undefined),
-                            })
-                          }
-                          className="min-w-[150px] text-xs"
-                        />
-                      </td>
-                      <td className="py-3 pr-4 text-slate-500">
-                        {task.dueAt
-                          ? new Date(task.dueAt).toLocaleString()
-                          : '—'}
-                      </td>
-                      <td className="py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="link" size="sm" asChild>
-                            <Link href={`/dashboard/tasks/${task.id}`}>
-                              Open
-                            </Link>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-rose-400 hover:text-rose-600"
-                            aria-label={`Delete ${task.title}`}
-                            onClick={() => setTaskToDelete(task)}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {tasks.length > 0 && (page > 0 || hasMore) && (
-                <div className="mt-4 flex flex-col gap-3 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
+              <DataTable
+                columns={taskColumns}
+                data={tasks}
+                searchKey="title"
+                searchPlaceholder="Search tasks..."
+                manualSorting
+                manualFiltering
+                sorting={sorting}
+                search={search}
+                onSortingChange={setSorting}
+                onSearchChange={setSearch}
+                hidePagination
+              />
+              {(page > 0 || hasMore) && (
+                <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
                   <p>
                     Showing {range.from}–{range.to}
                     {hasMore ? ' (more available)' : ''}
@@ -448,10 +342,6 @@ function TasksPageContent() {
   )
 }
 
-export default function TasksIndexPage() {
-  return (
-    <Suspense fallback={<div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:px-8"><p className="text-sm text-slate-500">Loading...</p></div>}>
-      <TasksPageContent />
-    </Suspense>
-  )
+export default function TasksPage() {
+  return <TasksPageContent />
 }

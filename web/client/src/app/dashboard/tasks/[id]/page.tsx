@@ -108,7 +108,7 @@ export default function TaskDetailPage() {
   }, [dashboardOrgs, task?.organization])
 
   useEffect(() => {
-    if (!taskId) {
+    if (!taskId || taskId === 'new') {
       setTask(null)
       setLoading(false)
       return
