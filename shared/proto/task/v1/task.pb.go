@@ -607,6 +607,7 @@ type Comment struct {
 	MentionedUsers  []string               `protobuf:"bytes,6,rep,name=mentioned_users,json=mentionedUsers,proto3" json:"mentioned_users,omitempty"`
 	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Replies         []*Comment             `protobuf:"bytes,9,rep,name=replies,proto3" json:"replies,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -693,6 +694,13 @@ func (x *Comment) GetCreatedAt() *timestamppb.Timestamp {
 func (x *Comment) GetUpdatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *Comment) GetReplies() []*Comment {
+	if x != nil {
+		return x.Replies
 	}
 	return nil
 }
@@ -1096,7 +1104,7 @@ const file_task_v1_task_proto_rawDesc = "" +
 	"reporterId\x121\n" +
 	"\x06due_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x05dueAt\"#\n" +
 	"\x11DeleteTaskRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\xb0\x02\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\xdc\x02\n" +
 	"\aComment\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x17\n" +
@@ -1107,7 +1115,8 @@ const file_task_v1_task_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x9e\x01\n" +
+	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12*\n" +
+	"\areplies\x18\t \x03(\v2\x10.task.v1.CommentR\areplies\"\x9e\x01\n" +
 	"\x14CreateCommentRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12*\n" +
 	"\x11parent_comment_id\x18\x02 \x01(\tR\x0fparentCommentId\x12\x18\n" +
@@ -1193,32 +1202,33 @@ var file_task_v1_task_proto_depIdxs = []int32{
 	14, // 12: task.v1.UpdateTaskRequest.due_at:type_name -> google.protobuf.Timestamp
 	14, // 13: task.v1.Comment.created_at:type_name -> google.protobuf.Timestamp
 	14, // 14: task.v1.Comment.updated_at:type_name -> google.protobuf.Timestamp
-	7,  // 15: task.v1.ListCommentsResponse.items:type_name -> task.v1.Comment
-	1,  // 16: task.v1.TaskService.CreateTask:input_type -> task.v1.CreateTaskRequest
-	2,  // 17: task.v1.TaskService.GetTask:input_type -> task.v1.GetTaskRequest
-	3,  // 18: task.v1.TaskService.ListTasks:input_type -> task.v1.ListTasksRequest
-	5,  // 19: task.v1.TaskService.UpdateTask:input_type -> task.v1.UpdateTaskRequest
-	6,  // 20: task.v1.TaskService.DeleteTask:input_type -> task.v1.DeleteTaskRequest
-	8,  // 21: task.v1.TaskService.CreateComment:input_type -> task.v1.CreateCommentRequest
-	9,  // 22: task.v1.TaskService.GetComment:input_type -> task.v1.GetCommentRequest
-	10, // 23: task.v1.TaskService.ListComments:input_type -> task.v1.ListCommentsRequest
-	12, // 24: task.v1.TaskService.UpdateComment:input_type -> task.v1.UpdateCommentRequest
-	13, // 25: task.v1.TaskService.DeleteComment:input_type -> task.v1.DeleteCommentRequest
-	0,  // 26: task.v1.TaskService.CreateTask:output_type -> task.v1.Task
-	0,  // 27: task.v1.TaskService.GetTask:output_type -> task.v1.Task
-	4,  // 28: task.v1.TaskService.ListTasks:output_type -> task.v1.ListTasksResponse
-	0,  // 29: task.v1.TaskService.UpdateTask:output_type -> task.v1.Task
-	16, // 30: task.v1.TaskService.DeleteTask:output_type -> google.protobuf.Empty
-	7,  // 31: task.v1.TaskService.CreateComment:output_type -> task.v1.Comment
-	7,  // 32: task.v1.TaskService.GetComment:output_type -> task.v1.Comment
-	11, // 33: task.v1.TaskService.ListComments:output_type -> task.v1.ListCommentsResponse
-	7,  // 34: task.v1.TaskService.UpdateComment:output_type -> task.v1.Comment
-	16, // 35: task.v1.TaskService.DeleteComment:output_type -> google.protobuf.Empty
-	26, // [26:36] is the sub-list for method output_type
-	16, // [16:26] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	7,  // 15: task.v1.Comment.replies:type_name -> task.v1.Comment
+	7,  // 16: task.v1.ListCommentsResponse.items:type_name -> task.v1.Comment
+	1,  // 17: task.v1.TaskService.CreateTask:input_type -> task.v1.CreateTaskRequest
+	2,  // 18: task.v1.TaskService.GetTask:input_type -> task.v1.GetTaskRequest
+	3,  // 19: task.v1.TaskService.ListTasks:input_type -> task.v1.ListTasksRequest
+	5,  // 20: task.v1.TaskService.UpdateTask:input_type -> task.v1.UpdateTaskRequest
+	6,  // 21: task.v1.TaskService.DeleteTask:input_type -> task.v1.DeleteTaskRequest
+	8,  // 22: task.v1.TaskService.CreateComment:input_type -> task.v1.CreateCommentRequest
+	9,  // 23: task.v1.TaskService.GetComment:input_type -> task.v1.GetCommentRequest
+	10, // 24: task.v1.TaskService.ListComments:input_type -> task.v1.ListCommentsRequest
+	12, // 25: task.v1.TaskService.UpdateComment:input_type -> task.v1.UpdateCommentRequest
+	13, // 26: task.v1.TaskService.DeleteComment:input_type -> task.v1.DeleteCommentRequest
+	0,  // 27: task.v1.TaskService.CreateTask:output_type -> task.v1.Task
+	0,  // 28: task.v1.TaskService.GetTask:output_type -> task.v1.Task
+	4,  // 29: task.v1.TaskService.ListTasks:output_type -> task.v1.ListTasksResponse
+	0,  // 30: task.v1.TaskService.UpdateTask:output_type -> task.v1.Task
+	16, // 31: task.v1.TaskService.DeleteTask:output_type -> google.protobuf.Empty
+	7,  // 32: task.v1.TaskService.CreateComment:output_type -> task.v1.Comment
+	7,  // 33: task.v1.TaskService.GetComment:output_type -> task.v1.Comment
+	11, // 34: task.v1.TaskService.ListComments:output_type -> task.v1.ListCommentsResponse
+	7,  // 35: task.v1.TaskService.UpdateComment:output_type -> task.v1.Comment
+	16, // 36: task.v1.TaskService.DeleteComment:output_type -> google.protobuf.Empty
+	27, // [27:37] is the sub-list for method output_type
+	17, // [17:27] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_task_v1_task_proto_init() }

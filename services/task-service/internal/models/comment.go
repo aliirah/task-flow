@@ -20,7 +20,8 @@ type Comment struct {
 	DeletedAt       gorm.DeletedAt `gorm:"index"`
 	
 	// Associations
-	Task *Task `gorm:"foreignKey:TaskID"`
+	Task    *Task     `gorm:"foreignKey:TaskID"`
+	Replies []Comment `gorm:"-"` // Not stored in DB, populated programmatically
 }
 
 func (c *Comment) BeforeCreate(tx *gorm.DB) error {

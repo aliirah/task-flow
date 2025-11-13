@@ -82,7 +82,7 @@ const MentionList = forwardRef<any, MentionListProps>((props, ref) => {
   }))
 
   return (
-    <div className="mentions-dropdown rounded-lg border border-slate-200 bg-white shadow-lg max-h-60 overflow-y-auto">
+    <div className="mentions-dropdown rounded-lg border border-slate-200 bg-white shadow-lg max-h-60 overflow-y-auto z-100">
       {props.items.length > 0 ? (
         props.items.map((user, index) => (
           <button
@@ -129,32 +129,40 @@ export function CommentEditor({
   const [isEmpty, setIsEmpty] = useState(true)
   const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([])
 
-  const editor = useEditor({
-    immediatelyRender: false,
-    extensions: [
-      StarterKit.configure({
-        heading: false,
-        codeBlock: false,
-        horizontalRule: false,
-        blockquote: false,
-      }),
-      Placeholder.configure({
-        placeholder,
-      }),
-      Mention.configure({
-        HTMLAttributes: {
-          class: 'mention',
-        },
-        suggestion: {
-          items: ({ query }) => {
-            return users
-              .filter((user) => {
-                const fullName = `${user.firstName} ${user.lastName}`.toLowerCase()
-                const q = query.toLowerCase()
-                return fullName.includes(q) || user.email.toLowerCase().includes(q)
-              })
-              .slice(0, 5)
+  const editor = useEditor(
+    {
+      immediatelyRender: false,
+      extensions: [
+        StarterKit.configure({
+          heading: false,
+          codeBlock: false,
+          horizontalRule: false,
+          blockquote: false,
+        }),
+        Placeholder.configure({
+          placeholder,
+        }),
+        Mention.configure({
+          HTMLAttributes: {
+            class: 'mention',
           },
+          suggestion: {
+            items: ({ query }) => {
+              // If no query, show all users (max 10)
+              if (!query || query.trim() === '') {
+                return users.slice(0, 10)
+              }
+              
+              // Filter users by query
+              return users
+                .filter((user) => {
+                  const fullName = `${user.firstName} ${user.lastName}`.toLowerCase()
+                  const email = user.email.toLowerCase()
+                  const q = query.toLowerCase()
+                  return fullName.includes(q) || email.includes(q)
+                })
+                .slice(0, 10)
+            },
           render: () => {
             let component: ReactRenderer<any>
             let popup: TippyInstance[]
@@ -178,6 +186,7 @@ export function CommentEditor({
                   interactive: true,
                   trigger: 'manual',
                   placement: 'bottom-start',
+                  zIndex: 9999,
                 })
               },
 
@@ -242,7 +251,8 @@ export function CommentEditor({
       })
       setMentionedUserIds(Array.from(new Set(mentions)))
     },
-  })
+  },
+  [users])
 
   const handleSubmit = async () => {
     if (!editor) return

@@ -94,15 +94,15 @@ export function CommentList({ taskId, currentUserId, users }: CommentListProps) 
     })
   }
 
-  const updateCommentInList = (items: Comment[], id: string, content: string): Comment[] => {
+  const updateCommentInList = (items: Comment[], id: string, updatedComment: Comment): Comment[] => {
     return items.map((item) => {
       if (item.id === id) {
-        return { ...item, content }
+        return { ...item, ...updatedComment }
       }
       if (item.replies) {
         return {
           ...item,
-          replies: updateCommentInList(item.replies, id, content),
+          replies: updateCommentInList(item.replies, id, updatedComment),
         }
       }
       return item
@@ -156,8 +156,10 @@ export function CommentList({ taskId, currentUserId, users }: CommentListProps) 
 
   const handleEdit = async (id: string, content: string, mentionedUsers: string[]) => {
     try {
-      await commentApi.update(id, { content, mentionedUsers })
-      setComments((prev) => updateCommentInList(prev || [], id, content))
+      const response = await commentApi.update(id, { content, mentionedUsers })
+      if (response.data) {
+        setComments((prev) => updateCommentInList(prev || [], id, response.data))
+      }
     } catch (error) {
       console.error('Failed to update comment:', error)
     }

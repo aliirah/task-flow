@@ -124,14 +124,11 @@ func (s *Service) ListComments(ctx context.Context, params ListCommentsParams) (
 	}
 
 	offset := (params.Page - 1) * params.Limit
+	
+	// Always get only parent comments for pagination
 	query := s.db.WithContext(ctx).Model(&models.Comment{}).
-		Where("task_id = ?", params.TaskID).
+		Where("task_id = ? AND parent_comment_id IS NULL", params.TaskID).
 		Order("created_at DESC")
-
-	// If not including replies, only get parent comments
-	if !params.IncludeReplies {
-		query = query.Where("parent_comment_id IS NULL")
-	}
 
 	// Fetch one extra to check if there are more
 	var comments []models.Comment
@@ -144,7 +141,39 @@ func (s *Service) ListComments(ctx context.Context, params ListCommentsParams) (
 		comments = comments[:params.Limit]
 	}
 
+	// If including replies, load nested replies for each parent comment
+	if params.IncludeReplies {
+		for i := range comments {
+			if err := s.loadRepliesRecursive(ctx, &comments[i]); err != nil {
+				return nil, false, err
+			}
+		}
+	}
+
 	return comments, hasMore, nil
+}
+
+// loadRepliesRecursive loads all nested replies for a comment
+func (s *Service) loadRepliesRecursive(ctx context.Context, comment *models.Comment) error {
+	var replies []models.Comment
+	if err := s.db.WithContext(ctx).
+		Where("parent_comment_id = ?", comment.ID).
+		Order("created_at ASC").
+		Find(&replies).Error; err != nil {
+		return err
+	}
+
+	if len(replies) > 0 {
+		comment.Replies = replies
+		// Recursively load replies for each reply
+		for i := range comment.Replies {
+			if err := s.loadRepliesRecursive(ctx, &comment.Replies[i]); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s *Service) UpdateComment(ctx context.Context, id uuid.UUID, input UpdateCommentInput, userID uuid.UUID) (*models.Comment, error) {

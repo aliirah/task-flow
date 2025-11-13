@@ -381,6 +381,15 @@ func toProtoComment(c *models.Comment) *taskpb.Comment {
 		parentCommentID = c.ParentCommentID.String()
 	}
 
+	// Convert replies recursively
+	var replies []*taskpb.Comment
+	if len(c.Replies) > 0 {
+		replies = make([]*taskpb.Comment, 0, len(c.Replies))
+		for i := range c.Replies {
+			replies = append(replies, toProtoComment(&c.Replies[i]))
+		}
+	}
+
 	return &taskpb.Comment{
 		Id:              c.ID.String(),
 		TaskId:          c.TaskID.String(),
@@ -390,5 +399,6 @@ func toProtoComment(c *models.Comment) *taskpb.Comment {
 		MentionedUsers:  c.MentionedUsers,
 		CreatedAt:       timestamppb.New(c.CreatedAt),
 		UpdatedAt:       timestamppb.New(c.UpdatedAt),
+		Replies:         replies,
 	}
 }

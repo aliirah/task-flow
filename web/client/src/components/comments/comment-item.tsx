@@ -94,7 +94,7 @@ export function CommentItem({
   const hasReplies = comment.replies && comment.replies.length > 0
 
   return (
-    <div className={depth > 0 ? 'ml-8 mt-3 border-l-2 border-slate-100 pl-4' : 'mt-3'}>
+    <div className={depth > 0 ? 'ml-2.5 mt-2.5 border-l border-slate-200 pl-2.5' : 'mt-3'}>
       <div className="flex gap-2.5">
         {/* Avatar */}
         <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-blue-500 to-purple-600 text-[11px] font-semibold text-white">

@@ -9,6 +9,7 @@ import (
 )
 
 // CommentToMap converts a comment proto into a gin.H map suitable for HTTP responses.
+// This function recursively converts nested replies.
 func CommentToMap(comment *taskpb.Comment) gin.H {
 	if comment == nil {
 		return gin.H{}
@@ -26,6 +27,15 @@ func CommentToMap(comment *taskpb.Comment) gin.H {
 
 	if comment.GetParentCommentId() != "" {
 		result["parentCommentId"] = comment.GetParentCommentId()
+	}
+
+	// Recursively convert replies
+	if len(comment.GetReplies()) > 0 {
+		replies := make([]gin.H, 0, len(comment.GetReplies()))
+		for _, reply := range comment.GetReplies() {
+			replies = append(replies, CommentToMap(reply))
+		}
+		result["replies"] = replies
 	}
 
 	return result
