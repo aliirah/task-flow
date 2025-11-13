@@ -665,30 +665,27 @@ export default function DashboardPage() {
             </Select>
           </CardHeader>
           <CardContent>
-            {loadingTasks ? (
-              <p className="py-6 text-sm text-slate-500">Loading tasks…</p>
-            ) : (
-              <>
-                <DataTable
-                  columns={taskColumns}
-                  data={tasks}
-                  searchKey="title"
-                  searchPlaceholder="Search tasks..."
-                  manualSorting
-                  manualFiltering
-                  sorting={sorting}
-                  onSortingChange={setSorting}
-                  filter={filterProp}
-                  hidePagination
-                  emptyMessage={
-                    tasks.length === 0
-                      ? taskFilter === 'all' && !search
-                        ? 'No tasks yet. Create your first task to get started.'
-                        : 'No tasks match this filter.'
-                      : undefined
-                  }
-                />
-                {(taskPage > 0 || taskHasMore) && (
+            <DataTable
+              columns={taskColumns}
+              data={tasks}
+              loading={loadingTasks}
+              searchKey="title"
+              searchPlaceholder="Search tasks..."
+              manualSorting
+              manualFiltering
+              sorting={sorting}
+              onSortingChange={setSorting}
+              filter={filterProp}
+              hidePagination
+              emptyMessage={
+                tasks.length === 0
+                  ? taskFilter === 'all' && !search
+                    ? 'No tasks yet. Create your first task to get started.'
+                    : 'No tasks match this filter.'
+                  : undefined
+              }
+            />
+            {(taskPage > 0 || taskHasMore) && (
                   <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
                     <p>
                       Showing {taskRange.from}–{taskRange.to}
@@ -719,8 +716,6 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 )}
-              </>
-            )}
           </CardContent>
         </Card>
 

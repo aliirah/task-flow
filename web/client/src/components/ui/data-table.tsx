@@ -43,7 +43,7 @@ interface DataTableProps<TData, TValue> {
   emptyMessage?: string
 }
 
-export function DataTable<TData, TValue>({
+function DataTableComponent<TData, TValue>({
   columns,
   data,
   loading = false,
@@ -59,21 +59,45 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>) {
   const [internalSorting, setInternalSorting] = React.useState<SortingState>([])
   const searchInputRef = React.useRef<HTMLInputElement>(null)
-  const wasSearchFocused = React.useRef(false)
+  const isTypingRef = React.useRef(false)
+  const [localSearchValue, setLocalSearchValue] = React.useState(filter?.search || '')
 
   const sorting = controlledSorting ?? internalSorting
 
-  // Track focus state before render
+  // Sync local value with parent only when parent clears the search
   React.useEffect(() => {
-    wasSearchFocused.current = document.activeElement === searchInputRef.current
-  })
-
-  // Restore focus after render if it was focused before
-  React.useEffect(() => {
-    if (wasSearchFocused.current && searchInputRef.current) {
-      searchInputRef.current.focus()
+    if (filter && filter.search === '' && localSearchValue !== '') {
+      setLocalSearchValue('')
     }
-  })
+  }, [filter, localSearchValue])
+
+  // Maintain focus when data updates while typing
+  React.useEffect(() => {
+    if (isTypingRef.current && searchInputRef.current) {
+      // Restore focus after data updates
+      if (document.activeElement !== searchInputRef.current) {
+        searchInputRef.current.focus()
+      }
+    }
+  }, [data])
+  
+  // Clear the typing flag after a delay (longer than debounce)
+  React.useEffect(() => {
+    if (isTypingRef.current) {
+      const timeoutId = setTimeout(() => {
+        isTypingRef.current = false
+      }, 1000) // 1 second, longer than 500ms debounce
+      return () => clearTimeout(timeoutId)
+    }
+  }, [localSearchValue])
+
+  const handleSearchChange = (value: string) => {
+    isTypingRef.current = true
+    setLocalSearchValue(value)
+    if (filter) {
+      filter.setSearch(value)
+    }
+  }
 
   const table = useReactTable({
     data,
@@ -96,7 +120,7 @@ export function DataTable<TData, TValue>({
   })
 
   const hasActiveSorting = sorting.length > 0
-  const hasActiveSearch = filter?.search && filter.search.length > 0
+  const hasActiveSearch = localSearchValue.length > 0
 
   const clearAllSorting = () => {
     if (onSortingChange) {
@@ -107,6 +131,7 @@ export function DataTable<TData, TValue>({
   }
 
   const clearAllFilters = () => {
+    setLocalSearchValue('')
     if (filter) {
       filter.setSearch('')
     }
@@ -121,14 +146,40 @@ export function DataTable<TData, TValue>({
     <div className="w-full space-y-4">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         {searchKey && filter && (
-          <Input
-            ref={searchInputRef}
-            id={`search-${searchKey}`}
-            placeholder={searchPlaceholder}
-            value={filter.search}
-            onChange={(e) => filter.setSearch(e.target.value)}
-            className="w-full md:max-w-sm"
-          />
+          <div className="relative w-full md:max-w-sm">
+            <Input
+              ref={searchInputRef}
+              id={`search-${searchKey}`}
+              placeholder={searchPlaceholder}
+              value={localSearchValue}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onBlur={(e) => {
+                // If we're still typing (within 100ms), refocus immediately
+                if (isTypingRef.current) {
+                  e.target.focus()
+                }
+              }}
+              className="w-full pr-8"
+            />
+            {localSearchValue && (
+              <button
+                onClick={() => {
+                  setLocalSearchValue('')
+                  if (filter) {
+                    filter.setSearch('')
+                  }
+                  // Refocus the input after clearing
+                  if (searchInputRef.current) {
+                    searchInputRef.current.focus()
+                  }
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         )}
 
         {(hasActiveSearch || hasActiveSorting) && (
@@ -148,10 +199,10 @@ export function DataTable<TData, TValue>({
               </Badge>
             )}
 
-            {hasActiveSearch && filter && (
+            {hasActiveSearch && (
               <Badge tone="default" className="gap-1">
                 <Filter className="size-3" />
-                Search: &ldquo;{filter.search}&rdquo;
+                Search: &ldquo;{localSearchValue}&rdquo;
                 <button
                   onClick={clearAllFilters}
                   className="ml-1 hover:text-slate-900"
@@ -269,3 +320,5 @@ export function DataTable<TData, TValue>({
     </div>
   )
 }
+
+export const DataTable = DataTableComponent

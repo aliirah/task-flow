@@ -260,8 +260,6 @@ function TasksPageContent() {
             <p className="py-6 text-sm text-slate-500">
               Choose an organization to see its tasks.
             </p>
-          ) : loadingTasks ? (
-            <p className="py-6 text-sm text-slate-500">Loading…</p>
           ) : (
             <>
               <DataTable

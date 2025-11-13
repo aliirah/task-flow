@@ -200,14 +200,10 @@ export default function MyTasksPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <p className="py-6 text-sm text-slate-500">Loading…</p>
-          ) : (
-            <>
-              <DataTable
-                columns={columns}
-                data={tasks}
-                loading={loading}
+          <DataTable
+            columns={columns}
+            data={tasks}
+            loading={loading}
                 searchKey="title"
                 searchPlaceholder="Search tasks..."
                 manualSorting
@@ -251,8 +247,6 @@ export default function MyTasksPage() {
                   </div>
                 </div>
               )}
-            </>
-          )}
         </CardContent>
       </Card>
     </div>
