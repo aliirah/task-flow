@@ -1,9 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
+import Mention from '@tiptap/extension-mention'
+import { ReactRenderer } from '@tiptap/react'
+import tippy, { Instance as TippyInstance } from 'tippy.js'
 import { User } from '@/lib/types/api'
 import { Button } from '@/components/ui/button'
 import { Send, Bold, Italic, List, ListOrdered, Code } from 'lucide-react'
@@ -20,6 +23,99 @@ interface CommentEditorProps {
   submitLabel?: string
 }
 
+interface MentionListProps {
+  items: User[]
+  command: (item: { id: string; label: string }) => void
+}
+
+const MentionList = forwardRef<any, MentionListProps>((props, ref) => {
+  const [selectedIndex, setSelectedIndex] = useState(0)
+
+  useEffect(() => {
+    const itemsLength = props.items.length
+    if (selectedIndex >= itemsLength && itemsLength > 0) {
+      queueMicrotask(() => setSelectedIndex(0))
+    }
+  }, [props.items, selectedIndex])
+
+  const selectItem = (index: number) => {
+    const item = props.items[index]
+    if (item) {
+      props.command({
+        id: item.id,
+        label: `${item.firstName} ${item.lastName}`,
+      })
+    }
+  }
+
+  const upHandler = () => {
+    setSelectedIndex((i) => (i <= 0 ? props.items.length - 1 : i - 1))
+  }
+
+  const downHandler = () => {
+    setSelectedIndex((i) => (i >= props.items.length - 1 ? 0 : i + 1))
+  }
+
+  const enterHandler = () => {
+    selectItem(selectedIndex)
+  }
+
+  useImperativeHandle(ref, () => ({
+    onKeyDown: ({ event }: { event: KeyboardEvent }) => {
+      if (event.key === 'ArrowUp') {
+        upHandler()
+        return true
+      }
+
+      if (event.key === 'ArrowDown') {
+        downHandler()
+        return true
+      }
+
+      if (event.key === 'Enter') {
+        enterHandler()
+        return true
+      }
+
+      return false
+    },
+  }))
+
+  return (
+    <div className="mentions-dropdown rounded-lg border border-slate-200 bg-white shadow-lg max-h-60 overflow-y-auto">
+      {props.items.length > 0 ? (
+        props.items.map((user, index) => (
+          <button
+            key={user.id}
+            type="button"
+            onClick={() => selectItem(index)}
+            className={cn(
+              'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors',
+              index === selectedIndex
+                ? 'bg-blue-50 text-blue-900'
+                : 'text-slate-700 hover:bg-slate-50'
+            )}
+          >
+            <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-blue-500 to-purple-600 text-[11px] font-semibold text-white">
+              {user.firstName?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <p className="truncate font-medium text-sm">
+                {user.firstName} {user.lastName}
+              </p>
+              <p className="truncate text-xs text-slate-500">{user.email}</p>
+            </div>
+          </button>
+        ))
+      ) : (
+        <div className="px-3 py-2 text-sm text-slate-500">No users found</div>
+      )}
+    </div>
+  )
+})
+
+MentionList.displayName = 'MentionList'
+
 export function CommentEditor({
   onSubmit,
   onCancel,
@@ -27,9 +123,11 @@ export function CommentEditor({
   initialContent = '',
   autoFocus = false,
   submitLabel = 'Comment',
+  users,
 }: CommentEditorProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isEmpty, setIsEmpty] = useState(true)
+  const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -43,16 +141,84 @@ export function CommentEditor({
       Placeholder.configure({
         placeholder,
       }),
+      Mention.configure({
+        HTMLAttributes: {
+          class: 'mention',
+        },
+        suggestion: {
+          items: ({ query }) => {
+            return users
+              .filter((user) => {
+                const fullName = `${user.firstName} ${user.lastName}`.toLowerCase()
+                const q = query.toLowerCase()
+                return fullName.includes(q) || user.email.toLowerCase().includes(q)
+              })
+              .slice(0, 5)
+          },
+          render: () => {
+            let component: ReactRenderer<any>
+            let popup: TippyInstance[]
+
+            return {
+              onStart: (props) => {
+                component = new ReactRenderer(MentionList, {
+                  props,
+                  editor: props.editor,
+                })
+
+                if (!props.clientRect) {
+                  return
+                }
+
+                popup = tippy('body', {
+                  getReferenceClientRect: props.clientRect as any,
+                  appendTo: () => document.body,
+                  content: component.element,
+                  showOnCreate: true,
+                  interactive: true,
+                  trigger: 'manual',
+                  placement: 'bottom-start',
+                })
+              },
+
+              onUpdate(props) {
+                component.updateProps(props)
+
+                if (!props.clientRect) {
+                  return
+                }
+
+                popup[0].setProps({
+                  getReferenceClientRect: props.clientRect as any,
+                })
+              },
+
+              onKeyDown(props) {
+                if (props.event.key === 'Escape') {
+                  popup[0].hide()
+                  return true
+                }
+
+                return component.ref?.onKeyDown(props)
+              },
+
+              onExit() {
+                popup[0].destroy()
+                component.destroy()
+              },
+            }
+          },
+        },
+      }),
     ],
     content: initialContent,
     autofocus: autoFocus,
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none focus:outline-none min-h-[80px] p-3 text-sm',
+        class: 'prose prose-sm max-w-none focus:outline-none min-h-[60px] p-2.5 text-sm',
       },
     },
     onCreate: ({ editor }) => {
-      // Ensure editor is not considered empty if we have initial content
       if (initialContent) {
         editor.commands.setContent(initialContent)
         setIsEmpty(false)
@@ -61,6 +227,20 @@ export function CommentEditor({
     onUpdate: ({ editor }) => {
       const text = editor.getText()
       setIsEmpty(!text.trim())
+      
+      // Extract mentioned user IDs from the content
+      const doc = editor.getJSON()
+      const mentions: string[] = []
+      JSON.stringify(doc, (key, value) => {
+        if (key === 'type' && value === 'mention') {
+          return value
+        }
+        if (key === 'id' && typeof value === 'string') {
+          mentions.push(value)
+        }
+        return value
+      })
+      setMentionedUserIds(Array.from(new Set(mentions)))
     },
   })
 
@@ -74,8 +254,9 @@ export function CommentEditor({
 
     setIsSubmitting(true)
     try {
-      await onSubmit(html, [])
+      await onSubmit(html, mentionedUserIds)
       editor.commands.clearContent()
+      setMentionedUserIds([])
       editor.commands.focus()
     } catch (error) {
       console.error('Failed to submit comment:', error)
@@ -162,9 +343,9 @@ export function CommentEditor({
 
         <EditorContent editor={editor} />
         
-        <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-3 py-2 bg-slate-50/50">
-          <div className="text-xs text-slate-500">
-            Press <kbd className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px]">⌘</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px]">Enter</kbd> to submit
+        <div className="flex items-center justify-between gap-2 border-t border-slate-100 px-2.5 py-1.5 bg-slate-50/50">
+          <div className="text-[11px] text-slate-500">
+            <kbd className="px-1 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px]">⌘</kbd> + <kbd className="px-1 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px]">Enter</kbd>
           </div>
           
           <div className="flex items-center gap-2">

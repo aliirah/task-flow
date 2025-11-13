@@ -307,7 +307,7 @@ export default function TaskDetailPage() {
     : 'Unassigned'
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 pb-16">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 pb-8 px-4 py-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-full bg-slate-900/10 text-slate-600">
@@ -424,8 +424,8 @@ export default function TaskDetailPage() {
 
                 {/* Comments Section */}
                 {currentUserId && taskId && (
-                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <h3 className="mb-4 text-base font-semibold text-slate-900">Comments</h3>
+                  <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <h3 className="mb-3 text-sm font-semibold text-slate-900">Comments</h3>
                     <CommentList
                       taskId={taskId}
                       currentUserId={currentUserId}
@@ -654,23 +654,6 @@ export default function TaskDetailPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Comments Section */}
-      {currentUserId && taskId && task && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Comments</CardTitle>
-            <CardDescription>Collaborate with your team on this task</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CommentList
-              taskId={taskId}
-              currentUserId={currentUserId}
-              users={users}
-            />
-          </CardContent>
-        </Card>
-      )}
 
       <Modal
         open={deleteOpen}
