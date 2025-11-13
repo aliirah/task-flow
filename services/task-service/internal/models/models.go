@@ -29,5 +29,5 @@ func (t *Task) BeforeCreate(tx *gorm.DB) error {
 }
 
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&Task{})
+	return db.AutoMigrate(&Task{}, &Comment{})
 }

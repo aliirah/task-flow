@@ -23,6 +23,13 @@ type TaskService interface {
 	Update(ctx context.Context, req *taskpb.UpdateTaskRequest) (*taskpb.Task, error)
 	Delete(ctx context.Context, id string) error
 	BuildView(ctx context.Context, tasks []*taskpb.Task) ([]gin.H, error)
+
+	// Comment operations
+	CreateComment(ctx context.Context, req *taskpb.CreateCommentRequest) (*taskpb.Comment, error)
+	GetComment(ctx context.Context, id string) (*taskpb.Comment, error)
+	ListComments(ctx context.Context, req *taskpb.ListCommentsRequest) (*taskpb.ListCommentsResponse, error)
+	UpdateComment(ctx context.Context, req *taskpb.UpdateCommentRequest) (*taskpb.Comment, error)
+	DeleteComment(ctx context.Context, id string) error
 }
 
 type taskService struct {
@@ -168,4 +175,45 @@ func (s *taskService) BuildView(ctx context.Context, tasks []*taskpb.Task) ([]gi
 	}
 
 	return items, nil
+}
+
+func (s *taskService) CreateComment(ctx context.Context, req *taskpb.CreateCommentRequest) (*taskpb.Comment, error) {
+	if s.client == nil {
+		return nil, errors.New("task service client not configured")
+	}
+	ctx = withOutgoingAuth(ctx)
+	return s.client.CreateComment(ctx, req)
+}
+
+func (s *taskService) GetComment(ctx context.Context, id string) (*taskpb.Comment, error) {
+	if s.client == nil {
+		return nil, errors.New("task service client not configured")
+	}
+	ctx = withOutgoingAuth(ctx)
+	return s.client.GetComment(ctx, &taskpb.GetCommentRequest{Id: id})
+}
+
+func (s *taskService) ListComments(ctx context.Context, req *taskpb.ListCommentsRequest) (*taskpb.ListCommentsResponse, error) {
+	if s.client == nil {
+		return nil, errors.New("task service client not configured")
+	}
+	ctx = withOutgoingAuth(ctx)
+	return s.client.ListComments(ctx, req)
+}
+
+func (s *taskService) UpdateComment(ctx context.Context, req *taskpb.UpdateCommentRequest) (*taskpb.Comment, error) {
+	if s.client == nil {
+		return nil, errors.New("task service client not configured")
+	}
+	ctx = withOutgoingAuth(ctx)
+	return s.client.UpdateComment(ctx, req)
+}
+
+func (s *taskService) DeleteComment(ctx context.Context, id string) error {
+	if s.client == nil {
+		return errors.New("task service client not configured")
+	}
+	ctx = withOutgoingAuth(ctx)
+	_, err := s.client.DeleteComment(ctx, &taskpb.DeleteCommentRequest{Id: id})
+	return err
 }

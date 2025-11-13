@@ -596,6 +596,443 @@ func (x *DeleteTaskRequest) GetId() string {
 	return ""
 }
 
+// Comment messages
+type Comment struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	TaskId          string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	UserId          string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ParentCommentId string                 `protobuf:"bytes,4,opt,name=parent_comment_id,json=parentCommentId,proto3" json:"parent_comment_id,omitempty"`
+	Content         string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
+	MentionedUsers  []string               `protobuf:"bytes,6,rep,name=mentioned_users,json=mentionedUsers,proto3" json:"mentioned_users,omitempty"`
+	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *Comment) Reset() {
+	*x = Comment{}
+	mi := &file_task_v1_task_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Comment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Comment) ProtoMessage() {}
+
+func (x *Comment) ProtoReflect() protoreflect.Message {
+	mi := &file_task_v1_task_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Comment.ProtoReflect.Descriptor instead.
+func (*Comment) Descriptor() ([]byte, []int) {
+	return file_task_v1_task_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *Comment) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Comment) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+func (x *Comment) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *Comment) GetParentCommentId() string {
+	if x != nil {
+		return x.ParentCommentId
+	}
+	return ""
+}
+
+func (x *Comment) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *Comment) GetMentionedUsers() []string {
+	if x != nil {
+		return x.MentionedUsers
+	}
+	return nil
+}
+
+func (x *Comment) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *Comment) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type CreateCommentRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	TaskId          string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	ParentCommentId string                 `protobuf:"bytes,2,opt,name=parent_comment_id,json=parentCommentId,proto3" json:"parent_comment_id,omitempty"`
+	Content         string                 `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
+	MentionedUsers  []string               `protobuf:"bytes,4,rep,name=mentioned_users,json=mentionedUsers,proto3" json:"mentioned_users,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *CreateCommentRequest) Reset() {
+	*x = CreateCommentRequest{}
+	mi := &file_task_v1_task_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateCommentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateCommentRequest) ProtoMessage() {}
+
+func (x *CreateCommentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_task_v1_task_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateCommentRequest.ProtoReflect.Descriptor instead.
+func (*CreateCommentRequest) Descriptor() ([]byte, []int) {
+	return file_task_v1_task_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *CreateCommentRequest) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+func (x *CreateCommentRequest) GetParentCommentId() string {
+	if x != nil {
+		return x.ParentCommentId
+	}
+	return ""
+}
+
+func (x *CreateCommentRequest) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *CreateCommentRequest) GetMentionedUsers() []string {
+	if x != nil {
+		return x.MentionedUsers
+	}
+	return nil
+}
+
+type GetCommentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCommentRequest) Reset() {
+	*x = GetCommentRequest{}
+	mi := &file_task_v1_task_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCommentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCommentRequest) ProtoMessage() {}
+
+func (x *GetCommentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_task_v1_task_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCommentRequest.ProtoReflect.Descriptor instead.
+func (*GetCommentRequest) Descriptor() ([]byte, []int) {
+	return file_task_v1_task_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetCommentRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type ListCommentsRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	TaskId         string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	Page           int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	Limit          int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	IncludeReplies bool                   `protobuf:"varint,4,opt,name=include_replies,json=includeReplies,proto3" json:"include_replies,omitempty"` // If false, only fetch parent comments
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ListCommentsRequest) Reset() {
+	*x = ListCommentsRequest{}
+	mi := &file_task_v1_task_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCommentsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCommentsRequest) ProtoMessage() {}
+
+func (x *ListCommentsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_task_v1_task_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCommentsRequest.ProtoReflect.Descriptor instead.
+func (*ListCommentsRequest) Descriptor() ([]byte, []int) {
+	return file_task_v1_task_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ListCommentsRequest) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+func (x *ListCommentsRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListCommentsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListCommentsRequest) GetIncludeReplies() bool {
+	if x != nil {
+		return x.IncludeReplies
+	}
+	return false
+}
+
+type ListCommentsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*Comment             `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	HasMore       bool                   `protobuf:"varint,2,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCommentsResponse) Reset() {
+	*x = ListCommentsResponse{}
+	mi := &file_task_v1_task_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCommentsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCommentsResponse) ProtoMessage() {}
+
+func (x *ListCommentsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_task_v1_task_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCommentsResponse.ProtoReflect.Descriptor instead.
+func (*ListCommentsResponse) Descriptor() ([]byte, []int) {
+	return file_task_v1_task_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ListCommentsResponse) GetItems() []*Comment {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *ListCommentsResponse) GetHasMore() bool {
+	if x != nil {
+		return x.HasMore
+	}
+	return false
+}
+
+type UpdateCommentRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Content        string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	MentionedUsers []string               `protobuf:"bytes,3,rep,name=mentioned_users,json=mentionedUsers,proto3" json:"mentioned_users,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *UpdateCommentRequest) Reset() {
+	*x = UpdateCommentRequest{}
+	mi := &file_task_v1_task_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateCommentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateCommentRequest) ProtoMessage() {}
+
+func (x *UpdateCommentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_task_v1_task_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateCommentRequest.ProtoReflect.Descriptor instead.
+func (*UpdateCommentRequest) Descriptor() ([]byte, []int) {
+	return file_task_v1_task_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *UpdateCommentRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *UpdateCommentRequest) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *UpdateCommentRequest) GetMentionedUsers() []string {
+	if x != nil {
+		return x.MentionedUsers
+	}
+	return nil
+}
+
+type DeleteCommentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteCommentRequest) Reset() {
+	*x = DeleteCommentRequest{}
+	mi := &file_task_v1_task_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteCommentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteCommentRequest) ProtoMessage() {}
+
+func (x *DeleteCommentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_task_v1_task_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteCommentRequest.ProtoReflect.Descriptor instead.
+func (*DeleteCommentRequest) Descriptor() ([]byte, []int) {
+	return file_task_v1_task_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *DeleteCommentRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
 var File_task_v1_task_proto protoreflect.FileDescriptor
 
 const file_task_v1_task_proto_rawDesc = "" +
@@ -659,7 +1096,39 @@ const file_task_v1_task_proto_rawDesc = "" +
 	"reporterId\x121\n" +
 	"\x06due_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x05dueAt\"#\n" +
 	"\x11DeleteTaskRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id2\xb8\x02\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\xb0\x02\n" +
+	"\aComment\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\x12*\n" +
+	"\x11parent_comment_id\x18\x04 \x01(\tR\x0fparentCommentId\x12\x18\n" +
+	"\acontent\x18\x05 \x01(\tR\acontent\x12'\n" +
+	"\x0fmentioned_users\x18\x06 \x03(\tR\x0ementionedUsers\x129\n" +
+	"\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x9e\x01\n" +
+	"\x14CreateCommentRequest\x12\x17\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12*\n" +
+	"\x11parent_comment_id\x18\x02 \x01(\tR\x0fparentCommentId\x12\x18\n" +
+	"\acontent\x18\x03 \x01(\tR\acontent\x12'\n" +
+	"\x0fmentioned_users\x18\x04 \x03(\tR\x0ementionedUsers\"#\n" +
+	"\x11GetCommentRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x81\x01\n" +
+	"\x13ListCommentsRequest\x12\x17\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x12\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12'\n" +
+	"\x0finclude_replies\x18\x04 \x01(\bR\x0eincludeReplies\"Y\n" +
+	"\x14ListCommentsResponse\x12&\n" +
+	"\x05items\x18\x01 \x03(\v2\x10.task.v1.CommentR\x05items\x12\x19\n" +
+	"\bhas_more\x18\x02 \x01(\bR\ahasMore\"i\n" +
+	"\x14UpdateCommentRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\x12'\n" +
+	"\x0fmentioned_users\x18\x03 \x03(\tR\x0ementionedUsers\"&\n" +
+	"\x14DeleteCommentRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id2\x8d\x05\n" +
 	"\vTaskService\x127\n" +
 	"\n" +
 	"CreateTask\x12\x1a.task.v1.CreateTaskRequest\x1a\r.task.v1.Task\x121\n" +
@@ -668,7 +1137,13 @@ const file_task_v1_task_proto_rawDesc = "" +
 	"\n" +
 	"UpdateTask\x12\x1a.task.v1.UpdateTaskRequest\x1a\r.task.v1.Task\x12@\n" +
 	"\n" +
-	"DeleteTask\x12\x1a.task.v1.DeleteTaskRequest\x1a\x16.google.protobuf.EmptyB:Z8github.com/aliirah/task-flow/shared/proto/task/v1;taskpbb\x06proto3"
+	"DeleteTask\x12\x1a.task.v1.DeleteTaskRequest\x1a\x16.google.protobuf.Empty\x12@\n" +
+	"\rCreateComment\x12\x1d.task.v1.CreateCommentRequest\x1a\x10.task.v1.Comment\x12:\n" +
+	"\n" +
+	"GetComment\x12\x1a.task.v1.GetCommentRequest\x1a\x10.task.v1.Comment\x12K\n" +
+	"\fListComments\x12\x1c.task.v1.ListCommentsRequest\x1a\x1d.task.v1.ListCommentsResponse\x12@\n" +
+	"\rUpdateComment\x12\x1d.task.v1.UpdateCommentRequest\x1a\x10.task.v1.Comment\x12F\n" +
+	"\rDeleteComment\x12\x1d.task.v1.DeleteCommentRequest\x1a\x16.google.protobuf.EmptyB:Z8github.com/aliirah/task-flow/shared/proto/task/v1;taskpbb\x06proto3"
 
 var (
 	file_task_v1_task_proto_rawDescOnce sync.Once
@@ -682,7 +1157,7 @@ func file_task_v1_task_proto_rawDescGZIP() []byte {
 	return file_task_v1_task_proto_rawDescData
 }
 
-var file_task_v1_task_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_task_v1_task_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_task_v1_task_proto_goTypes = []any{
 	(*Task)(nil),                   // 0: task.v1.Task
 	(*CreateTaskRequest)(nil),      // 1: task.v1.CreateTaskRequest
@@ -691,39 +1166,59 @@ var file_task_v1_task_proto_goTypes = []any{
 	(*ListTasksResponse)(nil),      // 4: task.v1.ListTasksResponse
 	(*UpdateTaskRequest)(nil),      // 5: task.v1.UpdateTaskRequest
 	(*DeleteTaskRequest)(nil),      // 6: task.v1.DeleteTaskRequest
-	(*timestamppb.Timestamp)(nil),  // 7: google.protobuf.Timestamp
-	(*wrapperspb.StringValue)(nil), // 8: google.protobuf.StringValue
-	(*emptypb.Empty)(nil),          // 9: google.protobuf.Empty
+	(*Comment)(nil),                // 7: task.v1.Comment
+	(*CreateCommentRequest)(nil),   // 8: task.v1.CreateCommentRequest
+	(*GetCommentRequest)(nil),      // 9: task.v1.GetCommentRequest
+	(*ListCommentsRequest)(nil),    // 10: task.v1.ListCommentsRequest
+	(*ListCommentsResponse)(nil),   // 11: task.v1.ListCommentsResponse
+	(*UpdateCommentRequest)(nil),   // 12: task.v1.UpdateCommentRequest
+	(*DeleteCommentRequest)(nil),   // 13: task.v1.DeleteCommentRequest
+	(*timestamppb.Timestamp)(nil),  // 14: google.protobuf.Timestamp
+	(*wrapperspb.StringValue)(nil), // 15: google.protobuf.StringValue
+	(*emptypb.Empty)(nil),          // 16: google.protobuf.Empty
 }
 var file_task_v1_task_proto_depIdxs = []int32{
-	7,  // 0: task.v1.Task.due_at:type_name -> google.protobuf.Timestamp
-	7,  // 1: task.v1.Task.created_at:type_name -> google.protobuf.Timestamp
-	7,  // 2: task.v1.Task.updated_at:type_name -> google.protobuf.Timestamp
-	7,  // 3: task.v1.CreateTaskRequest.due_at:type_name -> google.protobuf.Timestamp
+	14, // 0: task.v1.Task.due_at:type_name -> google.protobuf.Timestamp
+	14, // 1: task.v1.Task.created_at:type_name -> google.protobuf.Timestamp
+	14, // 2: task.v1.Task.updated_at:type_name -> google.protobuf.Timestamp
+	14, // 3: task.v1.CreateTaskRequest.due_at:type_name -> google.protobuf.Timestamp
 	0,  // 4: task.v1.ListTasksResponse.items:type_name -> task.v1.Task
-	8,  // 5: task.v1.UpdateTaskRequest.title:type_name -> google.protobuf.StringValue
-	8,  // 6: task.v1.UpdateTaskRequest.description:type_name -> google.protobuf.StringValue
-	8,  // 7: task.v1.UpdateTaskRequest.status:type_name -> google.protobuf.StringValue
-	8,  // 8: task.v1.UpdateTaskRequest.priority:type_name -> google.protobuf.StringValue
-	8,  // 9: task.v1.UpdateTaskRequest.organization_id:type_name -> google.protobuf.StringValue
-	8,  // 10: task.v1.UpdateTaskRequest.assignee_id:type_name -> google.protobuf.StringValue
-	8,  // 11: task.v1.UpdateTaskRequest.reporter_id:type_name -> google.protobuf.StringValue
-	7,  // 12: task.v1.UpdateTaskRequest.due_at:type_name -> google.protobuf.Timestamp
-	1,  // 13: task.v1.TaskService.CreateTask:input_type -> task.v1.CreateTaskRequest
-	2,  // 14: task.v1.TaskService.GetTask:input_type -> task.v1.GetTaskRequest
-	3,  // 15: task.v1.TaskService.ListTasks:input_type -> task.v1.ListTasksRequest
-	5,  // 16: task.v1.TaskService.UpdateTask:input_type -> task.v1.UpdateTaskRequest
-	6,  // 17: task.v1.TaskService.DeleteTask:input_type -> task.v1.DeleteTaskRequest
-	0,  // 18: task.v1.TaskService.CreateTask:output_type -> task.v1.Task
-	0,  // 19: task.v1.TaskService.GetTask:output_type -> task.v1.Task
-	4,  // 20: task.v1.TaskService.ListTasks:output_type -> task.v1.ListTasksResponse
-	0,  // 21: task.v1.TaskService.UpdateTask:output_type -> task.v1.Task
-	9,  // 22: task.v1.TaskService.DeleteTask:output_type -> google.protobuf.Empty
-	18, // [18:23] is the sub-list for method output_type
-	13, // [13:18] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	15, // 5: task.v1.UpdateTaskRequest.title:type_name -> google.protobuf.StringValue
+	15, // 6: task.v1.UpdateTaskRequest.description:type_name -> google.protobuf.StringValue
+	15, // 7: task.v1.UpdateTaskRequest.status:type_name -> google.protobuf.StringValue
+	15, // 8: task.v1.UpdateTaskRequest.priority:type_name -> google.protobuf.StringValue
+	15, // 9: task.v1.UpdateTaskRequest.organization_id:type_name -> google.protobuf.StringValue
+	15, // 10: task.v1.UpdateTaskRequest.assignee_id:type_name -> google.protobuf.StringValue
+	15, // 11: task.v1.UpdateTaskRequest.reporter_id:type_name -> google.protobuf.StringValue
+	14, // 12: task.v1.UpdateTaskRequest.due_at:type_name -> google.protobuf.Timestamp
+	14, // 13: task.v1.Comment.created_at:type_name -> google.protobuf.Timestamp
+	14, // 14: task.v1.Comment.updated_at:type_name -> google.protobuf.Timestamp
+	7,  // 15: task.v1.ListCommentsResponse.items:type_name -> task.v1.Comment
+	1,  // 16: task.v1.TaskService.CreateTask:input_type -> task.v1.CreateTaskRequest
+	2,  // 17: task.v1.TaskService.GetTask:input_type -> task.v1.GetTaskRequest
+	3,  // 18: task.v1.TaskService.ListTasks:input_type -> task.v1.ListTasksRequest
+	5,  // 19: task.v1.TaskService.UpdateTask:input_type -> task.v1.UpdateTaskRequest
+	6,  // 20: task.v1.TaskService.DeleteTask:input_type -> task.v1.DeleteTaskRequest
+	8,  // 21: task.v1.TaskService.CreateComment:input_type -> task.v1.CreateCommentRequest
+	9,  // 22: task.v1.TaskService.GetComment:input_type -> task.v1.GetCommentRequest
+	10, // 23: task.v1.TaskService.ListComments:input_type -> task.v1.ListCommentsRequest
+	12, // 24: task.v1.TaskService.UpdateComment:input_type -> task.v1.UpdateCommentRequest
+	13, // 25: task.v1.TaskService.DeleteComment:input_type -> task.v1.DeleteCommentRequest
+	0,  // 26: task.v1.TaskService.CreateTask:output_type -> task.v1.Task
+	0,  // 27: task.v1.TaskService.GetTask:output_type -> task.v1.Task
+	4,  // 28: task.v1.TaskService.ListTasks:output_type -> task.v1.ListTasksResponse
+	0,  // 29: task.v1.TaskService.UpdateTask:output_type -> task.v1.Task
+	16, // 30: task.v1.TaskService.DeleteTask:output_type -> google.protobuf.Empty
+	7,  // 31: task.v1.TaskService.CreateComment:output_type -> task.v1.Comment
+	7,  // 32: task.v1.TaskService.GetComment:output_type -> task.v1.Comment
+	11, // 33: task.v1.TaskService.ListComments:output_type -> task.v1.ListCommentsResponse
+	7,  // 34: task.v1.TaskService.UpdateComment:output_type -> task.v1.Comment
+	16, // 35: task.v1.TaskService.DeleteComment:output_type -> google.protobuf.Empty
+	26, // [26:36] is the sub-list for method output_type
+	16, // [16:26] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_task_v1_task_proto_init() }
@@ -737,7 +1232,7 @@ func file_task_v1_task_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_task_v1_task_proto_rawDesc), len(file_task_v1_task_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

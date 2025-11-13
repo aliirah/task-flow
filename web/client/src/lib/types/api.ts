@@ -139,3 +139,23 @@ export interface TaskListResponse {
   limit: number
   hasMore: boolean
 }
+
+export type Comment = {
+  id: string
+  taskId: string
+  userId: string
+  parentCommentId?: string
+  content: string
+  mentionedUsers?: string[]
+  createdAt: string
+  updatedAt: string
+  user?: User
+  replies?: Comment[]
+}
+
+export interface CommentListResponse {
+  items: Comment[]
+  page: number
+  limit: number
+  hasMore: boolean
+}

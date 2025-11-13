@@ -10,6 +10,7 @@ import (
 	"github.com/aliirah/task-flow/services/task-service/internal/models"
 	"github.com/aliirah/task-flow/shared/authctx"
 	"github.com/aliirah/task-flow/shared/contracts"
+	organizationpb "github.com/aliirah/task-flow/shared/proto/organization/v1"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -21,13 +22,15 @@ type Service struct {
 	db        *gorm.DB
 	publisher event.TaskEventPublisher
 	userSvc   userpb.UserServiceClient
+	orgSvc    organizationpb.OrganizationServiceClient
 }
 
-func New(db *gorm.DB, publisher event.TaskEventPublisher, userSvc userpb.UserServiceClient) *Service {
+func New(db *gorm.DB, publisher event.TaskEventPublisher, userSvc userpb.UserServiceClient, orgSvc organizationpb.OrganizationServiceClient) *Service {
 	return &Service{
 		db:        db,
 		publisher: publisher,
 		userSvc:   userSvc,
+		orgSvc:    orgSvc,
 	}
 }
 
@@ -310,4 +313,30 @@ func reporterTaskUserFallback(reporterID uuid.UUID, reporter *userpb.User) *cont
 		return nil
 	}
 	return &contracts.TaskUser{ID: reporterID.String()}
+}
+
+// ValidateOrganizationMembership checks if a user is a member of an organization
+func (s *Service) ValidateOrganizationMembership(ctx context.Context, userID uuid.UUID, organizationID uuid.UUID) error {
+	if s.orgSvc == nil {
+		return fmt.Errorf("organization service not available")
+	}
+
+	resp, err := s.orgSvc.ListUserMemberships(ctx, &organizationpb.ListUserMembershipsRequest{
+		UserId: userID.String(),
+	})
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return fmt.Errorf("user is not a member of this organization")
+		}
+		return fmt.Errorf("failed to check organization membership: %w", err)
+	}
+
+	// Check if user is a member of the specified organization
+	for _, membership := range resp.GetMemberships() {
+		if membership.GetOrganizationId() == organizationID.String() {
+			return nil // User is a member
+		}
+	}
+
+	return fmt.Errorf("user is not a member of this organization")
 }

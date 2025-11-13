@@ -133,15 +133,21 @@ func main() {
 	taskHandler := httphandler.NewTaskHandler(taskSvc)
 	wsHandler := wshandler.NewHandler(authSvc, orgSvc, connMgr)
 	authMiddleware := gatewaymiddleware.JWTAuth(authSvc)
+	
+	// Organization membership middleware generator
+	orgMiddlewareGen := func(paramName string) gin.HandlerFunc {
+		return gatewaymiddleware.RequireOrganizationMember(orgSvc, paramName)
+	}
 
 	routes.Register(router, routes.Dependencies{
-		Health:         healthHandler,
-		Auth:           authHandler,
-		User:           userHandler,
-		Organization:   organizationHandler,
-		Task:           taskHandler,
-		WS:             wsHandler,
-		AuthMiddleware: authMiddleware,
+		Health:                    healthHandler,
+		Auth:                      authHandler,
+		User:                      userHandler,
+		Organization:              organizationHandler,
+		Task:                      taskHandler,
+		WS:                        wsHandler,
+		AuthMiddleware:            authMiddleware,
+		OrganizationMiddlewareGen: orgMiddlewareGen,
 	})
 	s := &http.Server{
 		Addr:           httpAddr,

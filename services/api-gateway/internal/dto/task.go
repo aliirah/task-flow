@@ -12,6 +12,36 @@ import (
 	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
+// CreateCommentPayload is the HTTP payload for creating a comment.
+type CreateCommentPayload struct {
+	Content         string   `json:"content" validate:"required,min=1"`
+	ParentCommentID string   `json:"parentCommentId" validate:"omitempty,uuid4"`
+	MentionedUsers  []string `json:"mentionedUsers" validate:"omitempty,dive,uuid4"`
+}
+
+func (p CreateCommentPayload) Build(taskID string) *taskpb.CreateCommentRequest {
+	return &taskpb.CreateCommentRequest{
+		TaskId:          taskID,
+		Content:         strings.TrimSpace(p.Content),
+		ParentCommentId: strings.TrimSpace(p.ParentCommentID),
+		MentionedUsers:  p.MentionedUsers,
+	}
+}
+
+// UpdateCommentPayload is the HTTP payload for updating a comment.
+type UpdateCommentPayload struct {
+	Content        string   `json:"content" validate:"required,min=1"`
+	MentionedUsers []string `json:"mentionedUsers" validate:"omitempty,dive,uuid4"`
+}
+
+func (p UpdateCommentPayload) Build(id string) *taskpb.UpdateCommentRequest {
+	return &taskpb.UpdateCommentRequest{
+		Id:             id,
+		Content:        strings.TrimSpace(p.Content),
+		MentionedUsers: p.MentionedUsers,
+	}
+}
+
 type CreateTaskPayload struct {
 	Title          string  `json:"title" validate:"required,min=3"`
 	Description    string  `json:"description" validate:"omitempty,max=4096"`

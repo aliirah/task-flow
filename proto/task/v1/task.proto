@@ -14,6 +14,13 @@ service TaskService {
   rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
   rpc UpdateTask(UpdateTaskRequest) returns (Task);
   rpc DeleteTask(DeleteTaskRequest) returns (google.protobuf.Empty);
+  
+  // Comment operations
+  rpc CreateComment(CreateCommentRequest) returns (Comment);
+  rpc GetComment(GetCommentRequest) returns (Comment);
+  rpc ListComments(ListCommentsRequest) returns (ListCommentsResponse);
+  rpc UpdateComment(UpdateCommentRequest) returns (Comment);
+  rpc DeleteComment(DeleteCommentRequest) returns (google.protobuf.Empty);
 }
 
 message Task {
@@ -74,5 +81,50 @@ message UpdateTaskRequest {
 }
 
 message DeleteTaskRequest {
+  string id = 1;
+}
+
+// Comment messages
+message Comment {
+  string id = 1;
+  string task_id = 2;
+  string user_id = 3;
+  string parent_comment_id = 4;
+  string content = 5;
+  repeated string mentioned_users = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message CreateCommentRequest {
+  string task_id = 1;
+  string parent_comment_id = 2;
+  string content = 3;
+  repeated string mentioned_users = 4;
+}
+
+message GetCommentRequest {
+  string id = 1;
+}
+
+message ListCommentsRequest {
+  string task_id = 1;
+  int32 page = 2;
+  int32 limit = 3;
+  bool include_replies = 4; // If false, only fetch parent comments
+}
+
+message ListCommentsResponse {
+  repeated Comment items = 1;
+  bool has_more = 2;
+}
+
+message UpdateCommentRequest {
+  string id = 1;
+  string content = 2;
+  repeated string mentioned_users = 3;
+}
+
+message DeleteCommentRequest {
   string id = 1;
 }

@@ -203,3 +203,101 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 	}
 	rest.NoContent(c)
 }
+
+// CreateComment handles POST /api/tasks/:id/comments.
+func (h *TaskHandler) CreateComment(c *gin.Context) {
+	var payload dto.CreateCommentPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		rest.Error(c, http.StatusBadRequest, "invalid request payload",
+			rest.WithErrorCode("validation.invalid_payload"))
+		return
+	}
+	if err := h.validator.Struct(payload); err != nil {
+		rest.Error(c, http.StatusBadRequest, "validation failed",
+			rest.WithErrorCode("validation.failed"),
+			rest.WithErrorDetails(util.CollectValidationErrors(err)))
+		return
+	}
+
+	req := payload.Build(c.Param("id"))
+	comment, err := h.taskService.CreateComment(c.Request.Context(), req)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("comment")) {
+		return
+	}
+
+	rest.Created(c, comment)
+}
+
+// ListComments handles GET /api/tasks/:id/comments.
+func (h *TaskHandler) ListComments(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	includeReplies := c.Query("includeReplies") == "true"
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+
+	req := &taskpb.ListCommentsRequest{
+		TaskId:         c.Param("id"),
+		Page:           int32(page),
+		Limit:          int32(limit),
+		IncludeReplies: includeReplies,
+	}
+
+	resp, err := h.taskService.ListComments(c.Request.Context(), req)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("comment")) {
+		return
+	}
+
+	rest.Ok(c, gin.H{
+		"items":   resp.GetItems(),
+		"page":    page,
+		"limit":   limit,
+		"hasMore": resp.GetHasMore(),
+	})
+}
+
+// GetComment handles GET /api/comments/:id.
+func (h *TaskHandler) GetComment(c *gin.Context) {
+	comment, err := h.taskService.GetComment(c.Request.Context(), c.Param("id"))
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("comment")) {
+		return
+	}
+	rest.Ok(c, comment)
+}
+
+// UpdateComment handles PATCH /api/comments/:id.
+func (h *TaskHandler) UpdateComment(c *gin.Context) {
+	var payload dto.UpdateCommentPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		rest.Error(c, http.StatusBadRequest, "invalid request payload",
+			rest.WithErrorCode("validation.invalid_payload"))
+		return
+	}
+	if err := h.validator.Struct(payload); err != nil {
+		rest.Error(c, http.StatusBadRequest, "validation failed",
+			rest.WithErrorCode("validation.failed"),
+			rest.WithErrorDetails(util.CollectValidationErrors(err)))
+		return
+	}
+
+	req := payload.Build(c.Param("id"))
+	comment, err := h.taskService.UpdateComment(c.Request.Context(), req)
+	if rest.HandleGRPCError(c, err, rest.WithNamespace("comment")) {
+		return
+	}
+
+	rest.Ok(c, comment)
+}
+
+// DeleteComment handles DELETE /api/comments/:id.
+func (h *TaskHandler) DeleteComment(c *gin.Context) {
+	if rest.HandleGRPCError(c, h.taskService.DeleteComment(c.Request.Context(), c.Param("id")), rest.WithNamespace("comment")) {
+		return
+	}
+	rest.NoContent(c)
+}

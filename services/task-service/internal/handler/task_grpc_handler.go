@@ -239,3 +239,156 @@ func grpcError(err error) error {
 	}
 	return status.Error(codes.Internal, err.Error())
 }
+
+// Comment handlers
+func (h *TaskHandler) CreateComment(ctx context.Context, req *taskpb.CreateCommentRequest) (*taskpb.Comment, error) {
+	taskID, err := parseUUID(req.GetTaskId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid task id")
+	}
+
+	var parentCommentID *uuid.UUID
+	if req.GetParentCommentId() != "" {
+		id, err := parseUUID(req.GetParentCommentId())
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid parent comment id")
+		}
+		parentCommentID = &id
+	}
+
+	initiator, ok := authctx.IncomingUser(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "user not authenticated")
+	}
+
+	userID, err := parseUUID(initiator.ID)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user id")
+	}
+
+	comment, err := h.svc.CreateComment(ctx, service.CreateCommentInput{
+		TaskID:          taskID,
+		UserID:          userID,
+		ParentCommentID: parentCommentID,
+		Content:         req.GetContent(),
+		MentionedUsers:  req.GetMentionedUsers(),
+	})
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return toProtoComment(comment), nil
+}
+
+func (h *TaskHandler) GetComment(ctx context.Context, req *taskpb.GetCommentRequest) (*taskpb.Comment, error) {
+	id, err := parseUUID(req.GetId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid comment id")
+	}
+
+	comment, err := h.svc.GetComment(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, status.Error(codes.NotFound, "comment not found")
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return toProtoComment(comment), nil
+}
+
+func (h *TaskHandler) ListComments(ctx context.Context, req *taskpb.ListCommentsRequest) (*taskpb.ListCommentsResponse, error) {
+	taskID, err := parseUUID(req.GetTaskId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid task id")
+	}
+
+	comments, hasMore, err := h.svc.ListComments(ctx, service.ListCommentsParams{
+		TaskID:         taskID,
+		Page:           int(req.GetPage()),
+		Limit:          int(req.GetLimit()),
+		IncludeReplies: req.GetIncludeReplies(),
+	})
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	items := make([]*taskpb.Comment, 0, len(comments))
+	for _, c := range comments {
+		comment := c
+		items = append(items, toProtoComment(&comment))
+	}
+
+	return &taskpb.ListCommentsResponse{
+		Items:   items,
+		HasMore: hasMore,
+	}, nil
+}
+
+func (h *TaskHandler) UpdateComment(ctx context.Context, req *taskpb.UpdateCommentRequest) (*taskpb.Comment, error) {
+	id, err := parseUUID(req.GetId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid comment id")
+	}
+
+	initiator, ok := authctx.IncomingUser(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "user not authenticated")
+	}
+
+	userID, err := parseUUID(initiator.ID)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user id")
+	}
+
+	comment, err := h.svc.UpdateComment(ctx, id, service.UpdateCommentInput{
+		Content:        req.GetContent(),
+		MentionedUsers: req.GetMentionedUsers(),
+	}, userID)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return toProtoComment(comment), nil
+}
+
+func (h *TaskHandler) DeleteComment(ctx context.Context, req *taskpb.DeleteCommentRequest) (*emptypb.Empty, error) {
+	id, err := parseUUID(req.GetId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid comment id")
+	}
+
+	initiator, ok := authctx.IncomingUser(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "user not authenticated")
+	}
+
+	userID, err := parseUUID(initiator.ID)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user id")
+	}
+
+	if err := h.svc.DeleteComment(ctx, id, userID); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func toProtoComment(c *models.Comment) *taskpb.Comment {
+	var parentCommentID string
+	if c.ParentCommentID != nil {
+		parentCommentID = c.ParentCommentID.String()
+	}
+
+	return &taskpb.Comment{
+		Id:              c.ID.String(),
+		TaskId:          c.TaskID.String(),
+		UserId:          c.UserID.String(),
+		ParentCommentId: parentCommentID,
+		Content:         c.Content,
+		MentionedUsers:  c.MentionedUsers,
+		CreatedAt:       timestamppb.New(c.CreatedAt),
+		UpdatedAt:       timestamppb.New(c.UpdatedAt),
+	}
+}
