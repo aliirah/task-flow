@@ -240,15 +240,17 @@ export function CommentEditor({
       // Extract mentioned user IDs from the content
       const doc = editor.getJSON()
       const mentions: string[] = []
-      JSON.stringify(doc, (key, value) => {
-        if (key === 'type' && value === 'mention') {
-          return value
+      
+      const extractMentions = (node: any) => {
+        if (node.type === 'mention' && node.attrs?.id) {
+          mentions.push(node.attrs.id)
         }
-        if (key === 'id' && typeof value === 'string') {
-          mentions.push(value)
+        if (node.content) {
+          node.content.forEach((child: any) => extractMentions(child))
         }
-        return value
-      })
+      }
+      
+      extractMentions(doc)
       setMentionedUserIds(Array.from(new Set(mentions)))
     },
   },

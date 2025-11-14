@@ -97,7 +97,12 @@ export function CommentList({ taskId, currentUserId, users }: CommentListProps) 
   const updateCommentInList = (items: Comment[], id: string, updatedComment: Comment): Comment[] => {
     return items.map((item) => {
       if (item.id === id) {
-        return { ...item, ...updatedComment }
+        // Preserve existing replies if updatedComment doesn't have them
+        return { 
+          ...item, 
+          ...updatedComment,
+          replies: updatedComment.replies !== undefined ? updatedComment.replies : item.replies
+        }
       }
       if (item.replies) {
         return {
@@ -162,6 +167,7 @@ export function CommentList({ taskId, currentUserId, users }: CommentListProps) 
       }
     } catch (error) {
       console.error('Failed to update comment:', error)
+      throw error
     }
   }
 

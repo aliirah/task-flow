@@ -206,12 +206,11 @@ func (s *Service) UpdateComment(ctx context.Context, id uuid.UUID, input UpdateC
 		mentions = ExtractMentions(content)
 	}
 
-	updates := map[string]interface{}{
-		"content":         content,
-		"mentioned_users": mentions,
-	}
+	// Update the comment fields directly
+	comment.Content = content
+	comment.MentionedUsers = mentions
 
-	if err := s.db.WithContext(ctx).Model(comment).Updates(updates).Error; err != nil {
+	if err := s.db.WithContext(ctx).Save(comment).Error; err != nil {
 		return nil, err
 	}
 
