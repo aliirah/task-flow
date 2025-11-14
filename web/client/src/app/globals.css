@@ -198,6 +198,12 @@
   @apply text-sm text-slate-700;
 }
 
+/* Style mentions in rendered comments */
+.prose .mention,
+.prose span[data-type="mention"] {
+  @apply inline-block rounded bg-blue-100 px-1 py-0.5 text-blue-700 font-medium;
+}
+
 .prose p {
   @apply my-2;
 }

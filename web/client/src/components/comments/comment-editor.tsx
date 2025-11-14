@@ -145,7 +145,12 @@ export function CommentEditor({
         Mention.configure({
           HTMLAttributes: {
             class: 'mention',
+            'data-type': 'mention',
           },
+          renderLabel({ node }) {
+            return `@${node.attrs.label}`
+          },
+          deleteTriggerWithBackspace: true,
           suggestion: {
             items: ({ query }) => {
               // If no query, show all users (max 10)
