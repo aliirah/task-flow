@@ -97,6 +97,19 @@ func main() {
 	// Initialize connection manager for WebSocket connections
 	connMgr := messaging.NewConnectionManager()
 
+	// Initialize task event consumer
+	fmt.Println("Setting up task event consumer...")
+	taskEventConsumer := gatewayevent.NewTaskConsumer(rabbitmq, connMgr)
+
+	// Start listening for task events
+	go func() {
+		if err := taskEventConsumer.Listen(); err != nil {
+			log.Error(fmt.Errorf("failed to start task event consumer: %w", err))
+			os.Exit(1)
+		}
+	}()
+	fmt.Println("Task event consumer successfully initialized")
+
 	// Initialize notification event consumer
 	fmt.Println("Setting up notification event consumer...")
 	notificationEventConsumer := gatewayevent.NewNotificationConsumer(rabbitmq, connMgr, grpcClients.Notification)

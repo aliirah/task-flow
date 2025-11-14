@@ -7,6 +7,7 @@ import (
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/aliirah/task-flow/shared/authctx"
 	"github.com/aliirah/task-flow/shared/rest"
+	"github.com/aliirah/task-flow/shared/transform/notification"
 	"github.com/gin-gonic/gin"
 )
 
@@ -47,7 +48,9 @@ func (h *NotificationHandler) List(c *gin.Context) {
 		return
 	}
 
-	rest.Ok(c, map[string]any{"items": notifications})
+	// Transform to HTTP response format with proper camelCase
+	httpNotifications := notification.ToHTTPList(notifications)
+	rest.Ok(c, map[string]any{"items": httpNotifications})
 }
 
 func (h *NotificationHandler) GetUnreadCount(c *gin.Context) {

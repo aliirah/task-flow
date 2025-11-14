@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -14,6 +14,8 @@ import { OrganizationMember, Task, TaskPriority, TaskStatus, User } from '@/lib/
 import { handleApiError } from '@/lib/utils/error-handler'
 import { CommentList } from '@/components/comments/comment-list'
 import { useAuthStore } from '@/store/auth'
+import { useTaskEvents } from '@/hooks/useTaskEvents'
+import type { TaskEventMessage } from '@/lib/types/ws'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -190,6 +192,53 @@ export default function TaskDetailPage() {
       .filter((user, index, self) => self.findIndex((u) => u.id === user.id) === index)
     setUsers(uniqueUsers)
   }, [members])
+
+  // Listen for WebSocket task updates
+  useTaskEvents(
+    useCallback(
+      (event: TaskEventMessage) => {
+        // Only update if this is the task we're viewing
+        if (event.data.id !== taskId) return
+        
+        console.log('[TaskDetail] Received task update via WebSocket:', event)
+        
+        // Update task state with the latest data from WebSocket
+        setTask((prev) => {
+          if (!prev) return prev
+          
+          const updatedTask = {
+            ...prev,
+            ...event.data,
+            // Preserve nested objects if not in event data
+            organization: event.data.organization ?? prev.organization,
+            assignee: event.data.assignee ?? prev.assignee,
+            reporter: event.data.reporter ?? prev.reporter,
+          }
+          
+          // Update form if no unsaved changes
+          if (Object.keys(form.formState.dirtyFields).length === 0) {
+            form.reset({
+              organizationId: updatedTask.organizationId,
+              title: updatedTask.title,
+              description: updatedTask.description ?? '',
+              assigneeId: updatedTask.assigneeId ?? '',
+              priority: updatedTask.priority as TaskPriority,
+              status: updatedTask.status as TaskStatus,
+              dueAt: updatedTask.dueAt ?? '',
+            })
+          }
+          
+          return updatedTask
+        })
+        
+        toast.info('Task updated', {
+          description: 'This task was updated by another user',
+          duration: 2000,
+        })
+      },
+      [taskId, form]
+    )
+  )
 
   const handleAutoSave = async () => {
     if (!taskId || saving) return

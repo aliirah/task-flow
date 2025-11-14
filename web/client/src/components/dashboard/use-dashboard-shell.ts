@@ -202,24 +202,38 @@ export function useDashboardShellLogic() {
       socket.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data)
-          console.debug('[dashboard-shell] incoming websocket payload', message)
+          console.log('[WS] 📩 Received WebSocket message:', message)
+          
           if (!message?.type) {
+            console.warn('[WS] ⚠️ Message missing type field')
             return
           }
+          
           if (message.type === 'connection.established') {
+            console.log('[WS] ✅ Connection established')
             return
           }
 
           // Handle notification events
           if (message.type === 'notification.created' && message.data) {
-            console.debug('[dashboard-shell] received notification', message.data)
+            console.log('[WS] 🔔 Notification received:', {
+              id: message.data.id,
+              title: message.data.title,
+              isRead: message.data.isRead,
+              isReadType: typeof message.data.isRead
+            })
+            
             // Call the global notification handler if available
             if (typeof window !== 'undefined') {
               const addNotification = (window as unknown as { __addNotification?: (data: unknown) => void }).__addNotification
               if (typeof addNotification === 'function') {
+                console.log('[WS] 🔔 Calling addNotification handler')
                 addNotification(message.data)
+              } else {
+                console.warn('[WS] ⚠️ No addNotification handler found')
               }
             }
+            
             // Show a brief toast for new notifications
             toast.info(message.data.title, {
               description: message.data.message,
@@ -232,22 +246,37 @@ export function useDashboardShellLogic() {
           const isTaskEvent =
             message.type === 'task.event.created' ||
             message.type === 'task.event.updated'
-          if (!isTaskEvent || !message.data) {
-            return
-          }
-          const senderId =
-            message.data.triggeredById ?? message.data.reporterId ?? null
-          if (senderId && senderId === userRef.current?.id) {
-            return
-          }
-          const taskEvent = message as TaskEventMessage
-          taskEventListenersRef.current.forEach((listener) => {
-            try {
-              listener(taskEvent)
-            } catch {
-              /* ignore */
+          
+          if (isTaskEvent && message.data) {
+            console.log('[WS] 📋 Task event received:', {
+              type: message.type,
+              taskId: message.data.taskId,
+              title: message.data.title,
+              triggeredBy: message.data.triggeredById,
+              currentUser: userRef.current?.id
+            })
+            
+            const senderId = message.data.triggeredById ?? message.data.reporterId ?? null
+            if (senderId && senderId === userRef.current?.id) {
+              console.log('[WS] ⏭️ Skipping - user triggered this event')
+              return
             }
-          })
+            
+            const taskEvent = message as TaskEventMessage
+            const listenerCount = taskEventListenersRef.current.size
+            console.log('[WS] 📡 Broadcasting to', listenerCount, 'task listeners')
+            
+            taskEventListenersRef.current.forEach((listener) => {
+              try {
+                listener(taskEvent)
+              } catch (err) {
+                console.error('[WS] ❌ Task listener error:', err)
+              }
+            })
+            return
+          }
+          
+          console.log('[WS] ℹ️ Unhandled message type:', message.type)
           // Note: Removed toast.success call here - notifications will be shown via NotificationBell instead
         } catch {
           // ignore parse errors

@@ -169,6 +169,8 @@ export type Notification = {
   userId: string
   isRead: boolean
   createdAt: string
+  entityType?: string
+  entityId?: string
 }
 
 export interface NotificationListResponse {

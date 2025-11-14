@@ -196,7 +196,7 @@ func (c *NotificationConsumer) buildTaskCreatedNotification(n *models.Notificati
 	n.EntityID = entityID
 	n.Title = "New task assigned"
 	n.Message = fmt.Sprintf("%s created task: %s", triggerUserName, title)
-	n.URL = fmt.Sprintf("/tasks/%s", taskID)
+	n.URL = fmt.Sprintf("/dashboard/tasks/%s", taskID)
 
 	return n, nil
 }
@@ -226,7 +226,7 @@ func (c *NotificationConsumer) buildTaskUpdatedNotification(n *models.Notificati
 	n.EntityID = entityID
 	n.Title = "Task updated"
 	n.Message = fmt.Sprintf("%s updated task: %s", triggerUserName, title)
-	n.URL = fmt.Sprintf("/tasks/%s", taskID)
+	n.URL = fmt.Sprintf("/dashboard/tasks/%s", taskID)
 
 	return n, nil
 }
@@ -256,7 +256,7 @@ func (c *NotificationConsumer) buildTaskDeletedNotification(n *models.Notificati
 	n.EntityID = entityID
 	n.Title = "Task deleted"
 	n.Message = fmt.Sprintf("%s deleted task: %s", triggerUserName, title)
-	n.URL = fmt.Sprintf("/tasks/%s", taskID)
+	n.URL = fmt.Sprintf("/dashboard/tasks/%s", taskID)
 
 	return n, nil
 }
@@ -287,7 +287,7 @@ func (c *NotificationConsumer) buildCommentCreatedNotification(n *models.Notific
 	n.EntityID = entityID
 	n.Title = "New comment"
 	n.Message = fmt.Sprintf("%s commented on: %s", authorName, taskTitle)
-	n.URL = fmt.Sprintf("/tasks/%s#comment-%s", taskID, commentID)
+	n.URL = fmt.Sprintf("/dashboard/tasks/%s#comment-%s", taskID, commentID)
 
 	return n, nil
 }
@@ -318,7 +318,7 @@ func (c *NotificationConsumer) buildCommentUpdatedNotification(n *models.Notific
 	n.EntityID = entityID
 	n.Title = "Comment updated"
 	n.Message = fmt.Sprintf("%s updated a comment on: %s", authorName, taskTitle)
-	n.URL = fmt.Sprintf("/tasks/%s#comment-%s", taskID, commentID)
+	n.URL = fmt.Sprintf("/dashboard/tasks/%s#comment-%s", taskID, commentID)
 
 	return n, nil
 }
@@ -349,7 +349,7 @@ func (c *NotificationConsumer) buildCommentDeletedNotification(n *models.Notific
 	n.EntityID = entityID
 	n.Title = "Comment deleted"
 	n.Message = fmt.Sprintf("%s deleted a comment on: %s", authorName, taskTitle)
-	n.URL = fmt.Sprintf("/tasks/%s", taskID)
+	n.URL = fmt.Sprintf("/dashboard/tasks/%s", taskID)
 
 	return n, nil
 }
@@ -380,7 +380,7 @@ func (c *NotificationConsumer) buildCommentMentionedNotification(n *models.Notif
 	n.EntityID = entityID
 	n.Title = "You were mentioned"
 	n.Message = fmt.Sprintf("%s mentioned you in: %s", authorName, taskTitle)
-	n.URL = fmt.Sprintf("/tasks/%s#comment-%s", taskID, commentID)
+	n.URL = fmt.Sprintf("/dashboard/tasks/%s#comment-%s", taskID, commentID)
 
 	return n, nil
 }

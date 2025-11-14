@@ -60,21 +60,23 @@ func (c *NotificationConsumer) handle(ctx context.Context, msg amqp.Delivery) er
 
 		notification := resp.Items[0]
 
-		// Create WebSocket message
+		// Create WebSocket message with camelCase fields
 		wsMsg := contracts.WSMessage{
 			Type: "notification.created",
 			Data: map[string]interface{}{
-				"id":          notification.Id,
-				"type":        notification.Type,
-				"title":       notification.Title,
-				"message":     notification.Message,
-				"entity_type": notification.EntityType,
-				"entity_id":   notification.EntityId,
-				"url":         notification.Url,
-				"is_read":     notification.IsRead,
-				"created_at":  notification.CreatedAt.AsTime().Format("2006-01-02T15:04:05Z07:00"),
+				"id":         notification.Id,
+				"type":       notification.Type,
+				"title":      notification.Title,
+				"message":    notification.Message,
+				"entityType": notification.EntityType,
+				"entityId":   notification.EntityId,
+				"url":        notification.Url,
+				"isRead":     notification.IsRead,
+				"createdAt":  notification.CreatedAt.AsTime().Format("2006-01-02T15:04:05Z07:00"),
 			},
 		}
+
+		fmt.Printf("[NotificationConsumer] Sending WebSocket notification to user %s: isRead=%v\n", recipientID, notification.IsRead)
 
 		// Send to specific user
 		if err := c.connMgr.SendToUser(recipientID, wsMsg); err != nil {

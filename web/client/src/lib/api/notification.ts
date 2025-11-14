@@ -16,7 +16,10 @@ export const notificationApi = {
     const search = new URLSearchParams()
     if (params?.page) search.set('page', String(params.page))
     if (params?.limit) search.set('limit', String(params.limit))
-    if (params?.unreadOnly) search.set('unreadOnly', 'true')
+    // Backend expects is_read parameter: is_read=false for unread only
+    if (params?.unreadOnly !== undefined) {
+      search.set('is_read', params.unreadOnly ? 'false' : '')
+    }
 
     const query = search.toString()
     return apiClient<NotificationListResponse>(
