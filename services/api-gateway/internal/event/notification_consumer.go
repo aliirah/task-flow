@@ -7,85 +7,94 @@ import (
 
 	"github.com/aliirah/task-flow/shared/contracts"
 	"github.com/aliirah/task-flow/shared/messaging"
-	notificationpb "github.com/aliirah/task-flow/shared/proto/notification/v1"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type NotificationConsumer struct {
-	rabbitmq   *messaging.RabbitMQ
-	connMgr    *messaging.ConnectionManager
-	notifSvc   notificationpb.NotificationServiceClient
+	rabbitmq *messaging.RabbitMQ
+	connMgr  *messaging.ConnectionManager
 }
 
-func NewNotificationConsumer(rabbitmq *messaging.RabbitMQ, connMgr *messaging.ConnectionManager, notifSvc notificationpb.NotificationServiceClient) *NotificationConsumer {
+func NewNotificationConsumer(rabbitmq *messaging.RabbitMQ, connMgr *messaging.ConnectionManager) *NotificationConsumer {
 	return &NotificationConsumer{
 		rabbitmq: rabbitmq,
 		connMgr:  connMgr,
-		notifSvc: notifSvc,
 	}
 }
 
 func (c *NotificationConsumer) Listen() error {
-	return c.rabbitmq.ConsumeMessages(messaging.NotificationsQueue, c.handle)
+	fmt.Println("[NotificationConsumer] Starting to listen for notification WebSocket distribution...")
+	
+	// Declare the queue if it doesn't exist
+	_, err := c.rabbitmq.Channel.QueueDeclare(
+		"notification-ws-distribution", // queue name
+		true,                           // durable
+		false,                          // delete when unused
+		false,                          // exclusive
+		false,                          // no-wait
+		nil,                            // arguments
+	)
+	if err != nil {
+		return fmt.Errorf("failed to declare queue: %w", err)
+	}
+
+	msgs, err := c.rabbitmq.Channel.Consume(
+		"notification-ws-distribution", // queue
+		"",                             // consumer
+		false,                          // auto-ack
+		false,                          // exclusive
+		false,                          // no-local
+		false,                          // no-wait
+		nil,                            // args
+	)
+	if err != nil {
+		return fmt.Errorf("failed to register consumer: %w", err)
+	}
+
+	go func() {
+		for msg := range msgs {
+			if err := c.handle(context.Background(), msg); err != nil {
+				fmt.Printf("[NotificationConsumer] Error handling message: %v\n", err)
+			}
+			msg.Ack(false)
+		}
+	}()
+
+	fmt.Println("[NotificationConsumer] Successfully started")
+	return nil
 }
 
 func (c *NotificationConsumer) handle(ctx context.Context, msg amqp.Delivery) error {
-	fmt.Printf("[NotificationConsumer] Received message with routing key: %s\n", msg.RoutingKey)
+	fmt.Printf("[NotificationConsumer] 📬 Received WebSocket distribution message\n")
 
-	var notifEvent contracts.NotificationEvent
-	if err := json.Unmarshal(msg.Body, &notifEvent); err != nil {
-		fmt.Printf("[NotificationConsumer] Failed to unmarshal notification event: %v\n", err)
-		return fmt.Errorf("failed to unmarshal notification event: %w", err)
+	// Parse the message
+	var wsDistMsg struct {
+		UserID       string                 `json:"userId"`
+		Notification map[string]interface{} `json:"notification"`
 	}
 
-	fmt.Printf("[NotificationConsumer] Processing notification event - Type: %s, OrgID: %s, Recipients: %v\n", 
-		notifEvent.EventType, notifEvent.OrganizationID, notifEvent.Recipients)
-
-	// Fetch the latest notifications for each recipient
-	for _, recipientID := range notifEvent.Recipients {
-		// Query notification service for the user's latest notification
-		resp, err := c.notifSvc.ListNotifications(ctx, &notificationpb.ListNotificationsRequest{
-			Page:  1,
-			Limit: 1, // Get the most recent notification
-		})
-		if err != nil {
-			fmt.Printf("[NotificationConsumer] Failed to fetch notifications for user %s: %v\n", recipientID, err)
-			continue
-		}
-
-		if len(resp.Items) == 0 {
-			fmt.Printf("[NotificationConsumer] No notifications found for user %s\n", recipientID)
-			continue
-		}
-
-		notification := resp.Items[0]
-
-		// Create WebSocket message with camelCase fields
-		wsMsg := contracts.WSMessage{
-			Type: "notification.created",
-			Data: map[string]interface{}{
-				"id":         notification.Id,
-				"type":       notification.Type,
-				"title":      notification.Title,
-				"message":    notification.Message,
-				"entityType": notification.EntityType,
-				"entityId":   notification.EntityId,
-				"url":        notification.Url,
-				"isRead":     notification.IsRead,
-				"createdAt":  notification.CreatedAt.AsTime().Format("2006-01-02T15:04:05Z07:00"),
-			},
-		}
-
-		fmt.Printf("[NotificationConsumer] Sending WebSocket notification to user %s: isRead=%v\n", recipientID, notification.IsRead)
-
-		// Send to specific user
-		if err := c.connMgr.SendToUser(recipientID, wsMsg); err != nil {
-			fmt.Printf("[NotificationConsumer] Failed to send notification to user %s: %v\n", recipientID, err)
-			continue
-		}
-
-		fmt.Printf("[NotificationConsumer] Successfully sent notification to user %s\n", recipientID)
+	if err := json.Unmarshal(msg.Body, &wsDistMsg); err != nil {
+		fmt.Printf("[NotificationConsumer] ❌ Failed to unmarshal message: %v\n", err)
+		return fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 
+	fmt.Printf("[NotificationConsumer] 🔔 Distributing notification to user %s: %s (isRead=%v)\n", 
+		wsDistMsg.UserID, 
+		wsDistMsg.Notification["title"], 
+		wsDistMsg.Notification["isRead"])
+
+	// Create WebSocket message
+	wsMsg := contracts.WSMessage{
+		Type: "notification.created",
+		Data: wsDistMsg.Notification,
+	}
+
+	// Send to specific user
+	if err := c.connMgr.SendToUser(wsDistMsg.UserID, wsMsg); err != nil {
+		fmt.Printf("[NotificationConsumer] ❌ Failed to send to user %s: %v\n", wsDistMsg.UserID, err)
+		return err
+	}
+
+	fmt.Printf("[NotificationConsumer] ✅ Successfully sent notification to user %s\n", wsDistMsg.UserID)
 	return nil
 }

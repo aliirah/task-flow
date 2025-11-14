@@ -230,11 +230,6 @@ export default function TaskDetailPage() {
           
           return updatedTask
         })
-        
-        toast.info('Task updated', {
-          description: 'This task was updated by another user',
-          duration: 2000,
-        })
       },
       [taskId, form]
     )

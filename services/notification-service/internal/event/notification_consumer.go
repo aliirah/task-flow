@@ -121,7 +121,13 @@ func (c *NotificationConsumer) handleMessage(ctx context.Context, msg amqp.Deliv
 			continue
 		}
 
-		log.Printf("Created notification: user=%s, type=%s", recipientID, notification.Type)
+		log.Printf("Created notification: user=%s, type=%s, id=%s", recipientID, notification.Type, notification.ID)
+
+		// Publish created notification for WebSocket distribution
+		if err := c.publishNotificationCreated(notification); err != nil {
+			log.Printf("Failed to publish notification created event: %v", err)
+			// Don't fail the whole operation if WebSocket publish fails
+		}
 	}
 
 	msg.Ack(false)
@@ -383,4 +389,47 @@ func (c *NotificationConsumer) buildCommentMentionedNotification(n *models.Notif
 	n.URL = fmt.Sprintf("/dashboard/tasks/%s#comment-%s", taskID, commentID)
 
 	return n, nil
+}
+
+// publishNotificationCreated publishes a notification.created event for WebSocket distribution
+func (c *NotificationConsumer) publishNotificationCreated(n *models.Notification) error {
+	// Create WebSocket distribution message
+	wsDistributionMsg := map[string]interface{}{
+		"userId": n.UserID.String(),
+		"notification": map[string]interface{}{
+			"id":         n.ID.String(),
+			"type":       string(n.Type),
+			"title":      n.Title,
+			"message":    n.Message,
+			"url":        n.URL,
+			"entityType": n.EntityType,
+			"entityId":   n.EntityID.String(),
+			"isRead":     n.IsRead,
+			"createdAt":  n.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		},
+	}
+
+	msgBytes, err := json.Marshal(wsDistributionMsg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal notification: %w", err)
+	}
+
+	// Publish to notification-ws-distribution queue for API Gateway to consume
+	err = c.rmq.Channel.Publish(
+		"",                              // exchange (default)
+		"notification-ws-distribution",  // routing key (queue name)
+		false,                           // mandatory
+		false,                           // immediate
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        msgBytes,
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to publish WebSocket distribution message: %w", err)
+	}
+
+	log.Printf("Published notification for WebSocket distribution: user=%s, id=%s", n.UserID, n.ID)
+	return nil
 }

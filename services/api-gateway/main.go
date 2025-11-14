@@ -112,7 +112,7 @@ func main() {
 
 	// Initialize notification event consumer
 	fmt.Println("Setting up notification event consumer...")
-	notificationEventConsumer := gatewayevent.NewNotificationConsumer(rabbitmq, connMgr, grpcClients.Notification)
+	notificationEventConsumer := gatewayevent.NewNotificationConsumer(rabbitmq, connMgr)
 
 	// Start listening for notification messages
 	go func() {

@@ -8,11 +8,7 @@ import { notificationApi } from '@/lib/api/notification'
 import type { Notification } from '@/lib/types/api'
 import { useRouter } from 'next/navigation'
 
-interface NotificationBellProps {
-  onNewNotification?: (notification: Notification) => void
-}
-
-export function NotificationBell({ onNewNotification }: NotificationBellProps) {
+export function NotificationBell() {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -165,12 +161,6 @@ export function NotificationBell({ onNewNotification }: NotificationBellProps) {
           return updated
         })
         
-        setUnreadCount((prev) => {
-          const newCount = Math.max(0, prev - 1)
-          console.log('[NotificationBell] Updated unread count:', prev, '->', newCount)
-          return newCount
-        })
-        
         // Fetch fresh count from server
         await fetchUnreadCount()
       }
@@ -205,7 +195,7 @@ export function NotificationBell({ onNewNotification }: NotificationBellProps) {
   }
 
   // Public method to add/update notification (called from WebSocket)
-  const addNotification = useCallback((notification: Notification) => {
+  const addNotification = useCallback(async (notification: Notification) => {
     console.log('[NotificationBell] 📬 WebSocket notification received:', {
       id: notification.id,
       title: notification.title,
@@ -230,34 +220,17 @@ export function NotificationBell({ onNewNotification }: NotificationBellProps) {
           newIsRead: notification.isRead
         })
         
-        // Update unread count if read status changed
-        if (oldNotification.isRead !== notification.isRead) {
-          setUnreadCount(prevCount => {
-            const newCount = notification.isRead 
-              ? Math.max(0, prevCount - 1) 
-              : prevCount + 1
-            console.log('[NotificationBell] Unread count changed:', prevCount, '->', newCount)
-            return newCount
-          })
-        }
-        
         return updated
       } else {
         // Add new notification at the beginning
         console.log('[NotificationBell] Adding new notification, isRead:', notification.isRead)
-        if (!notification.isRead) {
-          setUnreadCount((prevCount) => {
-            const newCount = prevCount + 1
-            console.log('[NotificationBell] Incrementing unread count:', prevCount, '->', newCount)
-            return newCount
-          })
-        }
         return [notification, ...prev]
       }
     })
     
-    onNewNotification?.(notification)
-  }, [onNewNotification, showUnreadOnly])
+    // Always fetch fresh count from server after WebSocket update
+    await fetchUnreadCount()
+  }, [showUnreadOnly, fetchUnreadCount])
 
   // Expose methods via window global for WebSocket handler
   useEffect(() => {
@@ -302,132 +275,132 @@ export function NotificationBell({ onNewNotification }: NotificationBellProps) {
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="relative">
-          <Bell className="h-5 w-5" />
+        <Button variant="ghost" size="icon" className="relative h-9 w-9">
+          <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
+            <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-white text-[10px] font-medium flex items-center justify-center">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
-        <div className="px-4 py-3 border-b space-y-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold">Notifications</h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {showUnreadOnly 
-                  ? `${notifications.length} unread` 
-                  : `${notifications.length} total (${unreadCount} unread)`
-                }
-              </p>
-            </div>
+        <div className="px-3 py-2 border-b bg-gray-50/50">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-900">Notifications</h3>
             {notifications.length > 0 && unreadCount > 0 && (
               <button
                 onClick={handleMarkAllAsRead}
-                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                className="text-[11px] text-blue-600 hover:text-blue-700 font-medium"
               >
-                Mark all as read
+                Mark all read
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setShowUnreadOnly(false)}
-              className={`text-xs px-3 py-1 rounded transition-colors ${
+              className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
                 !showUnreadOnly
                   ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
               }`}
             >
               All
             </button>
             <button
               onClick={() => setShowUnreadOnly(true)}
-              className={`text-xs px-3 py-1 rounded transition-colors ${
+              className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
                 showUnreadOnly
                   ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
               }`}
             >
-              Unread only
+              Unread
             </button>
+            {unreadCount > 0 && (
+              <span className="text-[11px] text-gray-500 ml-auto">
+                {unreadCount} new
+              </span>
+            )}
           </div>
         </div>
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          className="max-h-[400px] overflow-y-auto"
+          className="max-h-[280px] overflow-y-auto"
         >
           {loading ? (
-            <div className="py-8 text-center text-sm text-gray-500">
+            <div className="py-6 text-center text-xs text-gray-400">
               Loading...
             </div>
           ) : notifications.length === 0 ? (
-            <div className="py-8 text-center text-sm text-gray-500">
-              No notifications yet
+            <div className="py-8 text-center text-xs text-gray-400">
+              No notifications
             </div>
           ) : (
-            <div>
+            <div className="divide-y divide-gray-100">
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`border-b transition-colors ${
-                    !notification.isRead ? 'bg-blue-50 border-l-4 border-l-blue-600' : 'hover:bg-gray-50'
+                  className={`group relative transition-colors cursor-pointer ${
+                    !notification.isRead 
+                      ? 'bg-blue-50/30 hover:bg-blue-50/40 border-l-2 border-blue-400' 
+                      : 'hover:bg-gray-50'
                   }`}
+                  onClick={() => handleNotificationClick(notification)}
                 >
-                  <div className="flex items-start gap-2 px-4 py-3">
-                    <button
-                      onClick={() => handleNotificationClick(notification)}
-                      className="flex-1 min-w-0 text-left group"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className={`text-sm truncate group-hover:text-blue-600 transition-colors flex-1 ${
-                          !notification.isRead ? 'font-semibold' : 'font-normal'
+                  <div className="px-3 py-1.5">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <p className={`text-xs truncate flex-1 ${
+                            !notification.isRead ? 'font-medium text-gray-900' : 'font-normal text-gray-700'
+                          }`}>
+                            {notification.title}
+                          </p>
+                          {!notification.isRead && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
+                          )}
+                        </div>
+                        <p className={`text-[11px] line-clamp-2 mb-0.5 ${
+                          !notification.isRead ? 'text-gray-600' : 'text-gray-500'
                         }`}>
-                          {notification.title}
+                          {notification.message}
                         </p>
-                        {!notification.isRead && (
-                          <span className="h-2 w-2 rounded-full bg-blue-600 shrink-0 animate-pulse" />
-                        )}
+                        <p className="text-[10px] text-gray-400">
+                          {formatTime(notification.createdAt)}
+                        </p>
                       </div>
-                      <p className={`text-xs line-clamp-2 mb-1 ${
-                        !notification.isRead ? 'text-gray-700' : 'text-gray-500'
-                      }`}>
-                        {notification.message}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {formatTime(notification.createdAt)}
-                      </p>
-                    </button>
-                    {!notification.isRead && (
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          try {
-                            await notificationApi.markAsRead(notification.id)
-                            setNotifications((prev) =>
-                              prev.map((n) =>
-                                n.id === notification.id ? { ...n, isRead: true } : n
+                      {!notification.isRead && (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            try {
+                              await notificationApi.markAsRead(notification.id)
+                              setNotifications((prev) =>
+                                prev.map((n) =>
+                                  n.id === notification.id ? { ...n, isRead: true } : n
+                                )
                               )
-                            )
-                            setUnreadCount((prev) => Math.max(0, prev - 1))
-                          } catch (error) {
-                            console.error('Failed to mark notification as read:', error)
-                          }
-                        }}
-                        className="text-xs text-blue-600 hover:text-blue-700 font-medium shrink-0 px-2 self-start"
-                        title="Mark as read"
-                      >
-                        ✓
-                      </button>
-                    )}
+                              // Fetch fresh count from server
+                              await fetchUnreadCount()
+                            } catch (error) {
+                              console.error('Failed to mark notification as read:', error)
+                            }
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-[10px] text-blue-600 hover:text-blue-700 font-medium shrink-0 px-1.5 py-0.5 rounded hover:bg-blue-100 transition-all"
+                          title="Mark as read"
+                        >
+                          ✓
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
               {loading && page > 1 && (
-                <div className="py-4 text-center text-sm text-gray-500">
+                <div className="py-3 text-center text-[11px] text-gray-400">
                   Loading more...
                 </div>
               )}
