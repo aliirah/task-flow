@@ -10,6 +10,7 @@ import (
 	"github.com/aliirah/task-flow/services/task-service/internal/models"
 	"github.com/aliirah/task-flow/shared/authctx"
 	"github.com/aliirah/task-flow/shared/contracts"
+	"github.com/aliirah/task-flow/shared/messaging"
 	organizationpb "github.com/aliirah/task-flow/shared/proto/organization/v1"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"github.com/google/uuid"
@@ -19,18 +20,20 @@ import (
 )
 
 type Service struct {
-	db        *gorm.DB
-	publisher event.TaskEventPublisher
-	userSvc   userpb.UserServiceClient
-	orgSvc    organizationpb.OrganizationServiceClient
+	db             *gorm.DB
+	publisher      event.TaskEventPublisher
+	notifPublisher *messaging.NotificationPublisher
+	userSvc        userpb.UserServiceClient
+	orgSvc         organizationpb.OrganizationServiceClient
 }
 
-func New(db *gorm.DB, publisher event.TaskEventPublisher, userSvc userpb.UserServiceClient, orgSvc organizationpb.OrganizationServiceClient) *Service {
+func New(db *gorm.DB, publisher event.TaskEventPublisher, notifPublisher *messaging.NotificationPublisher, userSvc userpb.UserServiceClient, orgSvc organizationpb.OrganizationServiceClient) *Service {
 	return &Service{
-		db:        db,
-		publisher: publisher,
-		userSvc:   userSvc,
-		orgSvc:    orgSvc,
+		db:             db,
+		publisher:      publisher,
+		notifPublisher: notifPublisher,
+		userSvc:        userSvc,
+		orgSvc:         orgSvc,
 	}
 }
 
@@ -95,6 +98,53 @@ func (s *Service) CreateTask(ctx context.Context, input CreateTaskInput, initiat
 
 	if err := s.publisher.TaskCreated(ctx, task, reporter, assignee, triggeredBy); err != nil {
 		return nil, fmt.Errorf("failed to publish task created event: %w", err)
+	}
+
+	// Publish notification event
+	recipients := []uuid.UUID{}
+	initiatorUUID, _ := uuid.Parse(initiator.ID)
+	if task.AssigneeID != uuid.Nil && task.AssigneeID != initiatorUUID {
+		recipients = append(recipients, task.AssigneeID)
+	}
+	if task.ReporterID != uuid.Nil && task.ReporterID != initiatorUUID && task.ReporterID != task.AssigneeID {
+		recipients = append(recipients, task.ReporterID)
+	}
+
+	if len(recipients) > 0 {
+		// Convert UUIDs to strings
+		recipientStrs := make([]string, len(recipients))
+		for i, id := range recipients {
+			recipientStrs[i] = id.String()
+		}
+
+		taskData := &contracts.TaskNotificationData{
+			TaskID:      task.ID.String(),
+			Title:       task.Title,
+			Description: task.Description,
+			Status:      task.Status,
+			Priority:    task.Priority,
+			TriggerUser: triggeredBy,
+		}
+		if assignee != nil {
+			taskData.Assignee = &contracts.TaskUser{
+				ID:        assignee.Id,
+				FirstName: assignee.FirstName,
+				LastName:  assignee.LastName,
+				Email:     assignee.Email,
+			}
+		}
+		if reporter != nil {
+			taskData.Reporter = &contracts.TaskUser{
+				ID:        reporter.Id,
+				FirstName: reporter.FirstName,
+				LastName:  reporter.LastName,
+			Email:     reporter.Email,
+		}
+	}
+	if err := s.notifPublisher.PublishTaskDeleted(ctx, task.OrganizationID.String(), initiator.ID, recipientStrs, taskData); err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("failed to publish task deleted notification: %v\n", err)
+	}
 	}
 
 	return task, nil
@@ -201,23 +251,71 @@ func (s *Service) UpdateTask(ctx context.Context, id uuid.UUID, input UpdateTask
 		return nil, err
 	}
 
+	// Track changes for notifications
+	oldAssigneeID := task.AssigneeID
+	type fieldChange struct {
+		Field  string
+		Old    string
+		New    string
+	}
+	changes := []fieldChange{}
+
 	updates := map[string]interface{}{}
 	if input.Title != nil {
-		updates["title"] = strings.TrimSpace(*input.Title)
+		newTitle := strings.TrimSpace(*input.Title)
+		if newTitle != task.Title {
+			changes = append(changes, fieldChange{
+				Field: "title",
+				Old:   task.Title,
+				New:   newTitle,
+			})
+		}
+		updates["title"] = newTitle
 	}
 	if input.Description != nil {
-		updates["description"] = strings.TrimSpace(*input.Description)
+		newDesc := strings.TrimSpace(*input.Description)
+		if newDesc != task.Description {
+			changes = append(changes, fieldChange{
+				Field: "description",
+				Old:   task.Description,
+				New:   newDesc,
+			})
+		}
+		updates["description"] = newDesc
 	}
 	if input.Status != nil {
-		updates["status"] = strings.ToLower(strings.TrimSpace(*input.Status))
+		newStatus := strings.ToLower(strings.TrimSpace(*input.Status))
+		if newStatus != task.Status {
+			changes = append(changes, fieldChange{
+				Field: "status",
+				Old:   task.Status,
+				New:   newStatus,
+			})
+		}
+		updates["status"] = newStatus
 	}
 	if input.Priority != nil {
-		updates["priority"] = strings.ToLower(strings.TrimSpace(*input.Priority))
+		newPriority := strings.ToLower(strings.TrimSpace(*input.Priority))
+		if newPriority != task.Priority {
+			changes = append(changes, fieldChange{
+				Field: "priority",
+				Old:   task.Priority,
+				New:   newPriority,
+			})
+		}
+		updates["priority"] = newPriority
 	}
 	if input.OrganizationID != nil {
 		updates["organization_id"] = *input.OrganizationID
 	}
 	if input.AssigneeID != nil {
+		if *input.AssigneeID != task.AssigneeID {
+			changes = append(changes, fieldChange{
+				Field: "assignee",
+				Old:   task.AssigneeID.String(),
+				New:   input.AssigneeID.String(),
+			})
+		}
 		updates["assignee_id"] = *input.AssigneeID
 	}
 	if input.ReporterID != nil {
@@ -264,21 +362,174 @@ func (s *Service) UpdateTask(ctx context.Context, id uuid.UUID, input UpdateTask
 		}
 
 		// Publish task updated event with enriched user details
-		triggeredBy := taskUserFromAuth(initiator)
-		if triggeredBy == nil {
-			triggeredBy = reporterTaskUserFallback(task.ReporterID, reporter)
+	triggeredBy := taskUserFromAuth(initiator)
+	if triggeredBy == nil {
+		triggeredBy = reporterTaskUserFallback(task.ReporterID, reporter)
+	}
+
+	if err := s.publisher.TaskUpdated(ctx, task, reporter, assignee, triggeredBy); err != nil {
+		return nil, fmt.Errorf("failed to publish task updated event: %w", err)
+	}		// Publish notification event
+		recipients := []uuid.UUID{}
+		initiatorUUID, _ := uuid.Parse(initiator.ID)
+		if task.AssigneeID != uuid.Nil && task.AssigneeID != initiatorUUID {
+			recipients = append(recipients, task.AssigneeID)
+		}
+		if task.ReporterID != uuid.Nil && task.ReporterID != initiatorUUID && task.ReporterID != task.AssigneeID {
+			recipients = append(recipients, task.ReporterID)
+		}
+		// If assignee changed, also notify the old assignee
+		if oldAssigneeID != uuid.Nil && oldAssigneeID != task.AssigneeID && oldAssigneeID != initiatorUUID {
+			recipients = append(recipients, oldAssigneeID)
 		}
 
-		if err := s.publisher.TaskUpdated(ctx, task, reporter, assignee, triggeredBy); err != nil {
-			return nil, fmt.Errorf("failed to publish task updated event: %w", err)
+		if len(recipients) > 0 && len(changes) > 0 {
+			// Convert UUIDs to strings
+			recipientStrs := make([]string, len(recipients))
+			for i, id := range recipients {
+				recipientStrs[i] = id.String()
+			}
+
+			// Build TaskChanges from changes slice
+			taskChanges := &contracts.TaskChanges{}
+			for _, change := range changes {
+				fc := &contracts.FieldChange{
+					Old: change.Old,
+					New: change.New,
+				}
+				switch change.Field {
+				case "title":
+					taskChanges.Title = fc
+				case "description":
+					taskChanges.Description = fc
+				case "status":
+					taskChanges.Status = fc
+				case "priority":
+					taskChanges.Priority = fc
+				case "assignee":
+					taskChanges.AssigneeID = fc
+				}
+			}
+
+			taskData := &contracts.TaskNotificationData{
+				TaskID:      task.ID.String(),
+				Title:       task.Title,
+				Description: task.Description,
+				Status:      task.Status,
+				Priority:    task.Priority,
+				TriggerUser: triggeredBy,
+				Changes:     taskChanges,
+			}
+			if assignee != nil {
+				taskData.Assignee = &contracts.TaskUser{
+					ID:        assignee.Id,
+					FirstName: assignee.FirstName,
+					LastName:  assignee.LastName,
+					Email:     assignee.Email,
+				}
+			}
+			if reporter != nil {
+				taskData.Reporter = &contracts.TaskUser{
+					ID:        reporter.Id,
+					FirstName: reporter.FirstName,
+		LastName:  reporter.LastName,
+		Email:     reporter.Email,
+	}
+}
+if err := s.notifPublisher.PublishTaskUpdated(ctx, task.OrganizationID.String(), initiator.ID, recipientStrs, taskData); err != nil {
+	// Log error but don't fail the operation
+	fmt.Printf("failed to publish task updated notification: %v\n", err)
+}
 		}
 	}
 
 	return task, nil
 }
 
-func (s *Service) DeleteTask(ctx context.Context, id uuid.UUID) error {
-	return s.db.WithContext(ctx).Delete(&models.Task{}, "id = ?", id).Error
+func (s *Service) DeleteTask(ctx context.Context, id uuid.UUID, initiator authctx.User) error {
+	// Fetch task before deletion for notification
+	task, err := s.GetTask(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Fetch reporter and assignee details for notification
+	var reporter *userpb.User
+	resp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{
+		Id: task.ReporterID.String(),
+	})
+	if err == nil && resp != nil {
+		reporter = resp
+	}
+
+	var assignee *userpb.User
+	if task.AssigneeID != uuid.Nil {
+		resp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{
+			Id: task.AssigneeID.String(),
+		})
+		if err == nil && resp != nil {
+			assignee = resp
+		}
+	}
+
+	// Delete the task
+	if err := s.db.WithContext(ctx).Delete(&models.Task{}, "id = ?", id).Error; err != nil {
+		return err
+	}
+
+	// Publish notification event
+	recipients := []uuid.UUID{}
+	initiatorUUID, _ := uuid.Parse(initiator.ID)
+	if task.AssigneeID != uuid.Nil && task.AssigneeID != initiatorUUID {
+		recipients = append(recipients, task.AssigneeID)
+	}
+	if task.ReporterID != uuid.Nil && task.ReporterID != initiatorUUID && task.ReporterID != task.AssigneeID {
+		recipients = append(recipients, task.ReporterID)
+	}
+
+	if len(recipients) > 0 {
+		// Convert UUIDs to strings
+		recipientStrs := make([]string, len(recipients))
+		for i, id := range recipients {
+			recipientStrs[i] = id.String()
+		}
+
+		triggeredBy := taskUserFromAuth(initiator)
+		if triggeredBy == nil {
+			triggeredBy = reporterTaskUserFallback(task.ReporterID, reporter)
+		}
+
+		taskData := &contracts.TaskNotificationData{
+			TaskID:      task.ID.String(),
+			Title:       task.Title,
+			Description: task.Description,
+			Status:      task.Status,
+			Priority:    task.Priority,
+			TriggerUser: triggeredBy,
+		}
+		if assignee != nil {
+			taskData.Assignee = &contracts.TaskUser{
+				ID:        assignee.Id,
+				FirstName: assignee.FirstName,
+				LastName:  assignee.LastName,
+			Email:     assignee.Email,
+		}
+	}
+	if reporter != nil {
+		taskData.Reporter = &contracts.TaskUser{
+			ID:        reporter.Id,
+			FirstName: reporter.FirstName,
+			LastName:  reporter.LastName,
+			Email:     reporter.Email,
+		}
+	}
+	if err := s.notifPublisher.PublishTaskDeleted(ctx, task.OrganizationID.String(), initiator.ID, recipientStrs, taskData); err != nil {
+		// Log error but don't fail the operation
+		fmt.Printf("failed to publish task deleted notification: %v\n", err)
+	}
+	}
+
+	return nil
 }
 
 func defaultString(value, fallback string) string {
@@ -313,6 +564,20 @@ func reporterTaskUserFallback(reporterID uuid.UUID, reporter *userpb.User) *cont
 		return nil
 	}
 	return &contracts.TaskUser{ID: reporterID.String()}
+}
+
+func assigneeNameOrEmpty(assignee *userpb.User) string {
+	if assignee == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s %s", assignee.FirstName, assignee.LastName)
+}
+
+func reporterNameOrEmpty(reporter *userpb.User) string {
+	if reporter == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s %s", reporter.FirstName, reporter.LastName)
 }
 
 // ValidateOrganizationMembership checks if a user is a member of an organization

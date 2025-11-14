@@ -176,11 +176,13 @@ func (h *TaskHandler) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskRequ
 }
 
 func (h *TaskHandler) DeleteTask(ctx context.Context, req *taskpb.DeleteTaskRequest) (*emptypb.Empty, error) {
+	initiator, _ := authctx.IncomingUser(ctx)
+	
 	id, err := parseUUID(req.GetId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid task id")
 	}
-	if err := h.svc.DeleteTask(ctx, id); err != nil {
+	if err := h.svc.DeleteTask(ctx, id, initiator); err != nil {
 		return nil, grpcError(err)
 	}
 	return &emptypb.Empty{}, nil

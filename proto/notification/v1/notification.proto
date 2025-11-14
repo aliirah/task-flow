@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package notification.v1;
+
+option go_package = "github.com/aliirah/task-flow/shared/proto/notification/v1;notificationpb";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+service NotificationService {
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc MarkAsRead(MarkAsReadRequest) returns (google.protobuf.Empty);
+  rpc MarkAllAsRead(MarkAllAsReadRequest) returns (MarkAllAsReadResponse);
+  rpc DeleteNotification(DeleteNotificationRequest) returns (google.protobuf.Empty);
+  rpc GetUnreadCount(GetUnreadCountRequest) returns (GetUnreadCountResponse);
+}
+
+message Notification {
+  string id = 1;
+  string user_id = 2;
+  string organization_id = 3;
+  string trigger_user_id = 4;
+  string type = 5;
+  string entity_type = 6;
+  string entity_id = 7;
+  string title = 8;
+  string message = 9;
+  string url = 10; // Navigation URL for frontend
+  string data = 11; // JSON string
+  bool is_read = 12;
+  google.protobuf.Timestamp read_at = 13;
+  google.protobuf.Timestamp created_at = 14;
+  google.protobuf.Timestamp updated_at = 15;
+}
+
+message ListNotificationsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+  bool unread_only = 3;
+}
+
+message ListNotificationsResponse {
+  repeated Notification items = 1;
+  int32 total = 2;
+  bool has_more = 3;
+}
+
+message MarkAsReadRequest {
+  string id = 1;
+}
+
+message MarkAllAsReadRequest {}
+
+message MarkAllAsReadResponse {
+  int32 count = 1;
+}
+
+message DeleteNotificationRequest {
+  string id = 1;
+}
+
+message GetUnreadCountRequest {}
+
+message GetUnreadCountResponse {
+  int32 count = 1;
+}

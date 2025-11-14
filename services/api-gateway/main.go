@@ -69,12 +69,14 @@ func main() {
 	userAddr := env.GetString("USER_SERVICE_ADDR", "user-service:50052")
 	orgAddr := env.GetString("ORG_SERVICE_ADDR", "organization-service:50053")
 	taskAddr := env.GetString("TASK_SERVICE_ADDR", "task-service:50054")
+	notifAddr := env.GetString("NOTIFICATION_SERVICE_ADDR", "notification-service:50055")
 
 	grpcClients, err := grpcutil.Dial(ctx, grpcutil.Config{
 		AuthAddr:         authAddr,
 		UserAddr:         userAddr,
 		OrganizationAddr: orgAddr,
 		TaskAddr:         taskAddr,
+		NotificationAddr: notifAddr,
 	})
 	if err != nil {
 		log.Error(fmt.Errorf("failed to connect downstream services: %w", err))
@@ -95,18 +97,18 @@ func main() {
 	// Initialize connection manager for WebSocket connections
 	connMgr := messaging.NewConnectionManager()
 
-	// Initialize task event consumer
-	fmt.Println("Setting up task event consumer...")
-	taskEventConsumer := gatewayevent.NewTaskEventConsumer(rabbitmq, connMgr)
+	// Initialize notification event consumer
+	fmt.Println("Setting up notification event consumer...")
+	notificationEventConsumer := gatewayevent.NewNotificationConsumer(rabbitmq, connMgr, grpcClients.Notification)
 
-	// Start listening for messages
+	// Start listening for notification messages
 	go func() {
-		if err := taskEventConsumer.Listen(); err != nil {
-			log.Error(fmt.Errorf("failed to start task event consumer: %w", err))
+		if err := notificationEventConsumer.Listen(); err != nil {
+			log.Error(fmt.Errorf("failed to start notification event consumer: %w", err))
 			os.Exit(1)
 		}
 	}()
-	fmt.Println("Task event consumer successfully initialized")
+	fmt.Println("Notification event consumer successfully initialized")
 
 	// Initialize router with metrics middleware
 	router := gin.Default()
@@ -126,11 +128,13 @@ func main() {
 	userSvc := gatewayservice.NewUserService(grpcClients.User)
 	orgSvc := gatewayservice.NewOrganizationService(grpcClients.Organization, userSvc)
 	taskSvc := gatewayservice.NewTaskService(grpcClients.Task, userSvc, orgSvc)
+	notifSvc := gatewayservice.NewNotificationService(grpcClients.Notification)
 
 	authHandler := httphandler.NewAuthHandler(authSvc)
 	userHandler := httphandler.NewUserHandler(userSvc)
 	organizationHandler := httphandler.NewOrganizationHandler(orgSvc)
 	taskHandler := httphandler.NewTaskHandler(taskSvc)
+	notificationHandler := httphandler.NewNotificationHandler(notifSvc)
 	wsHandler := wshandler.NewHandler(authSvc, orgSvc, connMgr)
 	authMiddleware := gatewaymiddleware.JWTAuth(authSvc)
 	
@@ -145,6 +149,7 @@ func main() {
 		User:                      userHandler,
 		Organization:              organizationHandler,
 		Task:                      taskHandler,
+		Notification:              notificationHandler,
 		WS:                        wsHandler,
 		AuthMiddleware:            authMiddleware,
 		OrganizationMiddlewareGen: orgMiddlewareGen,

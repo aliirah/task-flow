@@ -3,10 +3,13 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/aliirah/task-flow/services/task-service/internal/models"
+	"github.com/aliirah/task-flow/shared/contracts"
+	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -101,6 +104,9 @@ func (s *Service) CreateComment(ctx context.Context, input CreateCommentInput) (
 	if err := s.db.WithContext(ctx).Create(comment).Error; err != nil {
 		return nil, err
 	}
+
+	// Publish notification events
+	go s.publishCommentNotifications(ctx, &task, comment, nil, mentions)
 
 	return comment, nil
 }
@@ -206,12 +212,38 @@ func (s *Service) UpdateComment(ctx context.Context, id uuid.UUID, input UpdateC
 		mentions = ExtractMentions(content)
 	}
 
+	// Track old mentions for notification
+	oldMentions := comment.MentionedUsers
+
 	// Update the comment fields directly
 	comment.Content = content
 	comment.MentionedUsers = mentions
 
 	if err := s.db.WithContext(ctx).Save(comment).Error; err != nil {
 		return nil, err
+	}
+
+	// Publish notification for newly mentioned users
+	if len(mentions) > 0 {
+		// Find new mentions (in mentions but not in oldMentions)
+		newMentions := []string{}
+		oldMentionSet := make(map[string]bool)
+		for _, m := range oldMentions {
+			oldMentionSet[m] = true
+		}
+		for _, m := range mentions {
+			if !oldMentionSet[m] {
+				newMentions = append(newMentions, m)
+			}
+		}
+
+		if len(newMentions) > 0 {
+			// Fetch task for organization ID
+			var task models.Task
+			if err := s.db.WithContext(ctx).First(&task, "id = ?", comment.TaskID).Error; err == nil {
+				go s.publishCommentUpdateNotifications(ctx, &task, comment, newMentions)
+			}
+		}
 	}
 
 	// Reload to get updated data
@@ -254,4 +286,182 @@ func (s *Service) GetReplies(ctx context.Context, parentCommentID uuid.UUID) ([]
 		return nil, err
 	}
 	return replies, nil
+}
+
+// publishCommentNotifications publishes comment notification events
+func (s *Service) publishCommentNotifications(ctx context.Context, task *models.Task, comment *models.Comment, oldMentions, newMentions []string) {
+	if s.notifPublisher == nil {
+		return
+	}
+
+	// Fetch author details
+var author *userpb.User
+resp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{
+	Id: comment.UserID.String(),
+})
+if err == nil && resp != nil {
+	author = resp
+}
+
+// Build recipients list
+recipients := []uuid.UUID{}
+recipientSet := make(map[uuid.UUID]bool)	// Add task assignee if not the comment author
+	if task.AssigneeID != uuid.Nil && task.AssigneeID != comment.UserID {
+		recipientSet[task.AssigneeID] = true
+	}
+
+	// Add task reporter if not the comment author
+	if task.ReporterID != uuid.Nil && task.ReporterID != comment.UserID {
+		recipientSet[task.ReporterID] = true
+	}
+
+	// Add parent comment author if this is a reply
+	if comment.ParentCommentID != nil && *comment.ParentCommentID != uuid.Nil {
+		var parentComment models.Comment
+		if err := s.db.WithContext(ctx).First(&parentComment, "id = ?", comment.ParentCommentID).Error; err == nil {
+			if parentComment.UserID != comment.UserID {
+				recipientSet[parentComment.UserID] = true
+			}
+		}
+	}
+
+	// Convert set to slice
+	for recipientID := range recipientSet {
+		recipients = append(recipients, recipientID)
+	}
+
+	// Publish comment created event
+	if len(recipients) > 0 {
+		// Convert UUIDs to strings
+		recipientStrs := make([]string, len(recipients))
+		for i, id := range recipients {
+			recipientStrs[i] = id.String()
+		}
+
+		commentData := &contracts.CommentNotificationData{
+			CommentID: comment.ID.String(),
+			TaskID:    task.ID.String(),
+			TaskTitle: task.Title,
+			Content:   comment.Content,
+			AuthorID:  comment.UserID.String(),
+			Author: &contracts.TaskUser{
+				ID:        comment.UserID.String(),
+				FirstName: author.FirstName,
+				LastName:  author.LastName,
+				Email:     author.Email,
+			},
+		}
+		if err := s.notifPublisher.PublishCommentCreated(ctx, task.OrganizationID.String(), comment.UserID.String(), recipientStrs, commentData); err != nil {
+			fmt.Printf("failed to publish comment created notification: %v\n", err)
+		}
+	}
+
+	// Publish mention notifications
+	mentionedUserIDs := []uuid.UUID{}
+	for _, username := range newMentions {
+		// Fetch user by username using ListUsers query
+		listResp, err := s.userSvc.ListUsers(ctx, &userpb.ListUsersRequest{
+			Query: username,
+			Limit: 1,
+		})
+		if err == nil && listResp != nil && len(listResp.Items) > 0 {
+			user := listResp.Items[0]
+			if user.Id != comment.UserID.String() {
+				userID, err := uuid.Parse(user.Id)
+				if err == nil {
+					// Don't send mention notification if already in recipients (avoid duplicate)
+					if !recipientSet[userID] {
+						mentionedUserIDs = append(mentionedUserIDs, userID)
+					}
+				}
+			}
+		}
+	}
+
+	if len(mentionedUserIDs) > 0 {
+		// Convert UUIDs to strings
+		mentionedStrs := make([]string, len(mentionedUserIDs))
+		for i, id := range mentionedUserIDs {
+			mentionedStrs[i] = id.String()
+		}
+
+		commentData := &contracts.CommentNotificationData{
+			CommentID: comment.ID.String(),
+			TaskID:    task.ID.String(),
+			TaskTitle: task.Title,
+			Content:   comment.Content,
+			AuthorID:  comment.UserID.String(),
+			Author: &contracts.TaskUser{
+				ID:        comment.UserID.String(),
+				FirstName: author.FirstName,
+				LastName:  author.LastName,
+				Email:     author.Email,
+			},
+			MentionedUsers: newMentions,
+		}
+		if err := s.notifPublisher.PublishCommentMention(ctx, task.OrganizationID.String(), comment.UserID.String(), mentionedStrs, commentData); err != nil {
+			fmt.Printf("failed to publish comment mention notification: %v\n", err)
+		}
+	}
+}
+
+// publishCommentUpdateNotifications publishes notifications for newly mentioned users in comment updates
+func (s *Service) publishCommentUpdateNotifications(ctx context.Context, task *models.Task, comment *models.Comment, newMentions []string) {
+	if s.notifPublisher == nil || len(newMentions) == 0 {
+		return
+	}
+
+	// Fetch author details
+	var author *userpb.User
+	resp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{
+		Id: comment.UserID.String(),
+	})
+	if err == nil && resp != nil {
+		author = resp
+	}
+
+	// Fetch mentioned user IDs
+	mentionedUserIDs := []uuid.UUID{}
+	for _, username := range newMentions {
+		// Fetch user by username using ListUsers query
+		listResp, err := s.userSvc.ListUsers(ctx, &userpb.ListUsersRequest{
+			Query: username,
+			Limit: 1,
+		})
+		if err == nil && listResp != nil && len(listResp.Items) > 0 {
+			user := listResp.Items[0]
+			if user.Id != comment.UserID.String() {
+				userID, err := uuid.Parse(user.Id)
+				if err == nil {
+					mentionedUserIDs = append(mentionedUserIDs, userID)
+				}
+			}
+		}
+	}
+
+	if len(mentionedUserIDs) > 0 {
+		// Convert UUIDs to strings
+		mentionedStrs := make([]string, len(mentionedUserIDs))
+		for i, id := range mentionedUserIDs {
+			mentionedStrs[i] = id.String()
+		}
+
+		commentData := &contracts.CommentNotificationData{
+			CommentID: comment.ID.String(),
+			TaskID:    task.ID.String(),
+			TaskTitle: task.Title,
+			Content:   comment.Content,
+			AuthorID:  comment.UserID.String(),
+			Author: &contracts.TaskUser{
+				ID:        comment.UserID.String(),
+				FirstName: author.FirstName,
+				LastName:  author.LastName,
+				Email:     author.Email,
+			},
+			MentionedUsers: newMentions,
+		}
+		if err := s.notifPublisher.PublishCommentMention(ctx, task.OrganizationID.String(), comment.UserID.String(), mentionedStrs, commentData); err != nil {
+			fmt.Printf("failed to publish comment mention notification: %v\n", err)
+		}
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	authpb "github.com/aliirah/task-flow/shared/proto/auth/v1"
+	notificationpb "github.com/aliirah/task-flow/shared/proto/notification/v1"
 	organizationpb "github.com/aliirah/task-flow/shared/proto/organization/v1"
 	taskpb "github.com/aliirah/task-flow/shared/proto/task/v1"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
@@ -19,6 +20,7 @@ type Config struct {
 	UserAddr         string
 	OrganizationAddr string
 	TaskAddr         string
+	NotificationAddr string
 }
 
 // Connections bundles ready-to-use gRPC clients and tracks closers.
@@ -27,6 +29,7 @@ type Connections struct {
 	User         userpb.UserServiceClient
 	Organization organizationpb.OrganizationServiceClient
 	Task         taskpb.TaskServiceClient
+	Notification notificationpb.NotificationServiceClient
 	closeFns     []func() error
 }
 
@@ -80,16 +83,27 @@ func Dial(ctx context.Context, cfg Config) (Connections, error) {
 		return Connections{}, err
 	}
 
+	notificationConn, err := dial(cfg.NotificationAddr)
+	if err != nil {
+		_ = taskConn.Close()
+		_ = orgConn.Close()
+		_ = userConn.Close()
+		_ = authConn.Close()
+		return Connections{}, err
+	}
+
 	return Connections{
 		Auth:         authpb.NewAuthServiceClient(authConn),
 		User:         userpb.NewUserServiceClient(userConn),
 		Organization: organizationpb.NewOrganizationServiceClient(orgConn),
 		Task:         taskpb.NewTaskServiceClient(taskConn),
+		Notification: notificationpb.NewNotificationServiceClient(notificationConn),
 		closeFns: []func() error{
 			authConn.Close,
 			userConn.Close,
 			orgConn.Close,
 			taskConn.Close,
+			notificationConn.Close,
 		},
 	}, nil
 }
