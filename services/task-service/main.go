@@ -93,13 +93,12 @@ func main() {
 	authAddr := env.GetString("AUTH_SERVICE_ADDR", "auth-service:50051")
 	userAddr := env.GetString("USER_SERVICE_ADDR", "user-service:50052")
 	orgAddr := env.GetString("ORG_SERVICE_ADDR", "organization-service:50053")
-	taskAddr := env.GetString("TASK_SERVICE_ADDR", "task-service:50054")
 
 	grpcClients, err := grpcutil.Dial(ctx, grpcutil.Config{
 		AuthAddr:         authAddr,
 		UserAddr:         userAddr,
 		OrganizationAddr: orgAddr,
-		TaskAddr:         taskAddr,
+		// TaskAddr and NotificationAddr omitted - task-service doesn't connect to itself or notification-service
 	})
 	if err != nil {
 		log.Error(fmt.Errorf("failed to connect downstream services: %w", err))

@@ -32,11 +32,12 @@ func NewNotificationService(client notificationpb.NotificationServiceClient) Not
 }
 
 func (s *notificationService) List(ctx context.Context, filter NotificationFilter) ([]*Notification, error) {
+	ctx = withOutgoingAuth(ctx)
 	req := &notificationpb.ListNotificationsRequest{
 		Page:  int32(filter.Page),
 		Limit: int32(filter.Limit),
 	}
-	
+
 	if filter.IsRead != nil && !*filter.IsRead {
 		req.UnreadOnly = true
 	}
@@ -50,6 +51,7 @@ func (s *notificationService) List(ctx context.Context, filter NotificationFilte
 }
 
 func (s *notificationService) GetUnreadCount(ctx context.Context, userID string) (int32, error) {
+	ctx = withOutgoingAuth(ctx)
 	resp, err := s.client.GetUnreadCount(ctx, &notificationpb.GetUnreadCountRequest{})
 	if err != nil {
 		return 0, err
@@ -59,6 +61,7 @@ func (s *notificationService) GetUnreadCount(ctx context.Context, userID string)
 }
 
 func (s *notificationService) MarkAsRead(ctx context.Context, userID string, notificationID string) error {
+	ctx = withOutgoingAuth(ctx)
 	_, err := s.client.MarkAsRead(ctx, &notificationpb.MarkAsReadRequest{
 		Id: notificationID,
 	})
@@ -66,11 +69,13 @@ func (s *notificationService) MarkAsRead(ctx context.Context, userID string, not
 }
 
 func (s *notificationService) MarkAllAsRead(ctx context.Context, userID string) error {
+	ctx = withOutgoingAuth(ctx)
 	_, err := s.client.MarkAllAsRead(ctx, &notificationpb.MarkAllAsReadRequest{})
 	return err
 }
 
 func (s *notificationService) Delete(ctx context.Context, userID string, notificationID string) error {
+	ctx = withOutgoingAuth(ctx)
 	_, err := s.client.DeleteNotification(ctx, &notificationpb.DeleteNotificationRequest{
 		Id: notificationID,
 	})

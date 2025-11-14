@@ -126,7 +126,8 @@ export function TaskAssigneeInlineSelect({
   const currentValue = value ?? ''
 
   useEffect(() => {
-    if (options) {
+    // Check if options were provided (without adding to deps to avoid infinite loop)
+    if (options && options.length > 0) {
       setSelectOptions(options)
       return
     }
@@ -174,7 +175,8 @@ export function TaskAssigneeInlineSelect({
     return () => {
       cancelled = true
     }
-  }, [options, organizationId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organizationId])
 
   const allOptions = useMemo(() => {
     const base: AssigneeOption[] = [{ value: '', label: 'Unassigned' }]

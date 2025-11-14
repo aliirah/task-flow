@@ -16,6 +16,7 @@ import { Modal } from '@/components/ui/modal'
 import { DashboardSidebar, MobileSidebar } from '@/components/dashboard/sidebar'
 import { OrganizationSwitcher } from '@/components/dashboard/organization-switcher'
 import { UserMenu } from '@/components/dashboard/user-menu'
+import { NotificationBell } from '@/components/notifications/notification-bell'
 import { DashboardContext } from '@/components/dashboard/context'
 import { useDashboardShellLogic } from '@/components/dashboard/use-dashboard-shell'
 
@@ -116,7 +117,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
                   onCreate={() => router.push('/dashboard/organizations/new')}
                 />
 
-                <div className="ml-auto flex items-center gap-4">
+                <div className="ml-auto flex items-center gap-2">
+                  <NotificationBell />
                   <UserMenu
                     ref={userMenuRef}
                     open={userMenuOpen}

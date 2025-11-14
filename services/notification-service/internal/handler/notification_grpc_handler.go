@@ -6,6 +6,7 @@ import (
 	"github.com/aliirah/task-flow/services/notification-service/internal/models"
 	"github.com/aliirah/task-flow/services/notification-service/internal/repository"
 	"github.com/aliirah/task-flow/services/notification-service/internal/service"
+	"github.com/aliirah/task-flow/shared/authctx"
 	notificationpb "github.com/aliirah/task-flow/shared/proto/notification/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -125,11 +126,11 @@ func (h *NotificationHandler) GetUnreadCount(ctx context.Context, req *notificat
 }
 
 func getUserIDFromContext(ctx context.Context) (uuid.UUID, error) {
-	// This should extract user ID from the context
-	// You'll need to implement this based on your auth setup
-	// For now, returning a placeholder error
-	// TODO: Implement proper user ID extraction from context
-	return uuid.Nil, status.Error(codes.Unimplemented, "getUserIDFromContext not implemented")
+	user, ok := authctx.IncomingUser(ctx)
+	if !ok {
+		return uuid.Nil, status.Error(codes.Unauthenticated, "user not authenticated")
+	}
+	return uuid.Parse(user.ID)
 }
 
 func toProtoNotification(n *models.Notification) *notificationpb.Notification {

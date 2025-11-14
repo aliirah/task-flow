@@ -30,13 +30,13 @@ func main() {
 
 func run() error {
 	// Load environment variables
-	dbURL := env.Get("DATABASE_URL", "")
+	dbURL := env.GetString("DATABASE_URL", "")
 	if dbURL == "" {
 		return fmt.Errorf("DATABASE_URL is required")
 	}
 
-	rabbitMQURL := env.Get("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
-	grpcPort := env.Get("GRPC_PORT", "50055")
+	rabbitMQURL := env.GetString("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+	grpcPort := env.GetString("GRPC_PORT", "50055")
 
 	// Initialize database
 	db, err := gorm.Open(postgres.Open(dbURL), &gorm.Config{})

@@ -39,3 +39,20 @@ export type TaskEventPayload = TaskCreatedEventPayload | TaskUpdatedEventPayload
 export type TaskEventMessage =
   | { type: 'task.event.created'; data: TaskCreatedEventPayload }
   | { type: 'task.event.updated'; data: TaskUpdatedEventPayload }
+
+// Notification types
+export interface NotificationPayload {
+  id: string
+  type: string
+  title: string
+  message: string
+  url: string
+  userId: string
+  isRead: boolean
+  createdAt: string
+}
+
+export type NotificationMessage = {
+  type: 'notification.created'
+  data: NotificationPayload
+}

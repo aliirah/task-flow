@@ -19,6 +19,8 @@ export async function apiClient<T>(endpoint: string, options: RequestInit = {}):
 
   if (accessToken) {
     defaultHeaders['Authorization'] = `Bearer ${accessToken}`
+  } else if (endpoint.includes('notification')) {
+    console.error('[apiClient] NO ACCESS TOKEN for notification request!')
   }
 
   try {
@@ -75,14 +77,6 @@ export async function apiClient<T>(endpoint: string, options: RequestInit = {}):
     }
 
     if (!response.ok) {
-      if (response.status === 401) {
-        const refreshed = await refreshToken()
-        if (refreshed) {
-          return apiClient(endpoint, options)
-        }
-        authStore.clearAuth()
-        Cookies.remove('accessToken')
-      }
       throw ApiError.fromResponse(data)
     }
 

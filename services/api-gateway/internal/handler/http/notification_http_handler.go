@@ -19,9 +19,9 @@ func NewNotificationHandler(svc service.NotificationService) *NotificationHandle
 }
 
 func (h *NotificationHandler) List(c *gin.Context) {
-	user, _ := authctx.UserFromGin(c)
-	if user.ID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	user, ok := authctx.UserFromGin(c)
+	if !ok || user.ID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "debug": "user not found in context"})
 		return
 	}
 
@@ -51,9 +51,9 @@ func (h *NotificationHandler) List(c *gin.Context) {
 }
 
 func (h *NotificationHandler) GetUnreadCount(c *gin.Context) {
-	user, _ := authctx.UserFromGin(c)
-	if user.ID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	user, ok := authctx.UserFromGin(c)
+	if !ok || user.ID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "debug": "user not found in context"})
 		return
 	}
 

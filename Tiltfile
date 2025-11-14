@@ -7,6 +7,7 @@ k8s_yaml('infra/dev/k8s/auth-db.yaml')
 k8s_yaml('infra/dev/k8s/user-db.yaml')
 k8s_yaml('infra/dev/k8s/org-db.yaml')
 k8s_yaml('infra/dev/k8s/task-db.yaml')
+k8s_yaml('infra/dev/k8s/notification-db.yaml')
 
 ## RabbitMQ ##
 k8s_yaml('infra/dev/k8s/rabbitmq-deployment.yaml')
@@ -15,6 +16,7 @@ k8s_resource('auth-db', labels='databases')
 k8s_resource('user-db', labels='databases')
 k8s_resource('org-db', labels='databases')
 k8s_resource('task-db', labels='databases')
+k8s_resource('notification-db', labels='databases')
 ## END RabbitMQ ##
 
 ### API Gateway ###
@@ -45,7 +47,7 @@ docker_build_with_restart(
 
 k8s_yaml('./infra/dev/k8s/api-gateway-deployment.yaml')
 k8s_resource('api-gateway', port_forwards=8081,
-             resource_deps=['api-gateway-compile', 'rabbitmq', 'auth-service', 'user-service', 'organization-service', 'task-service'], labels="services")
+             resource_deps=['api-gateway-compile', 'rabbitmq', 'auth-service', 'user-service', 'organization-service', 'task-service', 'notification-service'], labels="services")
 ### End API Gateway ###
 
 ### Auth Service ###
@@ -162,6 +164,34 @@ docker_build_with_restart(
 k8s_yaml('./infra/dev/k8s/task-service.yaml')
 k8s_resource('task-service', resource_deps=['task-service-compile', 'task-db', 'rabbitmq'], labels="services")
 ### End Task Service ###
+
+### Notification Service ###
+notification_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/notification-service ./services/notification-service'
+if os.name == 'nt':
+  notification_compile_cmd = './infra/dev/docker/notification-service-build.bat'
+local_resource(
+  'notification-service-compile',
+  notification_compile_cmd,
+  deps=['./services/notification-service', './shared'], labels="compiles")
+
+docker_build_with_restart(
+  'task-flow/notification-service',
+  '.',
+  entrypoint=['/app/build/notification-service'],
+  dockerfile='./infra/dev/docker/notification-service.Dockerfile',
+  only=[
+    './build/notification-service',
+    './shared',
+  ],
+  live_update=[
+    sync('./build', '/app/build'),
+    sync('./shared', '/app/shared'),
+  ],
+)
+
+k8s_yaml('./infra/dev/k8s/notification-service.yaml')
+k8s_resource('notification-service', resource_deps=['notification-service-compile', 'notification-db', 'rabbitmq'], labels="services")
+### End Notification Service ###
 
 ## Seeders ##
 local_resource(

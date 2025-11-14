@@ -75,35 +75,53 @@ func Dial(ctx context.Context, cfg Config) (Connections, error) {
 		return Connections{}, err
 	}
 
-	taskConn, err := dial(cfg.TaskAddr)
-	if err != nil {
-		_ = orgConn.Close()
-		_ = userConn.Close()
-		_ = authConn.Close()
-		return Connections{}, err
+	var taskConn *grpc.ClientConn
+	var taskClient taskpb.TaskServiceClient
+	if cfg.TaskAddr != "" {
+		taskConn, err = dial(cfg.TaskAddr)
+		if err != nil {
+			_ = orgConn.Close()
+			_ = userConn.Close()
+			_ = authConn.Close()
+			return Connections{}, err
+		}
+		taskClient = taskpb.NewTaskServiceClient(taskConn)
 	}
 
-	notificationConn, err := dial(cfg.NotificationAddr)
-	if err != nil {
-		_ = taskConn.Close()
-		_ = orgConn.Close()
-		_ = userConn.Close()
-		_ = authConn.Close()
-		return Connections{}, err
+	var notificationConn *grpc.ClientConn
+	var notificationClient notificationpb.NotificationServiceClient
+	if cfg.NotificationAddr != "" {
+		notificationConn, err = dial(cfg.NotificationAddr)
+		if err != nil {
+			if taskConn != nil {
+				_ = taskConn.Close()
+			}
+			_ = orgConn.Close()
+			_ = userConn.Close()
+			_ = authConn.Close()
+			return Connections{}, err
+		}
+		notificationClient = notificationpb.NewNotificationServiceClient(notificationConn)
+	}
+
+	closeFns := []func() error{
+		authConn.Close,
+		userConn.Close,
+		orgConn.Close,
+	}
+	if taskConn != nil {
+		closeFns = append(closeFns, taskConn.Close)
+	}
+	if notificationConn != nil {
+		closeFns = append(closeFns, notificationConn.Close)
 	}
 
 	return Connections{
 		Auth:         authpb.NewAuthServiceClient(authConn),
 		User:         userpb.NewUserServiceClient(userConn),
 		Organization: organizationpb.NewOrganizationServiceClient(orgConn),
-		Task:         taskpb.NewTaskServiceClient(taskConn),
-		Notification: notificationpb.NewNotificationServiceClient(notificationConn),
-		closeFns: []func() error{
-			authConn.Close,
-			userConn.Close,
-			orgConn.Close,
-			taskConn.Close,
-			notificationConn.Close,
-		},
+		Task:         taskClient,
+		Notification: notificationClient,
+		closeFns:     closeFns,
 	}, nil
 }

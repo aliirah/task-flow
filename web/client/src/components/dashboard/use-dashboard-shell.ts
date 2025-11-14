@@ -15,7 +15,6 @@ import { authApi, organizationApi, refreshToken as requestTokenRefresh } from '@
 import type { Organization, OrganizationMember } from '@/lib/types/api'
 import { handleApiError } from '@/lib/utils/error-handler'
 import { buildWsUrl } from '@/lib/utils/ws'
-import { describeTaskEvent } from '@/lib/utils/task-events'
 import type { TaskEventMessage } from '@/lib/types/ws'
 import { TaskEventListener } from '@/hooks/useTaskEvents'
 import { useAuthStore } from '@/store/auth'
@@ -210,6 +209,26 @@ export function useDashboardShellLogic() {
           if (message.type === 'connection.established') {
             return
           }
+
+          // Handle notification events
+          if (message.type === 'notification.created' && message.data) {
+            console.debug('[dashboard-shell] received notification', message.data)
+            // Call the global notification handler if available
+            if (typeof window !== 'undefined') {
+              const addNotification = (window as unknown as { __addNotification?: (data: unknown) => void }).__addNotification
+              if (typeof addNotification === 'function') {
+                addNotification(message.data)
+              }
+            }
+            // Show a brief toast for new notifications
+            toast.info(message.data.title, {
+              description: message.data.message,
+              duration: 3000,
+            })
+            return
+          }
+
+          // Handle task events (keep for live updates, remove toast)
           const isTaskEvent =
             message.type === 'task.event.created' ||
             message.type === 'task.event.updated'
@@ -229,13 +248,7 @@ export function useDashboardShellLogic() {
               /* ignore */
             }
           })
-          const currentOrg = selectedOrgRef.current
-          if (message.data.organizationId && message.data.organizationId === currentOrg) {
-            const content = describeTaskEvent(taskEvent)
-            toast.success(content.title, {
-              description: content.description,
-            })
-          }
+          // Note: Removed toast.success call here - notifications will be shown via NotificationBell instead
         } catch {
           // ignore parse errors
         }

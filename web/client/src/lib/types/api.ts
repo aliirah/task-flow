@@ -159,3 +159,24 @@ export interface CommentListResponse {
   limit: number
   hasMore: boolean
 }
+
+export type Notification = {
+  id: string
+  type: string
+  title: string
+  message: string
+  url: string
+  userId: string
+  isRead: boolean
+  createdAt: string
+}
+
+export interface NotificationListResponse {
+  items: Notification[]
+  total: number
+  hasMore: boolean
+}
+
+export interface UnreadCountResponse {
+  count: number
+}

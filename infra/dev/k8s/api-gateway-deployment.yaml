@@ -62,6 +62,8 @@ spec:
               value: "organization-service:50053"
             - name: TASK_SERVICE_ADDR
               value: "task-service:50054"
+            - name: NOTIFICATION_SERVICE_ADDR
+              value: "notification-service:50055"
 ---
 apiVersion: v1
 kind: Service
