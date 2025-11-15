@@ -106,6 +106,7 @@ export default function TaskDetailPage() {
     dueAt: false,
     assignee: false,
   })
+  const isSidebarOpen = !sidebarCollapsed
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -591,11 +592,24 @@ export default function TaskDetailPage() {
                   </div>
                 )}
               </div>
-              
+              {/* Mobile overlay when sidebar open */}
+              <div
+                className={`
+                  fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-sm transition-opacity duration-300 lg:hidden
+                  ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
+                `}
+                aria-hidden="true"
+                onClick={() => setSidebarCollapsed(true)}
+              />
 
-              
               {/* Collapsible Sidebar */}
-              <div className={`lg:relative lg:flex lg:flex-col ${sidebarCollapsed ? 'lg:w-0' : 'lg:w-72'} transition-all duration-300 ease-in-out`}>
+              <div
+                className={`
+                  relative lg:flex lg:flex-col
+                  transition-[max-width] duration-300 ease-in-out
+                  ${sidebarCollapsed ? 'lg:max-w-0 lg:w-0' : 'lg:max-w-[18rem] lg:w-72'}
+                `}
+              >
                 {/* Toggle Button - Desktop */}
                 <button
                   type="button"
@@ -622,7 +636,7 @@ export default function TaskDetailPage() {
                     bg-white border-l border-slate-200 shadow-xl lg:bg-transparent lg:border-0 lg:shadow-none
                     p-4 lg:p-0
                     space-y-2.5 text-sm
-                    transition-transform duration-300 ease-in-out lg:transition-none
+                    transition-[transform,opacity] duration-300 ease-in-out lg:transition-none
                     ${sidebarCollapsed ? 'translate-x-full pointer-events-none opacity-0' : 'translate-x-0 opacity-100 pointer-events-auto'}
                     ${sidebarCollapsed ? 'lg:hidden' : 'lg:block'}
                   `}
