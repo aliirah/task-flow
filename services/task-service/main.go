@@ -108,10 +108,10 @@ func main() {
 
 	// Initialize task event publisher
 	taskPublisher := event.NewTaskPublisher(rabbitMQ)
-	
+
 	// Initialize comment event publisher
 	commentPublisher := event.NewCommentPublisher(rabbitMQ)
-	
+
 	// Initialize notification publisher
 	notifPublisher := messaging.NewNotificationPublisher(rabbitMQ)
 

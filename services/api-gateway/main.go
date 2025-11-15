@@ -163,7 +163,7 @@ func main() {
 	notificationHandler := httphandler.NewNotificationHandler(notifSvc)
 	wsHandler := wshandler.NewHandler(authSvc, orgSvc, connMgr)
 	authMiddleware := gatewaymiddleware.JWTAuth(authSvc)
-	
+
 	// Organization membership middleware generator
 	orgMiddlewareGen := func(paramName string) gin.HandlerFunc {
 		return gatewaymiddleware.RequireOrganizationMember(orgSvc, paramName)

@@ -12,7 +12,7 @@ type AmqpMessage struct {
 const (
 	TaskEventCreated = "task.event.created"
 	TaskEventUpdated = "task.event.updated"
-	
+
 	CommentEventCreated = "comment.event.created"
 	CommentEventUpdated = "comment.event.updated"
 	CommentEventDeleted = "comment.event.deleted"

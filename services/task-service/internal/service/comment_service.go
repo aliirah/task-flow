@@ -38,10 +38,10 @@ type ListCommentsParams struct {
 func ExtractMentions(content string) []string {
 	re := regexp.MustCompile(`@(\w+)`)
 	matches := re.FindAllStringSubmatch(content, -1)
-	
+
 	mentions := make([]string, 0)
 	seen := make(map[string]bool)
-	
+
 	for _, match := range matches {
 		if len(match) > 1 {
 			username := match[1]
@@ -51,7 +51,7 @@ func ExtractMentions(content string) []string {
 			}
 		}
 	}
-	
+
 	return mentions
 }
 
@@ -150,7 +150,7 @@ func (s *Service) ListComments(ctx context.Context, params ListCommentsParams) (
 	}
 
 	offset := (params.Page - 1) * params.Limit
-	
+
 	// Always get only parent comments for pagination
 	query := s.db.WithContext(ctx).Model(&models.Comment{}).
 		Where("task_id = ? AND parent_comment_id IS NULL", params.TaskID).
@@ -367,17 +367,17 @@ func (s *Service) publishCommentNotifications(ctx context.Context, task *models.
 	}
 
 	// Fetch author details
-var author *userpb.User
-resp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{
-	Id: comment.UserID.String(),
-})
-if err == nil && resp != nil {
-	author = resp
-}
+	var author *userpb.User
+	resp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{
+		Id: comment.UserID.String(),
+	})
+	if err == nil && resp != nil {
+		author = resp
+	}
 
-// Build recipients list
-recipients := []uuid.UUID{}
-recipientSet := make(map[uuid.UUID]bool)	// Add task assignee if not the comment author
+	// Build recipients list
+	recipients := []uuid.UUID{}
+	recipientSet := make(map[uuid.UUID]bool) // Add task assignee if not the comment author
 	if task.AssigneeID != uuid.Nil && task.AssigneeID != comment.UserID {
 		recipientSet[task.AssigneeID] = true
 	}
