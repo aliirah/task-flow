@@ -198,37 +198,47 @@ export default function TaskDetailPage() {
     useCallback(
       (event: TaskEventMessage) => {
         // Only update if this is the task we're viewing
-        if (event.data.id !== taskId) return
+        if (event.data.taskId !== taskId) return
         
         console.log('[TaskDetail] Received task update via WebSocket:', event)
+        
+        // Prepare the updated task data
+        const newFormData = {
+          organizationId: event.data.organizationId,
+          title: event.data.title,
+          description: event.data.description ?? '',
+          assigneeId: event.data.assigneeId ?? '',
+          priority: event.data.priority as TaskPriority,
+          status: event.data.status as TaskStatus,
+          dueAt: event.data.dueAt ?? '',
+        }
+        
+        // Always update the form with the latest data from other users
+        // This ensures the UI reflects the current state
+        console.log('[TaskDetail] Resetting form with new data:', newFormData)
+        form.reset(newFormData)
         
         // Update task state with the latest data from WebSocket
         setTask((prev) => {
           if (!prev) return prev
           
-          const updatedTask = {
+          return {
             ...prev,
-            ...event.data,
+            id: event.data.taskId,
+            organizationId: event.data.organizationId,
+            title: event.data.title,
+            description: event.data.description,
+            status: event.data.status,
+            priority: event.data.priority,
+            reporterId: event.data.reporterId,
+            assigneeId: event.data.assigneeId,
+            dueAt: event.data.dueAt,
+            updatedAt: event.data.updatedAt,
             // Preserve nested objects if not in event data
             organization: event.data.organization ?? prev.organization,
             assignee: event.data.assignee ?? prev.assignee,
             reporter: event.data.reporter ?? prev.reporter,
           }
-          
-          // Update form if no unsaved changes
-          if (Object.keys(form.formState.dirtyFields).length === 0) {
-            form.reset({
-              organizationId: updatedTask.organizationId,
-              title: updatedTask.title,
-              description: updatedTask.description ?? '',
-              assigneeId: updatedTask.assigneeId ?? '',
-              priority: updatedTask.priority as TaskPriority,
-              status: updatedTask.status as TaskStatus,
-              dueAt: updatedTask.dueAt ?? '',
-            })
-          }
-          
-          return updatedTask
         })
       },
       [taskId, form]
