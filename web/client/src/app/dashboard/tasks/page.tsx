@@ -205,7 +205,7 @@ function TasksPageContent() {
 
   return (
     <>
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:px-8">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-2 py-10 md:px-4">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Tasks</h1>
@@ -232,87 +232,89 @@ function TasksPageContent() {
         </div>
       </header>
 
-      <Card className="overflow-hidden border border-white/60 bg-white/90 shadow-lg shadow-slate-200/30 backdrop-blur">
-        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle className="text-lg font-semibold text-slate-900">
-              Task list
-            </CardTitle>
-            <CardDescription className="text-sm text-slate-500">
-              Use filters to focus on a specific status or assignee.
-            </CardDescription>
-          </div>
-          <Select
-            value={filter}
-            onChange={(event) => setFilter(event.target.value as 'all' | TaskStatus)}
-            containerClassName="min-w-[180px] max-w-[220px]"
-          >
-            <option value="all">All statuses</option>
-            <option value="open">Open</option>
-            <option value="in_progress">In progress</option>
-            <option value="completed">Completed</option>
-            <option value="blocked">Blocked</option>
-            <option value="cancelled">Cancelled</option>
-          </Select>
-        </CardHeader>
-        <CardContent>
-          {!selectedOrganizationId ? (
-            <p className="py-6 text-sm text-slate-500">
-              Choose an organization to see its tasks.
-            </p>
-          ) : (
-            <>
-              <DataTable
-                columns={taskColumns}
-                data={tasks}
-                loading={loadingTasks}
-                searchKey="title"
-                searchPlaceholder="Search tasks..."
-                manualSorting
-                manualFiltering
-                sorting={sorting}
-                onSortingChange={setSorting}
-                filter={filterProp}
-                hidePagination
-                emptyMessage={
-                  tasks.length === 0 && !search
-                    ? 'Nothing here yet. Create your first task for this organization.'
-                    : undefined
-                }
-              />
-              {(page > 0 || hasMore) && (
-                <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
-                  <p>
-                    Showing {range.from}–{range.to}
-                    {hasMore ? ' (more available)' : ''}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page === 0}
-                      onClick={() => setPage((prev) => Math.max(0, prev - 1))}
-                    >
-                      Previous
-                    </Button>
-                    <span className="px-2 text-xs font-medium text-slate-600">
-                      Page {page + 1}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!hasMore}
-                      onClick={() => setPage((prev) => prev + 1)}
-                    >
-                      Next
-                    </Button>
+      <section className="grid gap-6 lg:grid-cols-[1.6fr,1fr]">
+        <Card className="overflow-hidden border border-white/60 bg-white/90 shadow-lg shadow-slate-200/30 backdrop-blur">
+          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="text-lg font-semibold text-slate-900">
+                Task list
+              </CardTitle>
+              <CardDescription className="text-sm text-slate-500">
+                Use filters to focus on a specific status or assignee.
+              </CardDescription>
+            </div>
+            <Select
+              value={filter}
+              onChange={(event) => setFilter(event.target.value as 'all' | TaskStatus)}
+              containerClassName="min-w-[180px] max-w-[220px]"
+            >
+              <option value="all">All statuses</option>
+              <option value="open">Open</option>
+              <option value="in_progress">In progress</option>
+              <option value="completed">Completed</option>
+              <option value="blocked">Blocked</option>
+              <option value="cancelled">Cancelled</option>
+            </Select>
+          </CardHeader>
+          <CardContent>
+            {!selectedOrganizationId ? (
+              <p className="py-6 text-sm text-slate-500">
+                Choose an organization to see its tasks.
+              </p>
+            ) : (
+              <>
+                <DataTable
+                  columns={taskColumns}
+                  data={tasks}
+                  loading={loadingTasks}
+                  searchKey="title"
+                  searchPlaceholder="Search tasks..."
+                  manualSorting
+                  manualFiltering
+                  sorting={sorting}
+                  onSortingChange={setSorting}
+                  filter={filterProp}
+                  hidePagination
+                  emptyMessage={
+                    tasks.length === 0 && !search
+                      ? 'Nothing here yet. Create your first task for this organization.'
+                      : undefined
+                  }
+                />
+                {(page > 0 || hasMore) && (
+                  <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
+                    <p>
+                      Showing {range.from}–{range.to}
+                      {hasMore ? ' (more available)' : ''}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={page === 0}
+                        onClick={() => setPage((prev) => Math.max(0, prev - 1))}
+                      >
+                        Previous
+                      </Button>
+                      <span className="px-2 text-xs font-medium text-slate-600">
+                        Page {page + 1}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!hasMore}
+                        onClick={() => setPage((prev) => prev + 1)}
+                      >
+                        Next
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </section>
     </div>
 
       <Modal
