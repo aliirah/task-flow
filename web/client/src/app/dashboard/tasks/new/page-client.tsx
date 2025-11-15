@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CheckSquare } from 'lucide-react'
@@ -9,8 +9,9 @@ import * as z from 'zod'
 import { toast } from 'sonner'
 
 import { organizationApi, taskApi } from '@/lib/api'
-import { Organization, OrganizationMember } from '@/lib/types/api'
+import { OrganizationMember, TaskPriority, TaskStatus } from '@/lib/types/api'
 import { handleApiError } from '@/lib/utils/error-handler'
+import { useDashboard } from '@/components/dashboard/dashboard-shell'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -21,8 +22,14 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Select } from '@/components/ui/select'
 import { DateTimePickerField } from '@/components/ui/date-time-picker'
+import {
+  AssigneeSearchSelect,
+  PriorityBadgeSelect,
+  StatusBadgeSelect,
+  TaskTypeToggle,
+  buildAssigneeOptions,
+} from '@/components/tasks/task-form-controls'
 
 const schema = z.object({
   organizationId: z.string().uuid('Select an organization'),
@@ -31,6 +38,7 @@ const schema = z.object({
   assigneeId: z.string().optional(),
   priority: z.enum(['low', 'medium', 'high', 'critical']),
   status: z.enum(['open', 'in_progress', 'completed', 'blocked', 'cancelled']),
+  type: z.enum(['task', 'story']),
   dueAt: z.string().optional(),
 })
 
@@ -38,62 +46,51 @@ type FormValues = z.infer<typeof schema>
 
 export function TaskCreatePageClient() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const initialOrgId = searchParams.get('orgId') ?? undefined
-
-  const [organizations, setOrganizations] = useState<Organization[]>([])
+  const { selectedOrganizationId, selectedOrganization } = useDashboard()
   const [members, setMembers] = useState<OrganizationMember[]>([])
+  const [loadingMembers, setLoadingMembers] = useState(false)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      organizationId: initialOrgId ?? '',
+      organizationId: '',
       title: '',
       description: '',
       assigneeId: '',
       priority: 'medium',
       status: 'open',
+      type: 'task',
       dueAt: '',
     },
   })
 
   useEffect(() => {
-    const fetchOrganizations = async () => {
-      try {
-        const response = await organizationApi.listMine()
-        const unique = new Map<string, Organization>()
-        ;(response.data?.items ?? []).forEach((membership) => {
-          if (membership.organization) {
-            unique.set(membership.organization.id, membership.organization)
-          }
-        })
-        const list = Array.from(unique.values())
-        setOrganizations(list)
-        if (!initialOrgId && list.length > 0) {
-          form.setValue('organizationId', list[0].id, { shouldValidate: true })
-        }
-      } catch (error) {
-        handleApiError({ error })
-      }
+    if (selectedOrganizationId) {
+      form.setValue('organizationId', selectedOrganizationId, { shouldValidate: true })
+    } else {
+      form.setValue('organizationId', '', { shouldValidate: true })
+      setMembers([])
     }
-    fetchOrganizations()
-  }, [form, initialOrgId])
+  }, [selectedOrganizationId, form])
 
   const organizationId = useWatch({
     control: form.control,
     name: 'organizationId',
   })
 
+  const assigneeOptions = useMemo(() => buildAssigneeOptions(members), [members])
+
   useEffect(() => {
     let cancelled = false
     const run = async () => {
       if (!organizationId) {
-        await Promise.resolve()
         if (!cancelled) {
           setMembers([])
+          setLoadingMembers(false)
         }
         return
       }
+      setLoadingMembers(true)
       try {
         const response = await organizationApi.listMembers(organizationId)
         if (!cancelled) {
@@ -101,6 +98,10 @@ export function TaskCreatePageClient() {
         }
       } catch (error) {
         handleApiError({ error })
+      } finally {
+        if (!cancelled) {
+          setLoadingMembers(false)
+        }
       }
     }
     run()
@@ -110,9 +111,14 @@ export function TaskCreatePageClient() {
   }, [organizationId])
 
   const onSubmit = form.handleSubmit(async (values) => {
+    if (!selectedOrganizationId) {
+      toast.error('Select an organization to create tasks.')
+      return
+    }
     try {
       await taskApi.create({
         ...values,
+        organizationId: selectedOrganizationId,
         assigneeId: values.assigneeId || undefined,
         dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : undefined,
       })
@@ -137,6 +143,11 @@ export function TaskCreatePageClient() {
           <p className="text-sm text-slate-500">
             Track the work that matters to this organization.
           </p>
+          <p className="text-xs text-slate-400">
+            {selectedOrganization
+              ? `Working in ${selectedOrganization.name}`
+              : 'Select an organization from the header to create tasks.'}
+          </p>
         </div>
       </header>
 
@@ -151,31 +162,6 @@ export function TaskCreatePageClient() {
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="grid gap-6">
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-slate-700">
-                Organization
-              </label>
-              <Select
-                value={organizationId ?? ''}
-                onChange={(event) =>
-                  form.setValue('organizationId', event.target.value, {
-                    shouldValidate: true,
-                  })
-                }
-              >
-                <option value="">Select organization</option>
-                {organizations.map((org) => (
-                  <option key={org.id} value={org.id}>
-                    {org.name}
-                  </option>
-                ))}
-              </Select>
-              {form.formState.errors.organizationId && (
-                <p className="text-xs text-rose-500">
-                  {form.formState.errors.organizationId.message}
-                </p>
-              )}
-            </div>
             <div className="grid gap-2">
               <label className="text-sm font-medium text-slate-700">
                 Title
@@ -196,46 +182,65 @@ export function TaskCreatePageClient() {
                 {...form.register('description')}
               />
             </div>
-            <div className="grid gap-2 md:grid-cols-2 md:gap-3">
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-slate-700">
-                  Assignee
-                </label>
-                <Select {...form.register('assigneeId')}>
-                  <option value="">Unassigned</option>
-                  {members.map((member) =>
-                    member.user ? (
-                      <option key={member.userId} value={member.userId}>
-                        {member.user.firstName} {member.user.lastName}
-                      </option>
-                    ) : null
-                  )}
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium text-slate-700">
-                  Priority
-                </label>
-                <Select {...form.register('priority')}>
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="critical">Critical</option>
-                </Select>
-              </div>
-            </div>
+            <Controller
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <TaskTypeToggle
+                  value={(field.value as 'task' | 'story') ?? 'task'}
+                  onChange={(value) => field.onChange(value)}
+                />
+              )}
+            />
             <div className="grid gap-2 md:grid-cols-2 md:gap-3">
               <div className="grid gap-2">
                 <label className="text-sm font-medium text-slate-700">
                   Status
                 </label>
-                <Select {...form.register('status')}>
-                  <option value="open">Open</option>
-                  <option value="in_progress">In progress</option>
-                  <option value="completed">Completed</option>
-                  <option value="blocked">Blocked</option>
-                  <option value="cancelled">Cancelled</option>
-                </Select>
+                <Controller
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <StatusBadgeSelect
+                      value={field.value as TaskStatus}
+                      onSelect={(value) => field.onChange(value)}
+                    />
+                  )}
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Priority
+                </label>
+                <Controller
+                  control={form.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <PriorityBadgeSelect
+                      value={field.value as TaskPriority}
+                      onSelect={(value) => field.onChange(value)}
+                    />
+                  )}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2 md:gap-3">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Assignee
+                </label>
+                <Controller
+                  control={form.control}
+                  name="assigneeId"
+                  render={({ field }) => (
+                    <AssigneeSearchSelect
+                      value={field.value || ''}
+                      options={assigneeOptions}
+                      loading={loadingMembers}
+                      onSelect={(option) => field.onChange(option.value)}
+                    />
+                  )}
+                />
               </div>
               <div className="grid gap-2">
                 <label className="text-sm font-medium text-slate-700">
@@ -259,10 +264,16 @@ export function TaskCreatePageClient() {
                 type="button"
                 variant="ghost"
                 onClick={() => router.back()}
+                disabled={form.formState.isSubmitting || !selectedOrganizationId}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
+              <Button
+                type="submit"
+                disabled={
+                  form.formState.isSubmitting || !selectedOrganizationId
+                }
+              >
                 {form.formState.isSubmitting ? 'Creating…' : 'Create task'}
               </Button>
             </div>

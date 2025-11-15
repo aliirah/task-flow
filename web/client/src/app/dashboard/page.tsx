@@ -25,6 +25,7 @@ import type {
   Organization,
   OrganizationMember,
   Task,
+  TaskPriority,
   TaskStatus,
   User,
 } from '@/lib/types/api'
@@ -45,6 +46,13 @@ import { DateTimePickerField } from '@/components/ui/date-time-picker'
 import { DataTable } from '@/components/ui/data-table'
 import { createMyTaskColumns } from '@/components/tasks/task-columns'
 import { HierarchicalTaskList } from '@/components/tasks/hierarchical-task-list'
+import {
+  AssigneeSearchSelect,
+  PriorityBadgeSelect,
+  StatusBadgeSelect,
+  TaskTypeToggle,
+  buildAssigneeOptions,
+} from '@/components/tasks/task-form-controls'
 import { useTaskEvents } from '@/hooks/useTaskEvents'
 import { useTableState } from '@/hooks/use-table-state'
 import type { TaskEventMessage } from '@/lib/types/ws'
@@ -76,6 +84,7 @@ const taskFormSchema = z.object({
   assigneeId: z.string().optional().or(z.literal('')),
   priority: z.enum(['low', 'medium', 'high', 'critical']),
   status: z.enum(['open', 'in_progress', 'completed', 'blocked', 'cancelled']),
+  type: z.enum(['task', 'story']),
   dueAt: z.string().optional().or(z.literal('')),
 })
 type TaskFormValues = z.infer<typeof taskFormSchema>
@@ -182,17 +191,18 @@ export default function DashboardPage() {
     resolver: zodResolver(memberFormSchema),
     defaultValues: { email: '', userId: '', role: 'member' },
   })
-  const taskForm = useForm<TaskFormValues>({
-    resolver: zodResolver(taskFormSchema),
-    defaultValues: {
-      title: '',
-      description: '',
-      assigneeId: '',
-      priority: 'medium',
-      status: 'open',
-      dueAt: '',
-    },
-  })
+const taskForm = useForm<TaskFormValues>({
+  resolver: zodResolver(taskFormSchema),
+  defaultValues: {
+    title: '',
+    description: '',
+    assigneeId: '',
+    priority: 'medium',
+    status: 'open',
+    type: 'task',
+    dueAt: '',
+  },
+})
 
   const fetchMembers = useCallback(async (orgId: string) => {
     setLoadingMembers(true)
@@ -417,6 +427,7 @@ export default function DashboardPage() {
         assigneeId: values.assigneeId || undefined,
         priority: values.priority,
         status: values.status,
+        type: values.type,
         dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : undefined,
       }
       await taskApi.create(payload)
@@ -428,6 +439,7 @@ export default function DashboardPage() {
         assigneeId: '',
         priority: 'medium',
         status: 'open',
+        type: 'task',
         dueAt: '',
       })
       fetchTasksPage(selectedOrganizationId, taskPage, taskFilter, sorting, search)
@@ -460,6 +472,7 @@ export default function DashboardPage() {
       assigneeId: '',
       priority: 'medium',
       status: 'open',
+      type: 'task',
       dueAt: '',
     })
     setTaskModalOpen(true)
@@ -499,17 +512,7 @@ export default function DashboardPage() {
   }, [allTasks])
 
   const assigneeOptions = useMemo(
-    () =>
-      members
-        .filter((member) => member.user)
-        .map((member) => ({
-          value: member.userId,
-          label:
-            `${member.user?.firstName ?? ''} ${member.user?.lastName ?? ''}`.trim() ||
-            member.user?.email ||
-            member.userId,
-          user: member.user,
-        })),
+    () => buildAssigneeOptions(members),
     [members]
   )
 
@@ -1196,6 +1199,7 @@ export default function DashboardPage() {
             assigneeId: '',
             priority: 'medium',
             status: 'open',
+            type: 'task',
             dueAt: '',
           })
         }}
@@ -1213,6 +1217,7 @@ export default function DashboardPage() {
                   assigneeId: '',
                   priority: 'medium',
                   status: 'open',
+                  type: 'task',
                   dueAt: '',
                 })
               }}
@@ -1258,46 +1263,65 @@ export default function DashboardPage() {
               {...taskForm.register('description')}
             />
           </div>
-          <div className="grid gap-2 md:grid-cols-2 md:gap-3">
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-slate-700">
-                Assignee
-              </label>
-              <Select {...taskForm.register('assigneeId')}>
-                <option value="">Unassigned</option>
-                {members.map((member) =>
-                  member.user ? (
-                    <option key={member.userId} value={member.userId}>
-                      {member.user.firstName} {member.user.lastName}
-                    </option>
-                  ) : null
-                )}
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <label className="text-sm font-medium text-slate-700">
-                Priority
-              </label>
-              <Select {...taskForm.register('priority')}>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="critical">Critical</option>
-              </Select>
-            </div>
-          </div>
+          <Controller
+            control={taskForm.control}
+            name="type"
+            render={({ field }) => (
+              <TaskTypeToggle
+                value={(field.value as 'task' | 'story') ?? 'task'}
+                onChange={(value) => field.onChange(value)}
+              />
+            )}
+          />
           <div className="grid gap-2 md:grid-cols-2 md:gap-3">
             <div className="grid gap-2">
               <label className="text-sm font-medium text-slate-700">
                 Status
               </label>
-              <Select {...taskForm.register('status')}>
-                <option value="open">Open</option>
-                <option value="in_progress">In progress</option>
-                <option value="completed">Completed</option>
-                <option value="blocked">Blocked</option>
-                <option value="cancelled">Cancelled</option>
-              </Select>
+              <Controller
+                control={taskForm.control}
+                name="status"
+                render={({ field }) => (
+                  <StatusBadgeSelect
+                    value={field.value as TaskStatus}
+                    onSelect={(value) => field.onChange(value)}
+                  />
+                )}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-slate-700">
+                Priority
+              </label>
+              <Controller
+                control={taskForm.control}
+                name="priority"
+                render={({ field }) => (
+                  <PriorityBadgeSelect
+                    value={field.value as TaskPriority}
+                    onSelect={(value) => field.onChange(value)}
+                  />
+                )}
+              />
+            </div>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2 md:gap-3">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-slate-700">
+                Assignee
+              </label>
+              <Controller
+                control={taskForm.control}
+                name="assigneeId"
+                render={({ field }) => (
+                  <AssigneeSearchSelect
+                    value={field.value || ''}
+                    options={assigneeOptions}
+                    loading={loadingMembers}
+                    onSelect={(option) => field.onChange(option.value)}
+                  />
+                )}
+              />
             </div>
             <div className="grid gap-2">
               <label className="text-sm font-medium text-slate-700">
