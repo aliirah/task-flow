@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import { BookOpen, CheckSquare, ListTodo, Trash2 } from 'lucide-react'
+import { BookOpen, CheckSquare, ChevronLeft, ChevronRight, ListTodo, SidebarClose, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useDashboard } from '@/components/dashboard/dashboard-shell'
@@ -94,6 +94,8 @@ export default function TaskDetailPage() {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [members, setMembers] = useState<OrganizationMember[]>([])
   const [users, setUsers] = useState<User[]>([])
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true) // Start collapsed on mobile
+  const [hydrated, setHydrated] = useState(false)
   const [editingField, setEditingField] = useState({
     title: false,
     description: false,
@@ -130,6 +132,30 @@ export default function TaskDetailPage() {
     }
     return dashboardOrgs
   }, [dashboardOrgs, task?.organization])
+
+  // Load sidebar state from localStorage
+  useEffect(() => {
+    const isDesktop = window.innerWidth >= 1024 // lg breakpoint
+    
+    if (isDesktop) {
+      const stored = localStorage.getItem('task-detail:sidebar-collapsed')
+      if (stored !== null) {
+        setSidebarCollapsed(stored === 'true')
+      } else {
+        setSidebarCollapsed(false) // Desktop default: open
+      }
+    } else {
+      setSidebarCollapsed(true) // Mobile default: collapsed
+    }
+    setHydrated(true)
+  }, [])
+
+  // Save sidebar state to localStorage
+  useEffect(() => {
+    if (hydrated) {
+      localStorage.setItem('task-detail:sidebar-collapsed', String(sidebarCollapsed))
+    }
+  }, [sidebarCollapsed, hydrated])
 
   useEffect(() => {
     if (!taskId || taskId === 'new') {
@@ -506,8 +532,8 @@ export default function TaskDetailPage() {
           ) : !task ? (
             <p className="text-sm text-rose-500">Task not found.</p>
           ) : (
-            <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-              <div className="space-y-6">
+            <div className="relative grid gap-6 lg:grid-cols-[1fr_auto]">
+              <div className="space-y-6 lg:min-w-0">
                 <div className="grid gap-2">
                   <label className="text-sm font-medium text-slate-700">
                     Description
@@ -565,11 +591,57 @@ export default function TaskDetailPage() {
                   </div>
                 )}
               </div>
-              <div className="space-y-2.5 text-sm">
-                <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Workflow
-                  </p>
+              
+
+              
+              {/* Collapsible Sidebar */}
+              <div className={`lg:relative lg:flex lg:flex-col ${sidebarCollapsed ? 'lg:w-0' : 'lg:w-72'} transition-all duration-300 ease-in-out`}>
+                {/* Toggle Button - Desktop */}
+                <button
+                  type="button"
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                  className="hidden lg:flex absolute -left-3 top-0 z-10 size-6 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm hover:bg-slate-50"
+                  aria-label={sidebarCollapsed ? 'Open sidebar' : 'Close sidebar'}
+                >
+                  {sidebarCollapsed ? (
+                    <ChevronLeft className="size-4 text-slate-600" />
+                  ) : (
+                    <ChevronRight className="size-4 text-slate-600" />
+                  )}
+                </button>
+
+                {/* Sidebar Content */}
+                <div
+                  className={`
+                    fixed lg:relative
+                    inset-y-0 right-0 lg:inset-auto
+                    z-50 lg:z-auto
+                    w-80 lg:w-full
+                    h-full lg:h-auto
+                    overflow-y-auto lg:overflow-visible
+                    bg-white border-l border-slate-200 shadow-xl lg:bg-transparent lg:border-0 lg:shadow-none
+                    p-4 lg:p-0
+                    space-y-2.5 text-sm
+                    transition-transform duration-300 ease-in-out lg:transition-none
+                    ${sidebarCollapsed ? 'translate-x-full pointer-events-none opacity-0' : 'translate-x-0 opacity-100 pointer-events-auto'}
+                    ${sidebarCollapsed ? 'lg:hidden' : 'lg:block'}
+                  `}
+                >
+                  <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Workflow
+                      </p>
+                      {/* Toggle Button - Mobile */}
+                      <button
+                        type="button"
+                        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                        className="lg:hidden -mr-1 flex items-center justify-center p-1 rounded hover:bg-slate-100"
+                        aria-label="Close sidebar"
+                      >
+                        <SidebarClose className="size-4 text-slate-400" />
+                      </button>
+                    </div>
                   <div className="mt-2.5 space-y-3">
                     <div>
                       <p className="text-xs uppercase text-slate-400">Status</p>
@@ -780,7 +852,20 @@ export default function TaskDetailPage() {
                     </div>
                   </dl>
                 </div>
+                </div>
               </div>
+              
+              {/* Floating toggle button when sidebar is collapsed on mobile */}
+              {sidebarCollapsed && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarCollapsed(false)}
+                  className="lg:hidden fixed top-4 right-4 z-50 flex size-10 items-center justify-center rounded-full border border-slate-300 bg-white shadow-lg hover:bg-slate-50 active:scale-95 transition-transform"
+                  aria-label="Open sidebar"
+                >
+                  <SidebarClose className="size-6 text-slate-600" />
+                </button>
+              )}
             </div>
           )}
         </CardContent>
