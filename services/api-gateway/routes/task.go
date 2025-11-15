@@ -24,6 +24,7 @@ func registerTaskRoutes(api *gin.RouterGroup, handler *httphandler.TaskHandler, 
 	}
 	
 	group.GET("", handler.List)
+	group.POST("/reorder", handler.Reorder)
 	
 	// Task-specific operations - org membership validated at backend
 	group.GET("/:id", handler.Get)

@@ -1,6 +1,9 @@
 package middleware
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 
@@ -40,13 +43,19 @@ func RequireOrganizationMember(orgSvc service.OrganizationService, paramName str
 		// 3. If still empty, try to get from request body (for POST/PUT/PATCH)
 		if orgID == "" && (c.Request.Method == "POST" || c.Request.Method == "PUT" || c.Request.Method == "PATCH") {
 			// For tasks, the organizationId might be in the body
-			var body map[string]interface{}
-			if err := c.ShouldBindJSON(&body); err == nil {
-				if id, ok := body["organizationId"].(string); ok {
-					orgID = id
+			// Read the body without consuming it
+			bodyBytes, err := c.GetRawData()
+			if err == nil && len(bodyBytes) > 0 {
+				// Restore the body for downstream handlers
+				c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+				
+				// Try to extract organizationId
+				var body map[string]interface{}
+				if err := json.Unmarshal(bodyBytes, &body); err == nil {
+					if id, ok := body["organizationId"].(string); ok {
+						orgID = id
+					}
 				}
-				// Restore the body for the handler to read
-				c.Set("requestBody", body)
 			}
 		}
 

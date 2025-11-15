@@ -22,6 +22,7 @@ type TaskService interface {
 	List(ctx context.Context, req *taskpb.ListTasksRequest) (*taskpb.ListTasksResponse, error)
 	Update(ctx context.Context, req *taskpb.UpdateTaskRequest) (*taskpb.Task, error)
 	Delete(ctx context.Context, id string) error
+	Reorder(ctx context.Context, req *taskpb.ReorderTasksRequest) error
 	BuildView(ctx context.Context, tasks []*taskpb.Task) ([]gin.H, error)
 
 	// Comment operations
@@ -215,5 +216,14 @@ func (s *taskService) DeleteComment(ctx context.Context, id string) error {
 	}
 	ctx = withOutgoingAuth(ctx)
 	_, err := s.client.DeleteComment(ctx, &taskpb.DeleteCommentRequest{Id: id})
+	return err
+}
+
+func (s *taskService) Reorder(ctx context.Context, req *taskpb.ReorderTasksRequest) error {
+	if s.client == nil {
+		return errors.New("task service client not configured")
+	}
+	ctx = withOutgoingAuth(ctx)
+	_, err := s.client.ReorderTasks(ctx, req)
 	return err
 }

@@ -14,6 +14,7 @@ service TaskService {
   rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
   rpc UpdateTask(UpdateTaskRequest) returns (Task);
   rpc DeleteTask(DeleteTaskRequest) returns (google.protobuf.Empty);
+  rpc ReorderTasks(ReorderTasksRequest) returns (google.protobuf.Empty);
   
   // Comment operations
   rpc CreateComment(CreateCommentRequest) returns (Comment);
@@ -35,6 +36,9 @@ message Task {
   google.protobuf.Timestamp due_at = 9;
   google.protobuf.Timestamp created_at = 10;
   google.protobuf.Timestamp updated_at = 11;
+  string type = 12; // task, story, sub-task
+  string parent_task_id = 13;
+  int32 display_order = 14;
 }
 
 message CreateTaskRequest {
@@ -46,6 +50,9 @@ message CreateTaskRequest {
   string assignee_id = 6;
   string reporter_id = 7;
   google.protobuf.Timestamp due_at = 8;
+  string type = 9; // task, story, sub-task
+  string parent_task_id = 10;
+  int32 display_order = 11;
 }
 
 message GetTaskRequest {
@@ -78,10 +85,23 @@ message UpdateTaskRequest {
   google.protobuf.StringValue assignee_id = 7;
   google.protobuf.StringValue reporter_id = 8;
   google.protobuf.Timestamp due_at = 9;
+  google.protobuf.StringValue type = 10;
+  google.protobuf.StringValue parent_task_id = 11;
+  google.protobuf.Int32Value display_order = 12;
 }
 
 message DeleteTaskRequest {
   string id = 1;
+}
+
+message TaskOrder {
+  string id = 1;
+  int32 display_order = 2;
+}
+
+message ReorderTasksRequest {
+  string organization_id = 1;
+  repeated TaskOrder tasks = 2;
 }
 
 // Comment messages

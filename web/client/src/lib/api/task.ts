@@ -36,9 +36,12 @@ export const taskApi = {
     description?: string
     status?: string
     priority?: string
+    type?: string
     organizationId: string
     assigneeId?: string
     reporterId?: string
+    parentTaskId?: string
+    displayOrder?: number
     dueAt?: string | null
   }) =>
     apiClient<Task>('/api/tasks', {
@@ -53,9 +56,12 @@ export const taskApi = {
       description?: string
       status?: string
       priority?: string
+      type?: string
       organizationId?: string
       assigneeId?: string | null
       reporterId?: string
+      parentTaskId?: string
+      displayOrder?: number
       dueAt?: string | null
     }>
   ) =>
@@ -64,4 +70,12 @@ export const taskApi = {
       body: JSON.stringify(payload),
     }),
   remove: (id: string) => apiClient<void>(`/api/tasks/${id}`, { method: 'DELETE' }),
+  reorder: (payload: {
+    organizationId: string
+    tasks: { id: string; displayOrder: number }[]
+  }) =>
+    apiClient<void>('/api/tasks/reorder', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 }

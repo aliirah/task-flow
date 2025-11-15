@@ -42,14 +42,26 @@ func (h *TaskHandler) CreateTask(ctx context.Context, req *taskpb.CreateTaskRequ
 
 	initiator, _ := authctx.IncomingUser(ctx)
 
+	var parentTaskID *uuid.UUID
+	if req.GetParentTaskId() != "" {
+		pid, err := parseUUID(req.GetParentTaskId())
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid parent task id")
+		}
+		parentTaskID = &pid
+	}
+
 	task, err := h.svc.CreateTask(ctx, service.CreateTaskInput{
 		Title:          req.GetTitle(),
 		Description:    req.GetDescription(),
 		Status:         req.GetStatus(),
 		Priority:       req.GetPriority(),
+		Type:           req.GetType(),
 		OrganizationID: orgID,
 		AssigneeID:     assigneeID,
 		ReporterID:     reporterID,
+		ParentTaskID:   parentTaskID,
+		DisplayOrder:   int(req.GetDisplayOrder()),
 		DueAt:          timestampToTime(req.GetDueAt()),
 	}, initiator)
 	if err != nil {
@@ -141,6 +153,10 @@ func (h *TaskHandler) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskRequ
 		value := req.GetPriority().GetValue()
 		input.Priority = &value
 	}
+	if req.GetType() != nil {
+		value := req.GetType().GetValue()
+		input.Type = &value
+	}
 	if req.GetOrganizationId() != nil {
 		value, err := parseUUID(req.GetOrganizationId().GetValue())
 		if err != nil {
@@ -161,6 +177,17 @@ func (h *TaskHandler) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskRequ
 			return nil, status.Error(codes.InvalidArgument, "invalid reporter id")
 		}
 		input.ReporterID = &value
+	}
+	if req.GetParentTaskId() != nil {
+		value, err := parseUUID(req.GetParentTaskId().GetValue())
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid parent task id")
+		}
+		input.ParentTaskID = &value
+	}
+	if req.GetDisplayOrder() != nil {
+		value := int(req.GetDisplayOrder().GetValue())
+		input.DisplayOrder = &value
 	}
 	if req.GetDueAt() != nil {
 		due := req.GetDueAt().AsTime()
@@ -188,6 +215,38 @@ func (h *TaskHandler) DeleteTask(ctx context.Context, req *taskpb.DeleteTaskRequ
 	return &emptypb.Empty{}, nil
 }
 
+func (h *TaskHandler) ReorderTasks(ctx context.Context, req *taskpb.ReorderTasksRequest) (*emptypb.Empty, error) {
+	orgID, err := parseUUID(req.GetOrganizationId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid organization id")
+	}
+
+	orders := make([]struct {
+		ID           uuid.UUID
+		DisplayOrder int
+	}, len(req.GetTasks()))
+
+	for i, taskOrder := range req.GetTasks() {
+		id, err := parseUUID(taskOrder.GetId())
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid task id")
+		}
+		orders[i] = struct {
+			ID           uuid.UUID
+			DisplayOrder int
+		}{
+			ID:           id,
+			DisplayOrder: int(taskOrder.GetDisplayOrder()),
+		}
+	}
+
+	if err := h.svc.ReorderTasks(ctx, orgID, orders); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 func toProtoTask(task *models.Task) *taskpb.Task {
 	if task == nil {
 		return nil
@@ -203,7 +262,9 @@ func toProtoTask(task *models.Task) *taskpb.Task {
 		Description:    task.Description,
 		Status:         task.Status,
 		Priority:       task.Priority,
+		Type:           task.Type,
 		OrganizationId: task.OrganizationID.String(),
+		DisplayOrder:   int32(task.DisplayOrder),
 		DueAt:          due,
 		CreatedAt:      timestamppb.New(task.CreatedAt),
 		UpdatedAt:      timestamppb.New(task.UpdatedAt),
@@ -215,6 +276,9 @@ func toProtoTask(task *models.Task) *taskpb.Task {
 	}
 	if task.ReporterID != uuid.Nil {
 		protoTask.ReporterId = task.ReporterID.String()
+	}
+	if task.ParentTaskID != nil && *task.ParentTaskID != uuid.Nil {
+		protoTask.ParentTaskId = task.ParentTaskID.String()
 	}
 
 	return protoTask

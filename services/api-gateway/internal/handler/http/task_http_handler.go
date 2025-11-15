@@ -6,11 +6,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"go.uber.org/zap"
 
 	"github.com/aliirah/task-flow/services/api-gateway/internal/dto"
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
 	"github.com/aliirah/task-flow/shared/authctx"
 	taskdomain "github.com/aliirah/task-flow/shared/domain/task"
+	"github.com/aliirah/task-flow/shared/logging"
 	taskpb "github.com/aliirah/task-flow/shared/proto/task/v1"
 	"github.com/aliirah/task-flow/shared/rest"
 	tasktransform "github.com/aliirah/task-flow/shared/transform/task"
@@ -36,6 +38,7 @@ func NewTaskHandler(taskSvc service.TaskService) *TaskHandler {
 func (h *TaskHandler) Create(c *gin.Context) {
 	var payload dto.CreateTaskPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
+		logging.FromContext(c.Request.Context()).Warn("failed to bind JSON payload", zap.Error(err))
 		rest.Error(c, http.StatusBadRequest, "invalid request payload",
 			rest.WithErrorCode("validation.invalid_payload"))
 		return
@@ -200,6 +203,34 @@ func (h *TaskHandler) Update(c *gin.Context) {
 // Delete handles DELETE /api/tasks/:id.
 func (h *TaskHandler) Delete(c *gin.Context) {
 	if rest.HandleGRPCError(c, h.taskService.Delete(c.Request.Context(), c.Param("id")), rest.WithNamespace("task")) {
+		return
+	}
+	rest.NoContent(c)
+}
+
+// Reorder handles POST /api/tasks/reorder.
+func (h *TaskHandler) Reorder(c *gin.Context) {
+	var payload dto.ReorderTasksPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		rest.Error(c, http.StatusBadRequest, "invalid request payload",
+			rest.WithErrorCode("validation.invalid_payload"))
+		return
+	}
+	if err := h.validator.Struct(payload); err != nil {
+		rest.Error(c, http.StatusBadRequest, "validation failed",
+			rest.WithErrorCode("validation.failed"),
+			rest.WithErrorDetails(util.CollectValidationErrors(err)))
+		return
+	}
+
+	req, err := payload.Build()
+	if err != nil {
+		rest.Error(c, http.StatusBadRequest, err.Error(),
+			rest.WithErrorCode("validation.invalid_payload"))
+		return
+	}
+
+	if rest.HandleGRPCError(c, h.taskService.Reorder(c.Request.Context(), req), rest.WithNamespace("task")) {
 		return
 	}
 	rest.NoContent(c)

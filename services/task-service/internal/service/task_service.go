@@ -44,9 +44,12 @@ type CreateTaskInput struct {
 	Description    string
 	Status         string
 	Priority       string
+	Type           string
 	OrganizationID uuid.UUID
 	AssigneeID     uuid.UUID
 	ReporterID     uuid.UUID
+	ParentTaskID   *uuid.UUID
+	DisplayOrder   int
 	DueAt          *time.Time
 }
 
@@ -56,9 +59,12 @@ func (s *Service) CreateTask(ctx context.Context, input CreateTaskInput, initiat
 		Description:    strings.TrimSpace(input.Description),
 		Status:         defaultString(strings.ToLower(strings.TrimSpace(input.Status)), "open"),
 		Priority:       defaultString(strings.ToLower(strings.TrimSpace(input.Priority)), "medium"),
+		Type:           defaultString(strings.ToLower(strings.TrimSpace(input.Type)), "task"),
 		OrganizationID: input.OrganizationID,
 		AssigneeID:     input.AssigneeID,
 		ReporterID:     input.ReporterID,
+		ParentTaskID:   input.ParentTaskID,
+		DisplayOrder:   input.DisplayOrder,
 		DueAt:          input.DueAt,
 	}
 
@@ -241,9 +247,12 @@ type UpdateTaskInput struct {
 	Description    *string
 	Status         *string
 	Priority       *string
+	Type           *string
 	OrganizationID *uuid.UUID
 	AssigneeID     *uuid.UUID
 	ReporterID     *uuid.UUID
+	ParentTaskID   *uuid.UUID
+	DisplayOrder   *int
 	DueAt          *time.Time
 }
 
@@ -307,8 +316,25 @@ func (s *Service) UpdateTask(ctx context.Context, id uuid.UUID, input UpdateTask
 		}
 		updates["priority"] = newPriority
 	}
+	if input.Type != nil {
+		newType := strings.ToLower(strings.TrimSpace(*input.Type))
+		if newType != task.Type {
+			changes = append(changes, fieldChange{
+				Field: "type",
+				Old:   task.Type,
+				New:   newType,
+			})
+		}
+		updates["type"] = newType
+	}
 	if input.OrganizationID != nil {
 		updates["organization_id"] = *input.OrganizationID
+	}
+	if input.ParentTaskID != nil {
+		updates["parent_task_id"] = *input.ParentTaskID
+	}
+	if input.DisplayOrder != nil {
+		updates["display_order"] = *input.DisplayOrder
 	}
 	if input.AssigneeID != nil {
 		if *input.AssigneeID != task.AssigneeID {
@@ -620,4 +646,26 @@ func (s *Service) ValidateOrganizationMembership(ctx context.Context, userID uui
 	}
 
 	return fmt.Errorf("user is not a member of this organization")
+}
+
+// ReorderTasks updates the display_order of multiple tasks
+func (s *Service) ReorderTasks(ctx context.Context, organizationID uuid.UUID, taskOrders []struct {
+	ID           uuid.UUID
+	DisplayOrder int
+}) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, order := range taskOrders {
+			// Verify task belongs to the organization
+			var task models.Task
+			if err := tx.First(&task, "id = ? AND organization_id = ?", order.ID, organizationID).Error; err != nil {
+				return fmt.Errorf("task %s not found or not in organization: %w", order.ID, err)
+			}
+
+			// Update display order
+			if err := tx.Model(&task).Update("display_order", order.DisplayOrder).Error; err != nil {
+				return fmt.Errorf("failed to update display order for task %s: %w", order.ID, err)
+			}
+		}
+		return nil
+	})
 }

@@ -14,9 +14,12 @@ type Task struct {
 	Description    string         `gorm:"type:text"`
 	Status         string         `gorm:"not null;default:open"`
 	Priority       string         `gorm:"not null;default:medium"`
+	Type           string         `gorm:"not null;default:task"` // task, story, sub-task
 	OrganizationID uuid.UUID      `gorm:"type:uuid;index"`
 	AssigneeID     uuid.UUID      `gorm:"type:uuid;index"`
 	ReporterID     uuid.UUID      `gorm:"type:uuid;index"`
+	ParentTaskID   *uuid.UUID     `gorm:"type:uuid;index"` // for sub-tasks
+	DisplayOrder   int            `gorm:"default:0;index"`
 	MentionedUsers pq.StringArray `gorm:"type:text[]"`
 	DueAt          *time.Time
 	CreatedAt      time.Time

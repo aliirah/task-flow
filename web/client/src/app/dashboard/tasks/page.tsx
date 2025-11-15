@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Plus } from 'lucide-react'
+import { Plus, List, LayoutList } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useDashboard } from '@/components/dashboard/dashboard-shell'
@@ -20,11 +20,13 @@ import {
 import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
 import { DataTable } from '@/components/ui/data-table'
+import { HierarchicalTaskList } from '@/components/tasks/hierarchical-task-list'
 import { createMyTaskColumns } from '@/components/tasks/task-columns'
 import { useTaskEvents } from '@/hooks/useTaskEvents'
 import { useTableState } from '@/hooks/use-table-state'
 import type { TaskEventMessage } from '@/lib/types/ws'
 import { taskEventToTask } from '@/lib/utils/task-events'
+import { useRouter } from 'next/navigation'
 
 const PAGE_SIZE = 10
 
@@ -42,11 +44,13 @@ function TasksPageContent() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [members, setMembers] = useState<OrganizationMember[]>([])
   const [filter, setFilter] = useState<'all' | TaskStatus>('all')
+  const [viewMode, setViewMode] = useState<'table' | 'hierarchical'>('table')
   const [page, setPage] = useState(0)
   const [loadingTasks, setLoadingTasks] = useState(false)
   const [hasMore, setHasMore] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const router = useRouter()
   const handleLocalTaskUpdate = useCallback(
     (taskId: string, updates: Partial<Task>) => {
       setTasks((prev) =>
@@ -243,18 +247,42 @@ function TasksPageContent() {
                 Use filters to focus on a specific status or assignee.
               </CardDescription>
             </div>
-            <Select
-              value={filter}
-              onChange={(event) => setFilter(event.target.value as 'all' | TaskStatus)}
-              containerClassName="min-w-[180px] max-w-[220px]"
-            >
-              <option value="all">All statuses</option>
-              <option value="open">Open</option>
-              <option value="in_progress">In progress</option>
-              <option value="completed">Completed</option>
-              <option value="blocked">Blocked</option>
-              <option value="cancelled">Cancelled</option>
-            </Select>
+            <div className="flex items-center gap-2">
+              <div className="flex rounded-lg border border-slate-200 p-1">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+                    viewMode === 'table'
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <List className="size-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('hierarchical')}
+                  className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+                    viewMode === 'hierarchical'
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <LayoutList className="size-4" />
+                </button>
+              </div>
+              <Select
+                value={filter}
+                onChange={(event) => setFilter(event.target.value as 'all' | TaskStatus)}
+                containerClassName="min-w-[180px] max-w-[220px]"
+              >
+                <option value="all">All statuses</option>
+                <option value="open">Open</option>
+                <option value="in_progress">In progress</option>
+                <option value="completed">Completed</option>
+                <option value="blocked">Blocked</option>
+                <option value="cancelled">Cancelled</option>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             {!selectedOrganizationId ? (
@@ -263,24 +291,34 @@ function TasksPageContent() {
               </p>
             ) : (
               <>
-                <DataTable
-                  columns={taskColumns}
-                  data={tasks}
-                  loading={loadingTasks}
-                  searchKey="title"
-                  searchPlaceholder="Search tasks..."
-                  manualSorting
-                  manualFiltering
-                  sorting={sorting}
-                  onSortingChange={setSorting}
-                  filter={filterProp}
-                  hidePagination
-                  emptyMessage={
-                    tasks.length === 0 && !search
-                      ? 'Nothing here yet. Create your first task for this organization.'
-                      : undefined
-                  }
-                />
+                {viewMode === 'table' ? (
+                  <DataTable
+                    columns={taskColumns}
+                    data={tasks}
+                    loading={loadingTasks}
+                    searchKey="title"
+                    searchPlaceholder="Search tasks..."
+                    manualSorting
+                    manualFiltering
+                    sorting={sorting}
+                    onSortingChange={setSorting}
+                    filter={filterProp}
+                    hidePagination
+                    emptyMessage={
+                      tasks.length === 0 && !search
+                        ? 'Nothing here yet. Create your first task for this organization.'
+                        : undefined
+                    }
+                  />
+                ) : (
+                  <HierarchicalTaskList
+                    tasks={tasks}
+                    onTasksChange={setTasks}
+                    onTaskClick={(task) => router.push(`/dashboard/tasks/${task.id}`)}
+                    onDeleteTask={(task) => setTaskToDelete(task)}
+                    organizationId={selectedOrganizationId}
+                  />
+                )}
                 {(page > 0 || hasMore) && (
                   <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
                     <p>

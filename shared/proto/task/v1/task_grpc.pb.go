@@ -25,6 +25,7 @@ const (
 	TaskService_ListTasks_FullMethodName     = "/task.v1.TaskService/ListTasks"
 	TaskService_UpdateTask_FullMethodName    = "/task.v1.TaskService/UpdateTask"
 	TaskService_DeleteTask_FullMethodName    = "/task.v1.TaskService/DeleteTask"
+	TaskService_ReorderTasks_FullMethodName  = "/task.v1.TaskService/ReorderTasks"
 	TaskService_CreateComment_FullMethodName = "/task.v1.TaskService/CreateComment"
 	TaskService_GetComment_FullMethodName    = "/task.v1.TaskService/GetComment"
 	TaskService_ListComments_FullMethodName  = "/task.v1.TaskService/ListComments"
@@ -41,6 +42,7 @@ type TaskServiceClient interface {
 	ListTasks(ctx context.Context, in *ListTasksRequest, opts ...grpc.CallOption) (*ListTasksResponse, error)
 	UpdateTask(ctx context.Context, in *UpdateTaskRequest, opts ...grpc.CallOption) (*Task, error)
 	DeleteTask(ctx context.Context, in *DeleteTaskRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ReorderTasks(ctx context.Context, in *ReorderTasksRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Comment operations
 	CreateComment(ctx context.Context, in *CreateCommentRequest, opts ...grpc.CallOption) (*Comment, error)
 	GetComment(ctx context.Context, in *GetCommentRequest, opts ...grpc.CallOption) (*Comment, error)
@@ -107,6 +109,16 @@ func (c *taskServiceClient) DeleteTask(ctx context.Context, in *DeleteTaskReques
 	return out, nil
 }
 
+func (c *taskServiceClient) ReorderTasks(ctx context.Context, in *ReorderTasksRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, TaskService_ReorderTasks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *taskServiceClient) CreateComment(ctx context.Context, in *CreateCommentRequest, opts ...grpc.CallOption) (*Comment, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Comment)
@@ -166,6 +178,7 @@ type TaskServiceServer interface {
 	ListTasks(context.Context, *ListTasksRequest) (*ListTasksResponse, error)
 	UpdateTask(context.Context, *UpdateTaskRequest) (*Task, error)
 	DeleteTask(context.Context, *DeleteTaskRequest) (*emptypb.Empty, error)
+	ReorderTasks(context.Context, *ReorderTasksRequest) (*emptypb.Empty, error)
 	// Comment operations
 	CreateComment(context.Context, *CreateCommentRequest) (*Comment, error)
 	GetComment(context.Context, *GetCommentRequest) (*Comment, error)
@@ -196,6 +209,9 @@ func (UnimplementedTaskServiceServer) UpdateTask(context.Context, *UpdateTaskReq
 }
 func (UnimplementedTaskServiceServer) DeleteTask(context.Context, *DeleteTaskRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteTask not implemented")
+}
+func (UnimplementedTaskServiceServer) ReorderTasks(context.Context, *ReorderTasksRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReorderTasks not implemented")
 }
 func (UnimplementedTaskServiceServer) CreateComment(context.Context, *CreateCommentRequest) (*Comment, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateComment not implemented")
@@ -323,6 +339,24 @@ func _TaskService_DeleteTask_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TaskService_ReorderTasks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReorderTasksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TaskServiceServer).ReorderTasks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TaskService_ReorderTasks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TaskServiceServer).ReorderTasks(ctx, req.(*ReorderTasksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TaskService_CreateComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateCommentRequest)
 	if err := dec(in); err != nil {
@@ -439,6 +473,10 @@ var TaskService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteTask",
 			Handler:    _TaskService_DeleteTask_Handler,
+		},
+		{
+			MethodName: "ReorderTasks",
+			Handler:    _TaskService_ReorderTasks_Handler,
 		},
 		{
 			MethodName: "CreateComment",

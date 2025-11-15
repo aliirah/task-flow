@@ -115,6 +115,7 @@ export type OrganizationMember = {
 
 export type TaskStatus = 'open' | 'in_progress' | 'completed' | 'blocked' | 'cancelled'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical'
+export type TaskType = 'task' | 'story' | 'sub-task'
 
 export type Task = {
   id: string
@@ -122,15 +123,19 @@ export type Task = {
   description?: string
   status: TaskStatus
   priority: TaskPriority
+  type: TaskType
   organizationId: string
   assigneeId?: string
   reporterId?: string
+  parentTaskId?: string
+  displayOrder: number
   dueAt?: string
   createdAt?: string
   updatedAt?: string
   organization?: Organization
   assignee?: User
   reporter?: User
+  subTasks?: Task[]
 }
 
 export interface TaskListResponse {

@@ -47,9 +47,12 @@ type CreateTaskPayload struct {
 	Description    string  `json:"description" validate:"omitempty,max=4096"`
 	Status         string  `json:"status" validate:"omitempty"`
 	Priority       string  `json:"priority" validate:"omitempty"`
+	Type           string  `json:"type" validate:"omitempty,oneof=task story sub-task"`
 	OrganizationID string  `json:"organizationId" validate:"required,uuid4"`
-	AssigneeID     string  `json:"assigneeId" validate:"omitempty,uuid4"`
-	ReporterID     string  `json:"reporterId" validate:"omitempty,uuid4"`
+	AssigneeID     *string `json:"assigneeId" validate:"omitempty,uuid4"`
+	ReporterID     *string `json:"reporterId" validate:"omitempty,uuid4"`
+	ParentTaskID   *string `json:"parentTaskId" validate:"omitempty,uuid4"`
+	DisplayOrder   int     `json:"displayOrder" validate:"omitempty"`
 	DueAt          *string `json:"dueAt" validate:"omitempty"`
 }
 
@@ -72,9 +75,27 @@ func (p CreateTaskPayload) Build(defaultReporterID string) (*taskpb.CreateTaskRe
 		dueAt = &parsed
 	}
 
-	reporterID := strings.TrimSpace(p.ReporterID)
-	if reporterID == "" {
-		reporterID = defaultReporterID
+	reporterID := defaultReporterID
+	if p.ReporterID != nil {
+		trimmed := strings.TrimSpace(*p.ReporterID)
+		if trimmed != "" {
+			reporterID = trimmed
+		}
+	}
+
+	assigneeID := ""
+	if p.AssigneeID != nil {
+		assigneeID = strings.TrimSpace(*p.AssigneeID)
+	}
+
+	parentTaskID := ""
+	if p.ParentTaskID != nil {
+		parentTaskID = strings.TrimSpace(*p.ParentTaskID)
+	}
+
+	taskType := strings.ToLower(strings.TrimSpace(p.Type))
+	if taskType == "" {
+		taskType = "task"
 	}
 
 	req := &taskpb.CreateTaskRequest{
@@ -82,9 +103,12 @@ func (p CreateTaskPayload) Build(defaultReporterID string) (*taskpb.CreateTaskRe
 		Description:    strings.TrimSpace(p.Description),
 		Status:         status,
 		Priority:       priority,
+		Type:           taskType,
 		OrganizationId: p.OrganizationID,
-		AssigneeId:     p.AssigneeID,
+		AssigneeId:     assigneeID,
 		ReporterId:     reporterID,
+		ParentTaskId:   parentTaskID,
+		DisplayOrder:   int32(p.DisplayOrder),
 	}
 	if dueAt != nil {
 		req.DueAt = timestamppb.New(dueAt.UTC())
@@ -97,9 +121,12 @@ type UpdateTaskPayload struct {
 	Description    *string `json:"description" validate:"omitempty,max=4096"`
 	Status         *string `json:"status" validate:"omitempty"`
 	Priority       *string `json:"priority" validate:"omitempty"`
+	Type           *string `json:"type" validate:"omitempty,oneof=task story sub-task"`
 	OrganizationID *string `json:"organizationId" validate:"omitempty,uuid4"`
 	AssigneeID     *string `json:"assigneeId" validate:"omitempty,uuid4"`
 	ReporterID     *string `json:"reporterId" validate:"omitempty,uuid4"`
+	ParentTaskID   *string `json:"parentTaskId" validate:"omitempty,uuid4"`
+	DisplayOrder   *int    `json:"displayOrder" validate:"omitempty"`
 	DueAt          *string `json:"dueAt" validate:"omitempty"`
 }
 
@@ -136,6 +163,12 @@ func (p UpdateTaskPayload) Build(id string) (*taskpb.UpdateTaskRequest, error) {
 			req.Priority = wrapperspb.String(value)
 		}
 	}
+	if p.Type != nil {
+		taskType := strings.ToLower(strings.TrimSpace(*p.Type))
+		if taskType != "" {
+			req.Type = wrapperspb.String(taskType)
+		}
+	}
 	if p.OrganizationID != nil {
 		trimmed := strings.TrimSpace(*p.OrganizationID)
 		if trimmed != "" {
@@ -154,6 +187,15 @@ func (p UpdateTaskPayload) Build(id string) (*taskpb.UpdateTaskRequest, error) {
 			req.ReporterId = wrapperspb.String(trimmed)
 		}
 	}
+	if p.ParentTaskID != nil {
+		trimmed := strings.TrimSpace(*p.ParentTaskID)
+		if trimmed != "" {
+			req.ParentTaskId = wrapperspb.String(trimmed)
+		}
+	}
+	if p.DisplayOrder != nil {
+		req.DisplayOrder = wrapperspb.Int32(int32(*p.DisplayOrder))
+	}
 	if p.DueAt != nil && strings.TrimSpace(*p.DueAt) != "" {
 		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*p.DueAt))
 		if err != nil {
@@ -163,4 +205,29 @@ func (p UpdateTaskPayload) Build(id string) (*taskpb.UpdateTaskRequest, error) {
 	}
 
 	return req, nil
+}
+
+type TaskOrderItem struct {
+	ID           string `json:"id" validate:"required,uuid4"`
+	DisplayOrder int    `json:"displayOrder" validate:"gte=0"`
+}
+
+type ReorderTasksPayload struct {
+	OrganizationID string          `json:"organizationId" validate:"required,uuid4"`
+	Tasks          []TaskOrderItem `json:"tasks" validate:"required,dive"`
+}
+
+func (p ReorderTasksPayload) Build() (*taskpb.ReorderTasksRequest, error) {
+	tasks := make([]*taskpb.TaskOrder, len(p.Tasks))
+	for i, task := range p.Tasks {
+		tasks[i] = &taskpb.TaskOrder{
+			Id:           task.ID,
+			DisplayOrder: int32(task.DisplayOrder),
+		}
+	}
+
+	return &taskpb.ReorderTasksRequest{
+		OrganizationId: p.OrganizationID,
+		Tasks:          tasks,
+	}, nil
 }

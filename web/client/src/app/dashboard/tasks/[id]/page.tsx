@@ -13,6 +13,7 @@ import { organizationApi, taskApi } from '@/lib/api'
 import { OrganizationMember, Task, TaskPriority, TaskStatus, User } from '@/lib/types/api'
 import { handleApiError } from '@/lib/utils/error-handler'
 import { CommentList } from '@/components/comments/comment-list'
+import { StorySubTasks } from '@/components/tasks/story-subtasks'
 import { useAuthStore } from '@/store/auth'
 import { useTaskEvents } from '@/hooks/useTaskEvents'
 import type { TaskEventMessage } from '@/lib/types/ws'
@@ -38,6 +39,7 @@ const schema = z.object({
   assigneeId: z.string().optional(),
   priority: z.enum(['low', 'medium', 'high', 'critical']),
   status: z.enum(['open', 'in_progress', 'completed', 'blocked', 'cancelled']),
+  type: z.enum(['task', 'story', 'sub-task']),
   dueAt: z.string().optional(),
 })
 
@@ -64,6 +66,15 @@ const PRIORITY_LABELS: Record<
   critical: { label: 'Critical', tone: 'danger' },
 }
 
+const TYPE_LABELS: Record<
+  'task' | 'story' | 'sub-task',
+  { label: string; tone: 'default' | 'info' | 'success' }
+> = {
+  task: { label: 'Task', tone: 'default' },
+  story: { label: 'Story', tone: 'info' },
+  'sub-task': { label: 'Sub-task', tone: 'success' },
+}
+
 export default function TaskDetailPage() {
   const router = useRouter()
   const params = useParams<{ id?: string }>()
@@ -84,6 +95,7 @@ export default function TaskDetailPage() {
     organization: false,
     status: false,
     priority: false,
+    type: false,
     dueAt: false,
     assignee: false,
   })
@@ -97,6 +109,7 @@ export default function TaskDetailPage() {
       assigneeId: '',
       priority: 'medium',
       status: 'open',
+      type: 'task',
       dueAt: '',
     },
   })
@@ -136,6 +149,7 @@ export default function TaskDetailPage() {
             assigneeId: current.assigneeId ?? '',
             priority: current.priority as TaskPriority,
             status: current.status as TaskStatus,
+            type: (current.type as 'task' | 'story' | 'sub-task') || 'task',
             dueAt: current.dueAt ?? '',
           })
         }
@@ -210,6 +224,7 @@ export default function TaskDetailPage() {
           assigneeId: event.data.assigneeId ?? '',
           priority: event.data.priority as TaskPriority,
           status: event.data.status as TaskStatus,
+          type: (event.data.type as 'task' | 'story' | 'sub-task') || 'task',
           dueAt: event.data.dueAt ?? '',
         }
         
@@ -260,6 +275,7 @@ export default function TaskDetailPage() {
         assigneeId: values.assigneeId || null,
         priority: values.priority,
         status: values.status,
+        type: values.type,
         dueAt: values.dueAt || null,
       })
 
@@ -332,6 +348,7 @@ export default function TaskDetailPage() {
   const descriptionValue = form.watch('description')
   const watchedStatus = (form.watch('status') as TaskStatus) || 'open'
   const watchedPriority = (form.watch('priority') as TaskPriority) || 'medium'
+  const watchedType = (form.watch('type') as 'task' | 'story' | 'sub-task') || 'task'
   const dueAtValue = form.watch('dueAt')
   const assigneeIdValue = form.watch('assigneeId') ?? ''
   const assigneeInMembers = assigneeIdValue
@@ -345,6 +362,7 @@ export default function TaskDetailPage() {
   const reporterEmail = task?.reporter?.email
   const statusDisplay = STATUS_BADGES[watchedStatus].label
   const priorityDisplay = PRIORITY_LABELS[watchedPriority].label
+  const typeDisplay = TYPE_LABELS[watchedType].label
   const dueDateDisplay = dueAtValue
     ? new Date(dueAtValue).toLocaleString()
     : 'No due date'
@@ -476,6 +494,14 @@ export default function TaskDetailPage() {
                   )}
                 </div>
 
+                {/* Sub-tasks Section (only for stories) */}
+                {watchedType === 'story' && taskId && organizationId && (
+                  <StorySubTasks
+                    storyId={taskId}
+                    organizationId={organizationId}
+                  />
+                )}
+
                 {/* Comments Section */}
                 {currentUserId && taskId && (
                   <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -561,6 +587,43 @@ export default function TaskDetailPage() {
                         >
                           <Badge tone={PRIORITY_LABELS[watchedPriority].tone}>
                             {priorityDisplay}
+                          </Badge>
+                          <span className="text-slate-500">Change</span>
+                        </button>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase text-slate-400">Type</p>
+                      {editingField.type ? (
+                        <Select
+                          autoFocus
+                          value={form.watch('type')}
+                          onChange={(event) => {
+                            handleSelectChange('type', event.target.value)
+                            setEditingField((prev) => ({ ...prev, type: false }))
+                          }}
+                          onBlur={() =>
+                            setEditingField((prev) => ({ ...prev, type: false }))
+                          }
+                        >
+                          {(Object.keys(TYPE_LABELS) as Array<'task' | 'story' | 'sub-task'>).map(
+                            (type) => (
+                              <option key={type} value={type}>
+                                {TYPE_LABELS[type].label}
+                              </option>
+                            )
+                          )}
+                        </Select>
+                      ) : (
+                        <button
+                          type="button"
+                          className="mt-1 inline-flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-800"
+                          onClick={() =>
+                            setEditingField((prev) => ({ ...prev, type: true }))
+                          }
+                        >
+                          <Badge tone={TYPE_LABELS[watchedType].tone}>
+                            {typeDisplay}
                           </Badge>
                           <span className="text-slate-500">Change</span>
                         </button>

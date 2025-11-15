@@ -16,8 +16,11 @@ interface TaskEventBase {
   description?: string
   status: TaskStatus
   priority: TaskPriority
+  type?: string
   reporterId: string
   assigneeId?: string
+  parentTaskId?: string
+  displayOrder?: number
   reporter?: TaskEventUser
   assignee?: TaskEventUser
   triggeredById?: string
