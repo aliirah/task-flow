@@ -12,7 +12,6 @@ import (
 	"github.com/aliirah/task-flow/services/notification-service/internal/event"
 	"github.com/aliirah/task-flow/services/notification-service/internal/handler"
 	"github.com/aliirah/task-flow/services/notification-service/internal/models"
-	"github.com/aliirah/task-flow/services/notification-service/internal/repository"
 	"github.com/aliirah/task-flow/services/notification-service/internal/service"
 	"github.com/aliirah/task-flow/shared/env"
 	"github.com/aliirah/task-flow/shared/messaging"
@@ -60,9 +59,8 @@ func run() error {
 
 	log.Println("RabbitMQ connected")
 
-	// Initialize repository and service
-	repo := repository.NewNotificationRepository(db)
-	svc := service.NewNotificationService(repo)
+	// Initialize service
+	svc := service.NewNotificationService(db)
 
 	// Start gRPC server
 	lis, err := net.Listen("tcp", ":"+grpcPort)

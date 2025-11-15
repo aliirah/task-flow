@@ -5,8 +5,7 @@
 The notification service is now fully implemented with:
 - ✅ Protobuf definitions (`proto/notification/v1/notification.proto`)
 - ✅ Database model (`services/notification-service/internal/models/notification.go`)
-- ✅ Repository layer (`services/notification-service/internal/repository/`)
-- ✅ Service layer (`services/notification-service/internal/service/`)
+- ✅ Service layer with persistence (`services/notification-service/internal/service/`)
 - ✅ gRPC handler (`services/notification-service/internal/handler/`)
 - ✅ RabbitMQ consumer (`services/notification-service/internal/event/`)
 - ✅ Main service file (`services/notification-service/main.go`)

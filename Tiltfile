@@ -220,21 +220,21 @@ local_resource(
 ## End Seeders ##
 
 ### Web Client Frontend ###
-docker_build(
-  'task-flow/web-client',
-  '.',
-  dockerfile='./infra/dev/docker/web-client.Dockerfile',
-  live_update=[
-    sync('./web/client/src', '/app/src'),
-    sync('./web/client/public', '/app/public'),
-    sync('./web/client/package.json', '/app/package.json'),
-    sync('./web/client/yarn.lock', '/app/yarn.lock'),
-    run('cd /app && yarn install', trigger=['./web/client/package.json', './web/client/yarn.lock']),
-  ],
-)
+# docker_build(
+#   'task-flow/web-client',
+#   '.',
+#   dockerfile='./infra/dev/docker/web-client.Dockerfile',
+#   live_update=[
+#     sync('./web/client/src', '/app/src'),
+#     sync('./web/client/public', '/app/public'),
+#     sync('./web/client/package.json', '/app/package.json'),
+#     sync('./web/client/yarn.lock', '/app/yarn.lock'),
+#     run('cd /app && yarn install', trigger=['./web/client/package.json', './web/client/yarn.lock']),
+#   ],
+# )
 
-k8s_yaml('./infra/dev/k8s/web-client-deployment.yaml')
-k8s_resource('web-client', port_forwards=3000, labels="frontend")
+# k8s_yaml('./infra/dev/k8s/web-client-deployment.yaml')
+# k8s_resource('web-client', port_forwards=3000, labels="frontend")
 ### End of Web Frontend ###
 
 ### Jaeger ###

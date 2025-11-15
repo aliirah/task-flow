@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/aliirah/task-flow/services/notification-service/internal/models"
-	"github.com/aliirah/task-flow/services/notification-service/internal/repository"
 	"github.com/aliirah/task-flow/services/notification-service/internal/service"
 	"github.com/aliirah/task-flow/shared/authctx"
 	notificationpb "github.com/aliirah/task-flow/shared/proto/notification/v1"
@@ -33,7 +32,7 @@ func (h *NotificationHandler) ListNotifications(ctx context.Context, req *notifi
 		return nil, status.Error(codes.Unauthenticated, "user not authenticated")
 	}
 
-	params := repository.ListParams{
+	params := service.ListParams{
 		UserID:     userID,
 		Page:       int(req.GetPage()),
 		Limit:      int(req.GetLimit()),
