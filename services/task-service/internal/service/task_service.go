@@ -20,20 +20,22 @@ import (
 )
 
 type Service struct {
-	db             *gorm.DB
-	publisher      event.TaskEventPublisher
-	notifPublisher *messaging.NotificationPublisher
-	userSvc        userpb.UserServiceClient
-	orgSvc         organizationpb.OrganizationServiceClient
+	db                *gorm.DB
+	publisher         event.TaskEventPublisher
+	commentPublisher  event.CommentEventPublisher
+	notifPublisher    *messaging.NotificationPublisher
+	userSvc           userpb.UserServiceClient
+	orgSvc            organizationpb.OrganizationServiceClient
 }
 
-func New(db *gorm.DB, publisher event.TaskEventPublisher, notifPublisher *messaging.NotificationPublisher, userSvc userpb.UserServiceClient, orgSvc organizationpb.OrganizationServiceClient) *Service {
+func New(db *gorm.DB, publisher event.TaskEventPublisher, commentPublisher event.CommentEventPublisher, notifPublisher *messaging.NotificationPublisher, userSvc userpb.UserServiceClient, orgSvc organizationpb.OrganizationServiceClient) *Service {
 	return &Service{
-		db:             db,
-		publisher:      publisher,
-		notifPublisher: notifPublisher,
-		userSvc:        userSvc,
-		orgSvc:         orgSvc,
+		db:               db,
+		publisher:        publisher,
+		commentPublisher: commentPublisher,
+		notifPublisher:   notifPublisher,
+		userSvc:          userSvc,
+		orgSvc:           orgSvc,
 	}
 }
 
@@ -381,6 +383,20 @@ func (s *Service) UpdateTask(ctx context.Context, id uuid.UUID, input UpdateTask
 		// If assignee changed, also notify the old assignee
 		if oldAssigneeID != uuid.Nil && oldAssigneeID != task.AssigneeID && oldAssigneeID != initiatorUUID {
 			recipients = append(recipients, oldAssigneeID)
+		}
+		
+		// Add all mentioned users from comments
+		recipientSet := make(map[uuid.UUID]bool)
+		for _, recipient := range recipients {
+			recipientSet[recipient] = true
+		}
+		
+		for _, mentionedUserIDStr := range task.MentionedUsers {
+			mentionedUserID, err := uuid.Parse(mentionedUserIDStr)
+			if err == nil && mentionedUserID != initiatorUUID && !recipientSet[mentionedUserID] {
+				recipients = append(recipients, mentionedUserID)
+				recipientSet[mentionedUserID] = true
+			}
 		}
 
 		if len(recipients) > 0 && len(changes) > 0 {

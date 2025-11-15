@@ -105,8 +105,28 @@ func (s *Service) CreateComment(ctx context.Context, input CreateCommentInput) (
 		return nil, err
 	}
 
+	// Fetch user details for WebSocket event
+	var user *userpb.User
+	if userResp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{Id: input.UserID.String()}); err == nil {
+		user = userResp
+	}
+
+	// Publish WebSocket event
+	go func() {
+		if err := s.commentPublisher.CommentCreated(context.Background(), comment, &task, user); err != nil {
+			fmt.Printf("Failed to publish comment created event: %v\n", err)
+		}
+	}()
+
 	// Publish notification events
 	go s.publishCommentNotifications(ctx, &task, comment, nil, mentions)
+
+	// Update task mentioned users
+	go func() {
+		if err := s.UpdateTaskMentionedUsers(context.Background(), input.TaskID); err != nil {
+			fmt.Printf("Failed to update task mentioned users: %v\n", err)
+		}
+	}()
 
 	return comment, nil
 }
@@ -223,6 +243,21 @@ func (s *Service) UpdateComment(ctx context.Context, id uuid.UUID, input UpdateC
 		return nil, err
 	}
 
+	// Fetch user details for WebSocket event
+	var user *userpb.User
+	if comment.Task != nil {
+		if userResp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{Id: userID.String()}); err == nil {
+			user = userResp
+		}
+
+		// Publish WebSocket event
+		go func() {
+			if err := s.commentPublisher.CommentUpdated(context.Background(), comment, comment.Task, user); err != nil {
+				fmt.Printf("Failed to publish comment updated event: %v\n", err)
+			}
+		}()
+	}
+
 	// Publish notification for newly mentioned users
 	if len(mentions) > 0 {
 		// Find new mentions (in mentions but not in oldMentions)
@@ -246,6 +281,13 @@ func (s *Service) UpdateComment(ctx context.Context, id uuid.UUID, input UpdateC
 		}
 	}
 
+	// Update task mentioned users
+	go func() {
+		if err := s.UpdateTaskMentionedUsers(context.Background(), comment.TaskID); err != nil {
+			fmt.Printf("Failed to update task mentioned users: %v\n", err)
+		}
+	}()
+
 	// Reload to get updated data
 	return s.GetComment(ctx, id)
 }
@@ -268,10 +310,40 @@ func (s *Service) DeleteComment(ctx context.Context, id uuid.UUID, userID uuid.U
 		return errors.New("unauthorized: only comment author can delete")
 	}
 
+	// Store data for WebSocket event before deletion
+	commentID := comment.ID.String()
+	taskID := comment.TaskID.String()
+	var organizationID string
+	if comment.Task != nil {
+		organizationID = comment.Task.OrganizationID.String()
+	}
+
+	// Fetch user details for WebSocket event
+	var user *userpb.User
+	if userResp, err := s.userSvc.GetUser(ctx, &userpb.GetUserRequest{Id: userID.String()}); err == nil {
+		user = userResp
+	}
+
 	// Soft delete
 	if err := s.db.WithContext(ctx).Delete(comment).Error; err != nil {
 		return err
 	}
+
+	// Publish WebSocket event
+	if organizationID != "" {
+		go func() {
+			if err := s.commentPublisher.CommentDeleted(context.Background(), commentID, taskID, organizationID, userID.String(), user); err != nil {
+				fmt.Printf("Failed to publish comment deleted event: %v\n", err)
+			}
+		}()
+	}
+
+	// Update task mentioned users
+	go func() {
+		if err := s.UpdateTaskMentionedUsers(context.Background(), comment.TaskID); err != nil {
+			fmt.Printf("Failed to update task mentioned users: %v\n", err)
+		}
+	}()
 
 	return nil
 }

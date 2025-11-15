@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { Comment, User } from '@/lib/types/api'
 import { Button } from '@/components/ui/button'
+import { Modal } from '@/components/ui/modal'
 import { CommentEditor } from './comment-editor'
 import { MessageSquare, Pencil, Trash2 } from 'lucide-react'
 
@@ -28,6 +29,8 @@ export function CommentItem({
 }: CommentItemProps) {
   const [isReplying, setIsReplying] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   const isAuthor = comment.userId === currentUserId
   const author = comment.user || users.find((u) => u.id === comment.userId)
@@ -50,9 +53,15 @@ export function CommentItem({
     setIsEditing(false)
   }
 
-  const handleDelete = async () => {
-    if (window.confirm('Delete this comment?')) {
+  const handleDeleteConfirm = async () => {
+    try {
+      setDeleteLoading(true)
       await onDelete(comment.id)
+      setDeleteOpen(false)
+    } catch (error) {
+      console.error('Failed to delete comment:', error)
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -154,7 +163,7 @@ export function CommentItem({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={handleDelete}
+                      onClick={() => setDeleteOpen(true)}
                       className="h-auto px-0 py-0 text-xs font-medium text-slate-500 hover:bg-transparent hover:text-red-600"
                     >
                       <Trash2 className="mr-1 size-3" />
@@ -199,6 +208,37 @@ export function CommentItem({
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        open={deleteOpen}
+        onClose={() => (deleteLoading ? null : setDeleteOpen(false))}
+        title="Delete comment"
+        description="This action cannot be undone."
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleteLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="min-w-[110px]"
+              onClick={handleDeleteConfirm}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? 'Deleting…' : 'Delete'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          Are you sure you want to delete this comment? This will also delete all replies.
+        </p>
+      </Modal>
     </div>
   )
 }

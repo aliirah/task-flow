@@ -12,6 +12,10 @@ type AmqpMessage struct {
 const (
 	TaskEventCreated = "task.event.created"
 	TaskEventUpdated = "task.event.updated"
+	
+	CommentEventCreated = "comment.event.created"
+	CommentEventUpdated = "comment.event.updated"
+	CommentEventDeleted = "comment.event.deleted"
 )
 
 type TaskCreatedEvent struct {
@@ -47,4 +51,36 @@ type TaskUpdatedEvent struct {
 	TriggeredBy    *TaskUser `json:"triggeredBy,omitempty"`
 	DueAt          string    `json:"dueAt,omitempty"`
 	UpdatedAt      string    `json:"updatedAt,omitempty"`
+}
+
+type CommentCreatedEvent struct {
+	CommentID       string    `json:"commentId"`
+	TaskID          string    `json:"taskId"`
+	OrganizationID  string    `json:"organizationId"`
+	UserID          string    `json:"userId"`
+	ParentCommentID string    `json:"parentCommentId,omitempty"`
+	Content         string    `json:"content"`
+	MentionedUsers  []string  `json:"mentionedUsers,omitempty"`
+	User            *TaskUser `json:"user,omitempty"`
+	CreatedAt       string    `json:"createdAt"`
+}
+
+type CommentUpdatedEvent struct {
+	CommentID       string    `json:"commentId"`
+	TaskID          string    `json:"taskId"`
+	OrganizationID  string    `json:"organizationId"`
+	UserID          string    `json:"userId"`
+	ParentCommentID string    `json:"parentCommentId,omitempty"`
+	Content         string    `json:"content"`
+	MentionedUsers  []string  `json:"mentionedUsers,omitempty"`
+	User            *TaskUser `json:"user,omitempty"`
+	UpdatedAt       string    `json:"updatedAt"`
+}
+
+type CommentDeletedEvent struct {
+	CommentID      string    `json:"commentId"`
+	TaskID         string    `json:"taskId"`
+	OrganizationID string    `json:"organizationId"`
+	UserID         string    `json:"userId"`
+	User           *TaskUser `json:"user,omitempty"`
 }

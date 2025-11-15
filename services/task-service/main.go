@@ -109,10 +109,13 @@ func main() {
 	// Initialize task event publisher
 	taskPublisher := event.NewTaskPublisher(rabbitMQ)
 	
+	// Initialize comment event publisher
+	commentPublisher := event.NewCommentPublisher(rabbitMQ)
+	
 	// Initialize notification publisher
 	notifPublisher := messaging.NewNotificationPublisher(rabbitMQ)
 
-	taskSvc := service.New(db, taskPublisher, notifPublisher, grpcClients.User, grpcClients.Organization)
+	taskSvc := service.New(db, taskPublisher, commentPublisher, notifPublisher, grpcClients.User, grpcClients.Organization)
 	taskHandler := handler.NewTaskHandler(taskSvc)
 
 	addr := env.GetString("TASK_GRPC_ADDR", ":50054")

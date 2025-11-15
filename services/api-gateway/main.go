@@ -110,6 +110,19 @@ func main() {
 	}()
 	fmt.Println("Task event consumer successfully initialized")
 
+	// Initialize comment event consumer
+	fmt.Println("Setting up comment event consumer...")
+	commentEventConsumer := gatewayevent.NewCommentConsumer(rabbitmq, connMgr)
+
+	// Start listening for comment events
+	go func() {
+		if err := commentEventConsumer.Listen(); err != nil {
+			log.Error(fmt.Errorf("failed to start comment event consumer: %w", err))
+			os.Exit(1)
+		}
+	}()
+	fmt.Println("Comment event consumer successfully initialized")
+
 	// Initialize notification event consumer
 	fmt.Println("Setting up notification event consumer...")
 	notificationEventConsumer := gatewayevent.NewNotificationConsumer(rabbitmq, connMgr)

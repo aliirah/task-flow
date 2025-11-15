@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 
 import { TaskEventContext } from '@/hooks/useTaskEvents'
+import { CommentEventContext } from '@/hooks/useCommentEvents'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { DashboardSidebar, MobileSidebar } from '@/components/dashboard/sidebar'
@@ -38,6 +39,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const {
     contextValue,
     taskEventContextValue,
+    commentEventContextValue,
     sidebarCollapsed,
     setSidebarCollapsed,
     mobileSidebarOpen,
@@ -69,8 +71,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
   return (
     <TaskEventContext.Provider value={taskEventContextValue}>
-      <DashboardContext.Provider value={contextValue}>
-        <div className="flex min-h-screen bg-slate-50">
+      <CommentEventContext.Provider value={commentEventContextValue}>
+        <DashboardContext.Provider value={contextValue}>
+          <div className="flex min-h-screen bg-slate-50">
           <DashboardSidebar
             collapsed={sidebarCollapsed}
             pathname={currentPath}
@@ -181,7 +184,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
             Signing out will close any open sessions associated with this browser.
           </p>
         </Modal>
-      </DashboardContext.Provider>
+        </DashboardContext.Provider>
+      </CommentEventContext.Provider>
     </TaskEventContext.Provider>
   )
 }

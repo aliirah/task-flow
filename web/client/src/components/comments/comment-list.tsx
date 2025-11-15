@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Comment, User } from '@/lib/types/api'
 import { commentApi } from '@/lib/api/comment'
+import { useCommentEvents } from '@/hooks/useCommentEvents'
+import type { CommentEventMessage } from '@/lib/types/ws'
 import { CommentEditor } from './comment-editor'
 import { CommentItem } from './comment-item'
 import { Loader2 } from 'lucide-react'
@@ -54,6 +56,73 @@ export function CommentList({ taskId, currentUserId, users }: CommentListProps) 
   useEffect(() => {
     loadComments(1)
   }, [loadComments])
+
+  // WebSocket comment events
+  const handleCommentEvent = useCallback(
+    (event: CommentEventMessage) => {
+      // Only process events for this task
+      if (event.data.taskId !== taskId) {
+        return
+      }
+
+      console.log('[CommentList] Processing comment event:', event.type, event.data.commentId)
+
+      switch (event.type) {
+        case 'comment.event.created': {
+          const newComment: Comment = {
+            id: event.data.commentId,
+            taskId: event.data.taskId,
+            userId: event.data.userId,
+            content: event.data.content,
+            mentionedUsers: event.data.mentionedUsers || [],
+            parentCommentId: null,
+            replies: [],
+            user: event.data.user
+              ? {
+                  id: event.data.user.id || event.data.userId,
+                  email: event.data.user.email || '',
+                  firstName: event.data.user.firstName || '',
+                  lastName: event.data.user.lastName || '',
+                }
+              : undefined,
+            createdAt: event.data.createdAt || new Date().toISOString(),
+            updatedAt: event.data.updatedAt || new Date().toISOString(),
+          }
+          setComments((prev) => [newComment, ...(prev || [])])
+          break
+        }
+        case 'comment.event.updated': {
+          const updatedComment: Comment = {
+            id: event.data.commentId,
+            taskId: event.data.taskId,
+            userId: event.data.userId,
+            content: event.data.content,
+            mentionedUsers: event.data.mentionedUsers || [],
+            parentCommentId: null,
+            replies: undefined, // Preserve existing replies
+            user: event.data.user
+              ? {
+                  id: event.data.user.id || event.data.userId,
+                  email: event.data.user.email || '',
+                  firstName: event.data.user.firstName || '',
+                  lastName: event.data.user.lastName || '',
+                }
+              : undefined,
+            createdAt: '',
+            updatedAt: event.data.updatedAt || new Date().toISOString(),
+          }
+          setComments((prev) => updateCommentInList(prev || [], event.data.commentId, updatedComment))
+          break
+        }
+        case 'comment.event.deleted':
+          setComments((prev) => removeCommentFromList(prev || [], event.data.commentId))
+          break
+      }
+    },
+    [taskId]
+  )
+
+  useCommentEvents(handleCommentEvent)
 
   // Infinite scroll observer
   useEffect(() => {

@@ -15,8 +15,9 @@ import { authApi, organizationApi, refreshToken as requestTokenRefresh } from '@
 import type { Organization, OrganizationMember } from '@/lib/types/api'
 import { handleApiError } from '@/lib/utils/error-handler'
 import { buildWsUrl } from '@/lib/utils/ws'
-import type { TaskEventMessage } from '@/lib/types/ws'
+import type { TaskEventMessage, CommentEventMessage } from '@/lib/types/ws'
 import { TaskEventListener } from '@/hooks/useTaskEvents'
+import { CommentEventListener } from '@/hooks/useCommentEvents'
 import { useAuthStore } from '@/store/auth'
 
 import type { DashboardContextValue } from './context'
@@ -54,6 +55,7 @@ export function useDashboardShellLogic() {
   >(null)
   const [selectionHydrated, setSelectionHydrated] = useState(false)
   const taskEventListenersRef = useRef<Set<TaskEventListener>>(new Set())
+  const commentEventListenersRef = useRef<Set<CommentEventListener>>(new Set())
   const userRef = useRef(user)
   const selectedOrgRef = useRef<string | null>(selectedOrganizationId)
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -275,6 +277,40 @@ export function useDashboardShellLogic() {
             })
             return
           }
+
+          // Handle comment events
+          const isCommentEvent =
+            message.type === 'comment.event.created' ||
+            message.type === 'comment.event.updated' ||
+            message.type === 'comment.event.deleted'
+          
+          if (isCommentEvent && message.data) {
+            console.log('[WS] 💬 Comment event received:', {
+              type: message.type,
+              commentId: message.data.commentId,
+              taskId: message.data.taskId,
+              userId: message.data.userId,
+              currentUser: userRef.current?.id
+            })
+            
+            if (message.data.userId === userRef.current?.id) {
+              console.log('[WS] ⏭️ Skipping - user triggered this comment event')
+              return
+            }
+            
+            const commentEvent = message as CommentEventMessage
+            const listenerCount = commentEventListenersRef.current.size
+            console.log('[WS] 📡 Broadcasting to', listenerCount, 'comment listeners')
+            
+            commentEventListenersRef.current.forEach((listener) => {
+              try {
+                listener(commentEvent)
+              } catch (err) {
+                console.error('[WS] ❌ Comment listener error:', err)
+              }
+            })
+            return
+          }
           
           console.log('[WS] ℹ️ Unhandled message type:', message.type)
           // Note: Removed toast.success call here - notifications will be shown via NotificationBell instead
@@ -333,6 +369,13 @@ export function useDashboardShellLogic() {
     taskEventListenersRef.current.add(listener)
     return () => {
       taskEventListenersRef.current.delete(listener)
+    }
+  }, [])
+
+  const subscribeCommentEvents = useCallback((listener: CommentEventListener) => {
+    commentEventListenersRef.current.add(listener)
+    return () => {
+      commentEventListenersRef.current.delete(listener)
     }
   }, [])
 
@@ -417,12 +460,20 @@ export function useDashboardShellLogic() {
     [subscribeTaskEvents]
   )
 
+  const commentEventContextValue = useMemo(
+    () => ({
+      subscribe: subscribeCommentEvents,
+    }),
+    [subscribeCommentEvents]
+  )
+
   return {
     router,
     currentPath,
     user,
     contextValue,
     taskEventContextValue,
+    commentEventContextValue,
     sidebarCollapsed,
     setSidebarCollapsed,
     mobileSidebarOpen,

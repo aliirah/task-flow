@@ -223,6 +223,16 @@ func (r *RabbitMQ) setupExchangesAndQueues() error {
 		return err
 	}
 
+	if err := r.declareAndBindQueue(
+		CommentEventsQueue,
+		[]string{
+			"comment.*", // Bind to all comment events for any organization
+		},
+		EventExchange,
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
