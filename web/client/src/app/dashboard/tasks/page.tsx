@@ -175,8 +175,11 @@ function TasksPageContent() {
         if (insertedToPage) {
           setHasMore(true)
         }
+
+        // Refresh list to keep pagination + sorting accurate across clients
+        fetchTasks()
       },
-      [selectedOrganizationId, filter, page]
+      [selectedOrganizationId, filter, page, fetchTasks]
     )
   )
 
