@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { LayoutGrid, List } from 'lucide-react'
 
 import { taskApi } from '@/lib/api'
 import type { Task, TaskStatus } from '@/lib/types/api'
@@ -16,6 +17,7 @@ import {
 } from '@/components/ui/card'
 import { Select } from '@/components/ui/select'
 import { DataTable } from '@/components/ui/data-table'
+import { HierarchicalTaskList } from '@/components/tasks/hierarchical-task-list'
 import { createTaskColumns } from '@/components/tasks/task-columns'
 import { useTaskEvents } from '@/hooks/useTaskEvents'
 import { useTableState } from '@/hooks/use-table-state'
@@ -26,6 +28,23 @@ const PAGE_SIZE = 10
 
 export default function MyTasksPage() {
   const { user } = useAuthStore()
+  const [viewMode, setViewMode] = useState<'table' | 'hierarchical'>('table')
+  const [viewModeHydrated, setViewModeHydrated] = useState(false)
+
+  useEffect(() => {
+    const stored = localStorage.getItem('tasks-view-mode')
+    if (stored) {
+      setViewMode(stored as 'table' | 'hierarchical')
+    }
+    setViewModeHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (viewModeHydrated) {
+      localStorage.setItem('tasks-view-mode', viewMode)
+    }
+  }, [viewMode, viewModeHydrated])
+
   const { sorting, search, debouncedSearch, setSorting, setSearch } = useTableState({
     storageKey: 'my-tasks-table-state',
     enablePersistence: true,
@@ -186,6 +205,30 @@ export default function MyTasksPage() {
               </CardDescription>
             </div>
             <div className="flex flex-col gap-3 text-sm md:flex-row md:items-center">
+              <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                    viewMode === 'table'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Table view"
+                >
+                  <List className="size-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('hierarchical')}
+                  className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                    viewMode === 'hierarchical'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Hierarchical view"
+                >
+                  <LayoutGrid className="size-4" />
+                </button>
+              </div>
               <Select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value as 'all' | TaskStatus)}
@@ -201,7 +244,8 @@ export default function MyTasksPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <DataTable
+            {viewMode === 'table' ? (
+              <DataTable
               columns={columns}
               data={tasks}
               loading={loading}
@@ -219,6 +263,21 @@ export default function MyTasksPage() {
                       : undefined
                   }
                 />
+              ) : loading ? (
+                <div className="py-8 text-center text-sm text-slate-500">Loading tasks...</div>
+              ) : tasks.length === 0 ? (
+                <div className="py-8 text-center text-sm text-slate-500">
+                  {!search ? 'No tasks match your filters yet.' : 'No matching tasks found.'}
+                </div>
+              ) : (
+                <HierarchicalTaskList
+                  tasks={tasks}
+                  onTasksChange={setTasks}
+                  onTaskClick={(task) => window.location.href = `/dashboard/tasks/${task.id}`}
+                  onDeleteTask={() => {}}
+                  organizationId={''}
+                />
+              )}
                 {(page > 0 || hasMore) && (
                   <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
                     <p>

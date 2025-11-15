@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import { CheckSquare, Trash2 } from 'lucide-react'
+import { BookOpen, CheckSquare, ListTodo, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { useDashboard } from '@/components/dashboard/dashboard-shell'
@@ -30,6 +30,11 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { Modal } from '@/components/ui/modal'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { DateTimePickerField } from '@/components/ui/date-time-picker'
 
 const schema = z.object({
@@ -382,9 +387,55 @@ export default function TaskDetailPage() {
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 pb-8 px-4 py-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-full bg-slate-900/10 text-slate-600">
-            <CheckSquare className="size-4" />
-          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex size-10 items-center justify-center rounded-full bg-slate-900/10 text-slate-600 transition-colors hover:bg-slate-900/20"
+              >
+                {watchedType === 'story' && <BookOpen className="size-4" />}
+                {watchedType === 'task' && <CheckSquare className="size-4" />}
+                {watchedType === 'sub-task' && <ListTodo className="size-4" />}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-1" align="start">
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-slate-100"
+                  onClick={() => handleSelectChange('type', 'task')}
+                >
+                  <CheckSquare className="size-4 text-slate-600" />
+                  <span className="flex-1 text-left">Task</span>
+                  {watchedType === 'task' && (
+                    <div className="size-1.5 rounded-full bg-slate-900" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-slate-100"
+                  onClick={() => handleSelectChange('type', 'story')}
+                >
+                  <BookOpen className="size-4 text-slate-600" />
+                  <span className="flex-1 text-left">Story</span>
+                  {watchedType === 'story' && (
+                    <div className="size-1.5 rounded-full bg-slate-900" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-slate-100"
+                  onClick={() => handleSelectChange('type', 'sub-task')}
+                >
+                  <ListTodo className="size-4 text-slate-600" />
+                  <span className="flex-1 text-left">Sub-task</span>
+                  {watchedType === 'sub-task' && (
+                    <div className="size-1.5 rounded-full bg-slate-900" />
+                  )}
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
           <div className="flex flex-col">
             <Controller
               control={form.control}
@@ -587,43 +638,6 @@ export default function TaskDetailPage() {
                         >
                           <Badge tone={PRIORITY_LABELS[watchedPriority].tone}>
                             {priorityDisplay}
-                          </Badge>
-                          <span className="text-slate-500">Change</span>
-                        </button>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase text-slate-400">Type</p>
-                      {editingField.type ? (
-                        <Select
-                          autoFocus
-                          value={form.watch('type')}
-                          onChange={(event) => {
-                            handleSelectChange('type', event.target.value)
-                            setEditingField((prev) => ({ ...prev, type: false }))
-                          }}
-                          onBlur={() =>
-                            setEditingField((prev) => ({ ...prev, type: false }))
-                          }
-                        >
-                          {(Object.keys(TYPE_LABELS) as Array<'task' | 'story' | 'sub-task'>).map(
-                            (type) => (
-                              <option key={type} value={type}>
-                                {TYPE_LABELS[type].label}
-                              </option>
-                            )
-                          )}
-                        </Select>
-                      ) : (
-                        <button
-                          type="button"
-                          className="mt-1 inline-flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-800"
-                          onClick={() =>
-                            setEditingField((prev) => ({ ...prev, type: true }))
-                          }
-                        >
-                          <Badge tone={TYPE_LABELS[watchedType].tone}>
-                            {typeDisplay}
                           </Badge>
                           <span className="text-slate-500">Change</span>
                         </button>

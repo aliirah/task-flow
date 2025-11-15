@@ -10,6 +10,8 @@ import {
   CalendarDays,
   CheckSquare,
   Clock4,
+  LayoutGrid,
+  List,
   Plus,
   Trash2,
 } from 'lucide-react'
@@ -42,6 +44,7 @@ import { Select } from '@/components/ui/select'
 import { DateTimePickerField } from '@/components/ui/date-time-picker'
 import { DataTable } from '@/components/ui/data-table'
 import { createMyTaskColumns } from '@/components/tasks/task-columns'
+import { HierarchicalTaskList } from '@/components/tasks/hierarchical-task-list'
 import { useTaskEvents } from '@/hooks/useTaskEvents'
 import { useTableState } from '@/hooks/use-table-state'
 import type { TaskEventMessage } from '@/lib/types/ws'
@@ -98,6 +101,23 @@ const PAGE_SIZE = 10
 const SUMMARY_PAGE_SIZE = 100
 
 export default function DashboardPage() {
+  const [viewMode, setViewMode] = useState<'table' | 'hierarchical'>('table')
+  const [viewModeHydrated, setViewModeHydrated] = useState(false)
+
+  useEffect(() => {
+    const stored = localStorage.getItem('tasks-view-mode')
+    if (stored) {
+      setViewMode(stored as 'table' | 'hierarchical')
+    }
+    setViewModeHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (viewModeHydrated) {
+      localStorage.setItem('tasks-view-mode', viewMode)
+    }
+  }, [viewMode, viewModeHydrated])
+
   const {
     selectedOrganization,
     selectedOrganizationId,
@@ -649,23 +669,50 @@ export default function DashboardPage() {
                 Manage everything assigned to this organization.
               </CardDescription>
             </div>
-            <Select
-              value={taskFilter}
-              onChange={(event) =>
-                setTaskFilter(event.target.value as 'all' | TaskStatus)
-              }
-              containerClassName="w-full min-w-[160px] max-w-xs md:max-w-[200px]"
-            >
-              <option value="all">All statuses</option>
-              <option value="open">Open</option>
-              <option value="in_progress">In progress</option>
-              <option value="completed">Completed</option>
-              <option value="blocked">Blocked</option>
-              <option value="cancelled">Cancelled</option>
-            </Select>
+            <div className="flex items-center gap-2">
+              <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                    viewMode === 'table'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Table view"
+                >
+                  <List className="size-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('hierarchical')}
+                  className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                    viewMode === 'hierarchical'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Hierarchical view"
+                >
+                  <LayoutGrid className="size-4" />
+                </button>
+              </div>
+              <Select
+                value={taskFilter}
+                onChange={(event) =>
+                  setTaskFilter(event.target.value as 'all' | TaskStatus)
+                }
+                containerClassName="w-full min-w-[160px] max-w-xs md:max-w-[200px]"
+              >
+                <option value="all">All statuses</option>
+                <option value="open">Open</option>
+                <option value="in_progress">In progress</option>
+                <option value="completed">Completed</option>
+                <option value="blocked">Blocked</option>
+                <option value="cancelled">Cancelled</option>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
-            <DataTable
+            {viewMode === 'table' ? (
+              <DataTable
               columns={taskColumns}
               data={tasks}
               loading={loadingTasks}
@@ -685,6 +732,23 @@ export default function DashboardPage() {
                   : undefined
               }
             />
+              ) : loadingTasks ? (
+                <div className="py-8 text-center text-sm text-slate-500">Loading tasks...</div>
+              ) : tasks.length === 0 ? (
+                <div className="py-8 text-center text-sm text-slate-500">
+                  {taskFilter === 'all' && !search
+                    ? 'No tasks yet. Create your first task to get started.'
+                    : 'No tasks match this filter.'}
+                </div>
+              ) : (
+                <HierarchicalTaskList
+                  tasks={tasks}
+                  onTasksChange={setTasks}
+                  onTaskClick={(task) => window.location.href = `/dashboard/tasks/${task.id}`}
+                  onDeleteTask={() => {}}
+                  organizationId={selectedOrganizationId || ''}
+                />
+              )}
             {(taskPage > 0 || taskHasMore) && (
                   <div className="mt-4 flex flex-col gap-3 border-t border-slate-200 pt-4 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
                     <p>

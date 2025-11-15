@@ -38,6 +38,7 @@ export function useDashboardShellLogic() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [sidebarHydrated, setSidebarHydrated] = useState(false)
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [orgMenuOpen, setOrgMenuOpen] = useState(false)
@@ -71,6 +72,20 @@ export function useDashboardShellLogic() {
   useEffect(() => {
     setMobileSidebarOpen(false)
   }, [currentPath])
+
+  useEffect(() => {
+    const stored = localStorage.getItem('dashboard:sidebar-collapsed')
+    if (stored !== null) {
+      setSidebarCollapsed(stored === 'true')
+    }
+    setSidebarHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (sidebarHydrated) {
+      localStorage.setItem('dashboard:sidebar-collapsed', String(sidebarCollapsed))
+    }
+  }, [sidebarCollapsed, sidebarHydrated])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

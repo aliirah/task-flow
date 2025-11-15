@@ -45,12 +45,27 @@ function TasksPageContent() {
   const [members, setMembers] = useState<OrganizationMember[]>([])
   const [filter, setFilter] = useState<'all' | TaskStatus>('all')
   const [viewMode, setViewMode] = useState<'table' | 'hierarchical'>('table')
+  const [viewModeHydrated, setViewModeHydrated] = useState(false)
   const [page, setPage] = useState(0)
   const [loadingTasks, setLoadingTasks] = useState(false)
   const [hasMore, setHasMore] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    const stored = localStorage.getItem('tasks-view-mode')
+    if (stored) {
+      setViewMode(stored as 'table' | 'hierarchical')
+    }
+    setViewModeHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (viewModeHydrated) {
+      localStorage.setItem('tasks-view-mode', viewMode)
+    }
+  }, [viewMode, viewModeHydrated])
   const handleLocalTaskUpdate = useCallback(
     (taskId: string, updates: Partial<Task>) => {
       setTasks((prev) =>
