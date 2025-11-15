@@ -30,6 +30,9 @@ func (p *NotificationPublisher) PublishNotification(ctx context.Context, event *
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
+	fmt.Printf("[DEBUG] Publishing notification to exchange=%s, routingKey=%s, recipients=%v\n", 
+		EventExchange, event.EventType, event.Recipients)
+	
 	err = p.rmq.Channel.PublishWithContext(
 		ctx,
 		EventExchange,      // exchange
@@ -46,6 +49,7 @@ func (p *NotificationPublisher) PublishNotification(ctx context.Context, event *
 		return fmt.Errorf("failed to publish notification: %w", err)
 	}
 
+	fmt.Printf("[DEBUG] Successfully published notification to RabbitMQ\n")
 	return nil
 }
 

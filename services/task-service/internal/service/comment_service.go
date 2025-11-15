@@ -119,7 +119,8 @@ func (s *Service) CreateComment(ctx context.Context, input CreateCommentInput) (
 	}()
 
 	// Publish notification events
-	go s.publishCommentNotifications(ctx, &task, comment, nil, mentions)
+	fmt.Printf("[DEBUG] CreateComment: Publishing notifications with mentions=%v\n", mentions)
+	go s.publishCommentNotifications(context.Background(), &task, comment, nil, mentions)
 
 	// Update task mentioned users
 	go func() {
@@ -363,8 +364,10 @@ func (s *Service) GetReplies(ctx context.Context, parentCommentID uuid.UUID) ([]
 // publishCommentNotifications publishes comment notification events
 func (s *Service) publishCommentNotifications(ctx context.Context, task *models.Task, comment *models.Comment, oldMentions, newMentions []string) {
 	if s.notifPublisher == nil {
+		fmt.Printf("[ERROR] notifPublisher is nil! Cannot publish notifications\n")
 		return
 	}
+	fmt.Printf("[DEBUG] publishCommentNotifications called with %d new mentions\n", len(newMentions))
 
 	// Fetch author details
 	var author *userpb.User
@@ -429,27 +432,32 @@ func (s *Service) publishCommentNotifications(ctx context.Context, task *models.
 	}
 
 	// Publish mention notifications
+	fmt.Printf("[DEBUG] publishCommentNotifications: Processing mentions=%v\n", newMentions)
 	mentionedUserIDs := []uuid.UUID{}
-	for _, username := range newMentions {
-		// Fetch user by username using ListUsers query
-		listResp, err := s.userSvc.ListUsers(ctx, &userpb.ListUsersRequest{
-			Query: username,
-			Limit: 1,
-		})
-		if err == nil && listResp != nil && len(listResp.Items) > 0 {
-			user := listResp.Items[0]
-			if user.Id != comment.UserID.String() {
-				userID, err := uuid.Parse(user.Id)
-				if err == nil {
-					// Don't send mention notification if already in recipients (avoid duplicate)
-					if !recipientSet[userID] {
-						mentionedUserIDs = append(mentionedUserIDs, userID)
-					}
-				}
-			}
+	for _, userIDStr := range newMentions {
+		// Parse user ID directly (frontend sends user IDs, not usernames)
+		userID, err := uuid.Parse(userIDStr)
+		if err != nil {
+			fmt.Printf("[DEBUG] Failed to parse user ID: %s, error: %v\n", userIDStr, err)
+			continue
+		}
+		
+		// Skip if user is the comment author
+		if userID == comment.UserID {
+			fmt.Printf("[DEBUG] Skipping mention - user is comment author: %s\n", userID)
+			continue
+		}
+		
+		// Don't send mention notification if already in recipients (avoid duplicate)
+		if !recipientSet[userID] {
+			fmt.Printf("[DEBUG] Adding mentioned user: %s\n", userID)
+			mentionedUserIDs = append(mentionedUserIDs, userID)
+		} else {
+			fmt.Printf("[DEBUG] Skipping mention - already in recipients: %s\n", userID)
 		}
 	}
 
+	fmt.Printf("[DEBUG] Final mentionedUserIDs count: %d\n", len(mentionedUserIDs))
 	if len(mentionedUserIDs) > 0 {
 		// Convert UUIDs to strings
 		mentionedStrs := make([]string, len(mentionedUserIDs))
@@ -471,8 +479,11 @@ func (s *Service) publishCommentNotifications(ctx context.Context, task *models.
 			},
 			MentionedUsers: newMentions,
 		}
+		fmt.Printf("[DEBUG] Publishing comment mention notification to %d users: %v\n", len(mentionedStrs), mentionedStrs)
 		if err := s.notifPublisher.PublishCommentMention(ctx, task.OrganizationID.String(), comment.UserID.String(), mentionedStrs, commentData); err != nil {
-			fmt.Printf("failed to publish comment mention notification: %v\n", err)
+			fmt.Printf("[ERROR] failed to publish comment mention notification: %v\n", err)
+		} else {
+			fmt.Printf("[DEBUG] Successfully published comment mention notification\n")
 		}
 	}
 }
@@ -492,22 +503,18 @@ func (s *Service) publishCommentUpdateNotifications(ctx context.Context, task *m
 		author = resp
 	}
 
-	// Fetch mentioned user IDs
+	// Parse mentioned user IDs
 	mentionedUserIDs := []uuid.UUID{}
-	for _, username := range newMentions {
-		// Fetch user by username using ListUsers query
-		listResp, err := s.userSvc.ListUsers(ctx, &userpb.ListUsersRequest{
-			Query: username,
-			Limit: 1,
-		})
-		if err == nil && listResp != nil && len(listResp.Items) > 0 {
-			user := listResp.Items[0]
-			if user.Id != comment.UserID.String() {
-				userID, err := uuid.Parse(user.Id)
-				if err == nil {
-					mentionedUserIDs = append(mentionedUserIDs, userID)
-				}
-			}
+	for _, userIDStr := range newMentions {
+		// Parse user ID directly (frontend sends user IDs, not usernames)
+		userID, err := uuid.Parse(userIDStr)
+		if err != nil {
+			continue
+		}
+		
+		// Skip if user is the comment author
+		if userID != comment.UserID {
+			mentionedUserIDs = append(mentionedUserIDs, userID)
 		}
 	}
 

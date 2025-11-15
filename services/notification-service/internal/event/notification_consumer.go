@@ -33,44 +33,11 @@ func (c *NotificationConsumer) Start(ctx context.Context) error {
 	
 	ch := c.rmq.Channel
 
-	// Declare the queue
-	q, err := ch.QueueDeclare(
-		messaging.NotificationsQueue, // name
-		true,                          // durable
-		false,                         // delete when unused
-		false,                         // exclusive
-		false,                         // no-wait
-		nil,                           // arguments
-	)
-	if err != nil {
-		return fmt.Errorf("failed to declare queue: %w", err)
-	}
-
-	// Bind queue to exchange with routing keys
-	routingKeys := []string{
-		contracts.NotificationEventTaskCreated,
-		contracts.NotificationEventTaskUpdated,
-		contracts.NotificationEventTaskDeleted,
-		contracts.NotificationEventCommentCreated,
-		contracts.NotificationEventCommentUpdated,
-		contracts.NotificationEventCommentDeleted,
-		contracts.NotificationEventCommentMentioned,
-	}
-
-	for _, key := range routingKeys {
-		if err := ch.QueueBind(
-			q.Name,
-			key,
-			messaging.EventExchange,
-			false,
-			nil,
-		); err != nil {
-			return fmt.Errorf("failed to bind queue: %w", err)
-		}
-	}
+	// Queue is already declared and bound in shared/messaging/rabbitmq.go setup
+	// Just start consuming from it
 
 	msgs, err := ch.Consume(
-		q.Name,
+		messaging.NotificationsQueue,
 		"",    // consumer
 		false, // auto-ack
 		false, // exclusive

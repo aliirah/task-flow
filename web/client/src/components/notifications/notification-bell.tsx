@@ -22,18 +22,24 @@ export function NotificationBell() {
   const initialFetchDone = useRef(false)
 
   // Fetch unread count (only for initial load and after mark as read)
-  const fetchUnreadCount = useCallback(async () => {
+  const fetchUnreadCount = useCallback(async (retries = 2) => {
     try {
       const response = await notificationApi.getUnreadCount()
       console.log('[NotificationBell] Fetched unread count:', response.data.count)
       setUnreadCount(response.data.count)
-    } catch (error) {
+    } catch (error: any) {
+      // Retry on connection errors
+      if (retries > 0 && error?.message?.includes('connection')) {
+        console.log('[NotificationBell] Connection error, retrying...', retries)
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        return fetchUnreadCount(retries - 1)
+      }
       console.error('[NotificationBell] Failed to fetch unread count:', error)
     }
   }, [])
 
   // Fetch notifications
-  const fetchNotifications = useCallback(async (pageNum = 1, unreadOnly = false, append = false) => {
+  const fetchNotifications = useCallback(async (pageNum = 1, unreadOnly = false, append = false, retries = 2) => {
     if (isFetchingRef.current) return
     
     isFetchingRef.current = true
@@ -73,7 +79,15 @@ export function NotificationBell() {
       
       setHasMore(response.data.hasMore || false)
       setPage(pageNum)
-    } catch (error) {
+    } catch (error: any) {
+      // Retry on connection errors
+      if (retries > 0 && error?.message?.includes('connection')) {
+        console.log('[NotificationBell] Connection error, retrying...', retries)
+        isFetchingRef.current = false
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        return fetchNotifications(pageNum, unreadOnly, append, retries - 1)
+      }
+      
       console.error('Failed to fetch notifications:', error)
       if (!append) {
         setNotifications([])

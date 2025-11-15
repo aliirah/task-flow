@@ -233,6 +233,16 @@ func (r *RabbitMQ) setupExchangesAndQueues() error {
 		return err
 	}
 
+	if err := r.declareAndBindQueue(
+		NotificationsQueue,
+		[]string{
+			"notification.#", // Bind to all notification events (# matches multiple words)
+		},
+		EventExchange,
+	); err != nil {
+		return err
+	}
+
 	return nil
 }
 
