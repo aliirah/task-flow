@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -9,6 +9,13 @@ RUN yarn install --frozen-lockfile
 
 COPY web/client ./
 
-EXPOSE 3000
+RUN yarn build
 
-CMD ["yarn", "dev", "--hostname", "0.0.0.0"]
+FROM nginx:1.27-alpine
+
+COPY infra/dev/docker/web-client-nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/out /usr/share/nginx/html
+
+EXPOSE 3005
+
+CMD ["nginx", "-g", "daemon off;"]
