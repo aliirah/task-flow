@@ -9,6 +9,16 @@ yarn-error.log
 coverage/
 .idea/
 *.log
+web/client/node_modules
+web/client/.next
+web/client/.next-dev
+web/client/out
+web/client/.turbo
+web/client/.vercel
+web/client/.DS_Store
+web/client/*.tsbuildinfo
+web/client/yarn-error.log
+web/client/npm-debug.log*
 
 !shared/
 proto/

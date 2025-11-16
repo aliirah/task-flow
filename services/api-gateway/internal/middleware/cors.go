@@ -12,7 +12,7 @@ func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		allowedOrigins := os.Getenv("CORS_ALLOW_ORIGINS")
 		if allowedOrigins == "" {
-			allowedOrigins = "http://localhost:3000"
+			allowedOrigins = "http://localhost:3000,http://localhost:3005"
 		}
 
 		origin := c.GetHeader("Origin")
