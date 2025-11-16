@@ -67,6 +67,19 @@ export function CommentList({ taskId, currentUserId, users }: CommentListProps) 
 
       console.log('[CommentList] Processing comment event:', event.type, event.data.commentId)
 
+      const toUser = (payload?: CommentEventMessage['data']['user']) =>
+        payload
+          ? {
+              id: payload.id || event.data.userId,
+              email: payload.email || '',
+              firstName: payload.firstName || '',
+              lastName: payload.lastName || '',
+              roles: [],
+              status: '',
+              userType: '',
+            }
+          : undefined
+
       switch (event.type) {
         case 'comment.event.created': {
           const newComment: Comment = {
@@ -75,16 +88,9 @@ export function CommentList({ taskId, currentUserId, users }: CommentListProps) 
             userId: event.data.userId,
             content: event.data.content,
             mentionedUsers: event.data.mentionedUsers || [],
-            parentCommentId: null,
+            parentCommentId: undefined,
             replies: [],
-            user: event.data.user
-              ? {
-                  id: event.data.user.id || event.data.userId,
-                  email: event.data.user.email || '',
-                  firstName: event.data.user.firstName || '',
-                  lastName: event.data.user.lastName || '',
-                }
-              : undefined,
+            user: toUser(event.data.user),
             createdAt: event.data.createdAt || new Date().toISOString(),
             updatedAt: event.data.updatedAt || new Date().toISOString(),
           }
@@ -92,23 +98,15 @@ export function CommentList({ taskId, currentUserId, users }: CommentListProps) 
           break
         }
         case 'comment.event.updated': {
-          const updatedComment: Comment = {
+          const updatedComment: Partial<Comment> = {
             id: event.data.commentId,
             taskId: event.data.taskId,
             userId: event.data.userId,
             content: event.data.content,
             mentionedUsers: event.data.mentionedUsers || [],
-            parentCommentId: null,
+            parentCommentId: undefined,
             replies: undefined, // Preserve existing replies
-            user: event.data.user
-              ? {
-                  id: event.data.user.id || event.data.userId,
-                  email: event.data.user.email || '',
-                  firstName: event.data.user.firstName || '',
-                  lastName: event.data.user.lastName || '',
-                }
-              : undefined,
-            createdAt: '',
+            user: toUser(event.data.user),
             updatedAt: event.data.updatedAt || new Date().toISOString(),
           }
           setComments((prev) => updateCommentInList(prev || [], event.data.commentId, updatedComment))
@@ -163,20 +161,26 @@ export function CommentList({ taskId, currentUserId, users }: CommentListProps) 
     })
   }
 
-  const updateCommentInList = (items: Comment[], id: string, updatedComment: Comment): Comment[] => {
+  const updateCommentInList = (
+    items: Comment[],
+    id: string,
+    patch: Partial<Comment>
+  ): Comment[] => {
     return items.map((item) => {
       if (item.id === id) {
-        // Preserve existing replies if updatedComment doesn't have them
-        return { 
-          ...item, 
-          ...updatedComment,
-          replies: updatedComment.replies !== undefined ? updatedComment.replies : item.replies
+        return {
+          ...item,
+          ...patch,
+          replies: patch.replies !== undefined ? patch.replies : item.replies,
+          createdAt: patch.createdAt ?? item.createdAt,
+          updatedAt: patch.updatedAt ?? item.updatedAt,
+          user: patch.user ?? item.user,
         }
       }
       if (item.replies) {
         return {
           ...item,
-          replies: updateCommentInList(item.replies, id, updatedComment),
+          replies: updateCommentInList(item.replies, id, patch),
         }
       }
       return item

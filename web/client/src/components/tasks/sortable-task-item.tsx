@@ -96,10 +96,10 @@ export function SortableTaskItem({
             >
               {task.title}
             </h4>
-            <Badge tone={STATUS_COLORS[task.status] || 'default'} size="sm">
+            <Badge tone={STATUS_COLORS[task.status] || 'default'}>
               {task.status.replace('_', ' ')}
             </Badge>
-            <Badge tone={PRIORITY_COLORS[task.priority] || 'default'} size="sm">
+            <Badge tone={PRIORITY_COLORS[task.priority] || 'default'}>
               {task.priority}
             </Badge>
           </div>

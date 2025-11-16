@@ -17,6 +17,7 @@ import { StorySubTasks } from '@/components/tasks/story-subtasks'
 import { useAuthStore } from '@/store/auth'
 import { useTaskEvents } from '@/hooks/useTaskEvents'
 import type { TaskEventMessage } from '@/lib/types/ws'
+import { taskEventToTask } from '@/lib/utils/task-events'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -243,48 +244,31 @@ export default function TaskDetailPage() {
   useTaskEvents(
     useCallback(
       (event: TaskEventMessage) => {
-        // Only update if this is the task we're viewing
         if (event.data.taskId !== taskId) return
-        
-        console.log('[TaskDetail] Received task update via WebSocket:', event)
-        
-        // Prepare the updated task data
+
+        const incomingTask = taskEventToTask(event)
+
         const newFormData = {
-          organizationId: event.data.organizationId,
-          title: event.data.title,
-          description: event.data.description ?? '',
-          assigneeId: event.data.assigneeId ?? '',
-          priority: event.data.priority as TaskPriority,
-          status: event.data.status as TaskStatus,
-          type: (event.data.type as 'task' | 'story' | 'sub-task') || 'task',
-          dueAt: event.data.dueAt ?? '',
+          organizationId: incomingTask.organizationId,
+          title: incomingTask.title,
+          description: incomingTask.description ?? '',
+          assigneeId: incomingTask.assigneeId ?? '',
+          priority: incomingTask.priority as TaskPriority,
+          status: incomingTask.status as TaskStatus,
+          type: incomingTask.type as 'task' | 'story' | 'sub-task',
+          dueAt: incomingTask.dueAt ?? '',
         }
-        
-        // Always update the form with the latest data from other users
-        // This ensures the UI reflects the current state
-        console.log('[TaskDetail] Resetting form with new data:', newFormData)
+
         form.reset(newFormData)
-        
-        // Update task state with the latest data from WebSocket
+
         setTask((prev) => {
           if (!prev) return prev
-          
+
           return {
             ...prev,
-            id: event.data.taskId,
-            organizationId: event.data.organizationId,
-            title: event.data.title,
-            description: event.data.description,
-            status: event.data.status,
-            priority: event.data.priority,
-            reporterId: event.data.reporterId,
-            assigneeId: event.data.assigneeId,
-            dueAt: event.data.dueAt,
-            updatedAt: event.data.updatedAt,
-            // Preserve nested objects if not in event data
-            organization: event.data.organization ?? prev.organization,
-            assignee: event.data.assignee ?? prev.assignee,
-            reporter: event.data.reporter ?? prev.reporter,
+            ...incomingTask,
+            organization: prev.organization,
+            subTasks: incomingTask.subTasks ?? prev.subTasks,
           }
         })
       },

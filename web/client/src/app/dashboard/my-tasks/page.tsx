@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { LayoutGrid, List } from 'lucide-react'
 
 import { taskApi } from '@/lib/api'
@@ -27,6 +27,14 @@ import { taskEventToTask } from '@/lib/utils/task-events'
 const PAGE_SIZE = 10
 
 export default function MyTasksPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading tasks…</div>}>
+      <MyTasksPageContent />
+    </Suspense>
+  )
+}
+
+function MyTasksPageContent() {
   const { user } = useAuthStore()
   const [viewMode, setViewMode] = useState<'table' | 'hierarchical'>('table')
   const [viewModeHydrated, setViewModeHydrated] = useState(false)

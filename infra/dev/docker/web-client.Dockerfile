@@ -7,15 +7,17 @@ COPY web/client/yarn.lock ./
 
 RUN yarn install --frozen-lockfile
 
-COPY web/client ./
+COPY web/client .
 
 RUN yarn build
 
-FROM nginx:1.27-alpine
+FROM node:20-alpine
 
-COPY infra/dev/docker/web-client-nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/out /usr/share/nginx/html
+ENV NODE_ENV=production
+WORKDIR /app
+
+COPY --from=builder /app .
 
 EXPOSE 3005
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["yarn", "start", "--hostname", "0.0.0.0", "--port", "3005"]

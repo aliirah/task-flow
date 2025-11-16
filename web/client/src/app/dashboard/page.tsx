@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -110,6 +110,14 @@ const PAGE_SIZE = 10
 const SUMMARY_PAGE_SIZE = 100
 
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading dashboard…</div>}>
+      <DashboardPageContent />
+    </Suspense>
+  )
+}
+
+function DashboardPageContent() {
   const [viewMode, setViewMode] = useState<'table' | 'hierarchical'>('table')
   const [viewModeHydrated, setViewModeHydrated] = useState(false)
 

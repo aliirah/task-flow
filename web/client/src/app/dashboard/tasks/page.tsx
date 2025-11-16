@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Plus, List, LayoutList } from 'lucide-react'
 import { toast } from 'sonner'
@@ -29,6 +29,14 @@ import { taskEventToTask } from '@/lib/utils/task-events'
 import { useRouter } from 'next/navigation'
 
 const PAGE_SIZE = 10
+
+export default function TasksPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading tasks…</div>}>
+      <TasksPageContent />
+    </Suspense>
+  )
+}
 
 function TasksPageContent() {
   const {
@@ -405,8 +413,4 @@ function TasksPageContent() {
       </Modal>
     </>
   )
-}
-
-export default function TasksPage() {
-  return <TasksPageContent />
 }

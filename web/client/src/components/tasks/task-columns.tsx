@@ -188,6 +188,7 @@ export const createTaskColumns = (
       },
     },
     {
+      id: 'organization',
       accessorKey: 'organization',
       header: () => <span className="text-xs uppercase text-slate-500">Organization</span>,
       cell: ({ row }) => {
@@ -257,5 +258,5 @@ export const createMyTaskColumns = (
 ): ColumnDef<Task>[] => {
   const columns = createTaskColumns(context)
   // Remove organization column
-  return columns.filter((col) => col.accessorKey !== 'organization')
+  return columns.filter((col) => col.id !== 'organization')
 }
