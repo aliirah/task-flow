@@ -519,6 +519,12 @@ func (s *Service) DeleteTask(ctx context.Context, id uuid.UUID, initiator authct
 		return err
 	}
 
+	if s.publisher != nil {
+		if err := s.publisher.TaskDeleted(ctx, task, reporter, assignee); err != nil {
+			fmt.Printf("failed to publish task deleted event: %v\n", err)
+		}
+	}
+
 	// Publish notification event
 	recipients := []uuid.UUID{}
 	initiatorUUID, _ := uuid.Parse(initiator.ID)

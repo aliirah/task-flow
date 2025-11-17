@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
+	"github.com/aliirah/task-flow/services/user-service/internal/event"
 	"github.com/aliirah/task-flow/services/user-service/internal/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
@@ -12,13 +14,17 @@ import (
 )
 
 type UserService struct {
-	db *gorm.DB
+	db        *gorm.DB
+	publisher event.UserEventPublisher
 }
 
 var ErrEmailExists = errors.New("user with this email already exists")
 
-func NewUserService(db *gorm.DB) *UserService {
-	return &UserService{db: db}
+func NewUserService(db *gorm.DB, publisher event.UserEventPublisher) *UserService {
+	return &UserService{
+		db:        db,
+		publisher: publisher,
+	}
 }
 
 type CreateUserInput struct {
@@ -70,7 +76,18 @@ func (s *UserService) Create(ctx context.Context, input CreateUserInput) (*model
 		}
 	}
 
-	return &user, nil
+	createdUser, err := s.Get(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if s.publisher != nil {
+		if err := s.publisher.UserCreated(ctx, createdUser); err != nil {
+			fmt.Printf("failed to publish user created event: %v\n", err)
+		}
+	}
+
+	return createdUser, nil
 }
 
 func (s *UserService) Get(ctx context.Context, id uuid.UUID) (*models.User, error) {
@@ -128,11 +145,37 @@ func (s *UserService) Update(ctx context.Context, id uuid.UUID, input UpdateUser
 		}
 	}
 
-	return user, nil
+	updatedUser, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if s.publisher != nil {
+		if err := s.publisher.UserUpdated(ctx, updatedUser); err != nil {
+			fmt.Printf("failed to publish user updated event: %v\n", err)
+		}
+	}
+
+	return updatedUser, nil
 }
 
 func (s *UserService) Delete(ctx context.Context, id uuid.UUID) error {
-	return s.db.WithContext(ctx).Delete(&models.User{}, "id = ?", id).Error
+	user, err := s.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if err := s.db.WithContext(ctx).Delete(&models.User{}, "id = ?", id).Error; err != nil {
+		return err
+	}
+
+	if s.publisher != nil {
+		if err := s.publisher.UserDeleted(ctx, user); err != nil {
+			fmt.Printf("failed to publish user deleted event: %v\n", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *UserService) assignRoles(ctx context.Context, user *models.User, roleNames []string) error {
@@ -183,7 +226,7 @@ func generateRoleDescription(roleName string) string {
 		"user":  "Standard user with basic access",
 		"guest": "Guest user with limited access",
 	}
-	
+
 	if desc, ok := descriptions[roleName]; ok {
 		return desc
 	}

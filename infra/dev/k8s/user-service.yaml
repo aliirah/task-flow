@@ -58,6 +58,11 @@ spec:
                 secretKeyRef:
                   name: user-db-secret
                   key: POSTGRES_DB
+            - name: RABBITMQ_URI
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: uri
           readinessProbe:
             tcpSocket:
               port: 50052

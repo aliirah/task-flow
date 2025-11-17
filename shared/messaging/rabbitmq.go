@@ -225,6 +225,16 @@ func (r *RabbitMQ) setupExchangesAndQueues() error {
 	}
 
 	if err := r.declareAndBindQueue(
+		TaskSearchEventsQueue,
+		[]string{
+			"task.*",
+		},
+		EventExchange,
+	); err != nil {
+		return err
+	}
+
+	if err := r.declareAndBindQueue(
 		CommentEventsQueue,
 		[]string{
 			"comment.*", // Bind to all comment events for any organization
@@ -235,9 +245,29 @@ func (r *RabbitMQ) setupExchangesAndQueues() error {
 	}
 
 	if err := r.declareAndBindQueue(
+		CommentSearchEventsQueue,
+		[]string{
+			"comment.*",
+		},
+		EventExchange,
+	); err != nil {
+		return err
+	}
+
+	if err := r.declareAndBindQueue(
 		NotificationsQueue,
 		[]string{
 			"notification.#", // Bind to all notification events (# matches multiple words)
+		},
+		EventExchange,
+	); err != nil {
+		return err
+	}
+
+	if err := r.declareAndBindQueue(
+		UserEventsQueue,
+		[]string{
+			"user.*",
 		},
 		EventExchange,
 	); err != nil {

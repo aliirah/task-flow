@@ -10,12 +10,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/aliirah/task-flow/services/user-service/internal/event"
 	"github.com/aliirah/task-flow/services/user-service/internal/handler"
 	"github.com/aliirah/task-flow/services/user-service/internal/models"
 	"github.com/aliirah/task-flow/services/user-service/internal/service"
 	"github.com/aliirah/task-flow/shared/db/gormdb"
 	"github.com/aliirah/task-flow/shared/env"
 	log "github.com/aliirah/task-flow/shared/logging"
+	"github.com/aliirah/task-flow/shared/messaging"
 	"github.com/aliirah/task-flow/shared/metrics"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"github.com/aliirah/task-flow/shared/tracing"
@@ -73,7 +75,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	userSvc := service.NewUserService(db)
+	rabbitURI := env.GetString("RABBITMQ_URI", "amqp://guest:guest@rabbitmq:5672/")
+	rabbit, err := messaging.NewRabbitMQ(rabbitURI)
+	if err != nil {
+		log.Error(fmt.Errorf("failed to init rabbitmq: %w", err))
+		os.Exit(1)
+	}
+	defer rabbit.Close()
+
+	userPublisher := event.NewUserPublisher(rabbit)
+	userSvc := service.NewUserService(db, userPublisher)
 	userHandler := handler.NewUserHandler(userSvc)
 
 	addr := env.GetString("USER_GRPC_ADDR", ":50052")

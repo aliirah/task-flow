@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: search-service
+  template:
+    metadata:
+      labels:
+        app: search-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: search-service
+          image: task-flow/search-service
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: HTTP_ADDR
+              value: ":8080"
+            - name: ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  key: ENVIRONMENT
+                  name: app-config
+            - name: ELASTICSEARCH_URL
+              valueFrom:
+                secretKeyRef:
+                  name: search-service-env
+                  key: ELASTICSEARCH_URL
+            - name: SEARCH_INDEX_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: search-service-env
+                  key: SEARCH_INDEX_NAME
+            - name: SEARCH_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: search-service-env
+                  key: SEARCH_INTERNAL_TOKEN
+            - name: TASK_SERVICE_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: search-service-env
+                  key: TASK_SERVICE_ADDR
+            - name: USER_SERVICE_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: search-service-env
+                  key: USER_SERVICE_ADDR
+            - name: RABBITMQ_URI
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-credentials
+                  key: uri
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: search-service
+spec:
+  selector:
+    app: search-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

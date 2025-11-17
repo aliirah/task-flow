@@ -155,12 +155,17 @@ func main() {
 	orgSvc := gatewayservice.NewOrganizationService(grpcClients.Organization, userSvc)
 	taskSvc := gatewayservice.NewTaskService(grpcClients.Task, userSvc, orgSvc)
 	notifSvc := gatewayservice.NewNotificationService(grpcClients.Notification)
+	searchSvc := gatewayservice.NewSearchService(
+		env.GetString("SEARCH_SERVICE_URL", "http://search-service:8080"),
+		env.GetString("SEARCH_SERVICE_TOKEN", ""),
+	)
 
 	authHandler := httphandler.NewAuthHandler(authSvc)
 	userHandler := httphandler.NewUserHandler(userSvc)
 	organizationHandler := httphandler.NewOrganizationHandler(orgSvc)
 	taskHandler := httphandler.NewTaskHandler(taskSvc)
 	notificationHandler := httphandler.NewNotificationHandler(notifSvc)
+	searchHandler := httphandler.NewSearchHandler(searchSvc)
 	wsHandler := wshandler.NewHandler(authSvc, orgSvc, connMgr)
 	authMiddleware := gatewaymiddleware.JWTAuth(authSvc)
 
@@ -175,6 +180,7 @@ func main() {
 		User:                      userHandler,
 		Organization:              organizationHandler,
 		Task:                      taskHandler,
+		Search:                    searchHandler,
 		Notification:              notificationHandler,
 		WS:                        wsHandler,
 		AuthMiddleware:            authMiddleware,

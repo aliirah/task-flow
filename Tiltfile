@@ -8,6 +8,7 @@ k8s_yaml('infra/dev/k8s/user-db.yaml')
 k8s_yaml('infra/dev/k8s/org-db.yaml')
 k8s_yaml('infra/dev/k8s/task-db.yaml')
 k8s_yaml('infra/dev/k8s/notification-db.yaml')
+k8s_yaml('infra/dev/k8s/elasticsearch.yaml')
 
 ## RabbitMQ ##
 k8s_yaml('infra/dev/k8s/rabbitmq-deployment.yaml')
@@ -17,6 +18,7 @@ k8s_resource('user-db', labels='databases')
 k8s_resource('org-db', labels='databases')
 k8s_resource('task-db', labels='databases')
 k8s_resource('notification-db', labels='databases')
+k8s_resource('elasticsearch', port_forwards='9200:9200', labels='databases')
 ## END RabbitMQ ##
 
 ### API Gateway ###
@@ -192,6 +194,34 @@ docker_build_with_restart(
 k8s_yaml('./infra/dev/k8s/notification-service.yaml')
 k8s_resource('notification-service', resource_deps=['notification-service-compile', 'notification-db', 'rabbitmq'], labels="services")
 ### End Notification Service ###
+
+### Search Service ###
+search_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/search-service ./services/search-service'
+if os.name == 'nt':
+  search_compile_cmd = './infra/dev/docker/search-service-build.bat'
+local_resource(
+  'search-service-compile',
+  search_compile_cmd,
+  deps=['./services/search-service', './shared'], labels="compiles")
+
+docker_build_with_restart(
+  'task-flow/search-service',
+  '.',
+  entrypoint=['/app/build/search-service'],
+  dockerfile='./infra/dev/docker/search-service.Dockerfile',
+  only=[
+    './build/search-service',
+    './shared',
+  ],
+  live_update=[
+    sync('./build', '/app/build'),
+    sync('./shared', '/app/shared'),
+  ],
+)
+
+k8s_yaml('./infra/dev/k8s/search-service.yaml')
+k8s_resource('search-service', resource_deps=['search-service-compile', 'rabbitmq', 'task-service', 'user-service', 'elasticsearch'], labels="services")
+### End Search Service ###
 
 ## Seeders ##
 local_resource(

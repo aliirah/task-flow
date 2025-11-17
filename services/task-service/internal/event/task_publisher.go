@@ -16,6 +16,7 @@ import (
 type TaskEventPublisher interface {
 	TaskCreated(ctx context.Context, task *models.Task, reporter, assignee *userpb.User, triggeredBy *contracts.TaskUser) error
 	TaskUpdated(ctx context.Context, task *models.Task, reporter, assignee *userpb.User, triggeredBy *contracts.TaskUser) error
+	TaskDeleted(ctx context.Context, task *models.Task, reporter, assignee *userpb.User) error
 }
 
 // NewTaskPublisher builds a RabbitMQ-backed TaskEventPublisher
@@ -159,6 +160,59 @@ func (p *taskPublisher) TaskUpdated(ctx context.Context, task *models.Task, repo
 	return p.mq.PublishMessage(ctx, "task."+task.OrganizationID.String(), msg)
 }
 
+func (p *taskPublisher) TaskDeleted(ctx context.Context, task *models.Task, reporter, assignee *userpb.User) error {
+	if p == nil || p.mq == nil || task == nil {
+		return nil
+	}
+
+	eventData := &contracts.TaskDeletedEvent{
+		TaskID:         task.ID.String(),
+		OrganizationID: task.OrganizationID.String(),
+		Title:          task.Title,
+		Description:    task.Description,
+		Status:         task.Status,
+		Priority:       task.Priority,
+		ReporterID:     task.ReporterID.String(),
+		AssigneeID:     task.AssigneeID.String(),
+	}
+
+	if reporter != nil {
+		eventData.Reporter = &contracts.TaskUser{
+			ID:        reporter.Id,
+			FirstName: reporter.FirstName,
+			LastName:  reporter.LastName,
+			Email:     reporter.Email,
+		}
+	}
+
+	if assignee != nil {
+		eventData.Assignee = &contracts.TaskUser{
+			ID:        assignee.Id,
+			FirstName: assignee.FirstName,
+			LastName:  assignee.LastName,
+			Email:     assignee.Email,
+		}
+	}
+
+	if !task.UpdatedAt.IsZero() {
+		eventData.DeletedAt = task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")
+	}
+
+	data, err := json.Marshal(eventData)
+	if err != nil {
+		return fmt.Errorf("marshal task deleted event: %w", err)
+	}
+
+	msg := contracts.AmqpMessage{
+		OrganizationID: task.OrganizationID.String(),
+		UserID:         task.ReporterID.String(),
+		EventType:      contracts.TaskEventDeleted,
+		Data:           data,
+	}
+
+	return p.mq.PublishMessage(ctx, "task."+task.OrganizationID.String(), msg)
+}
+
 type noopTaskPublisher struct{}
 
 func (noopTaskPublisher) TaskCreated(context.Context, *models.Task, *userpb.User, *userpb.User, *contracts.TaskUser) error {
@@ -166,5 +220,9 @@ func (noopTaskPublisher) TaskCreated(context.Context, *models.Task, *userpb.User
 }
 
 func (noopTaskPublisher) TaskUpdated(context.Context, *models.Task, *userpb.User, *userpb.User, *contracts.TaskUser) error {
+	return nil
+}
+
+func (noopTaskPublisher) TaskDeleted(context.Context, *models.Task, *userpb.User, *userpb.User) error {
 	return nil
 }

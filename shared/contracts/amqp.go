@@ -12,10 +12,15 @@ type AmqpMessage struct {
 const (
 	TaskEventCreated = "task.event.created"
 	TaskEventUpdated = "task.event.updated"
+	TaskEventDeleted = "task.event.deleted"
 
 	CommentEventCreated = "comment.event.created"
 	CommentEventUpdated = "comment.event.updated"
 	CommentEventDeleted = "comment.event.deleted"
+
+	UserEventCreated = "user.event.created"
+	UserEventUpdated = "user.event.updated"
+	UserEventDeleted = "user.event.deleted"
 )
 
 type TaskCreatedEvent struct {
@@ -53,6 +58,20 @@ type TaskUpdatedEvent struct {
 	UpdatedAt      string    `json:"updatedAt,omitempty"`
 }
 
+type TaskDeletedEvent struct {
+	TaskID         string    `json:"taskId"`
+	OrganizationID string    `json:"organizationId"`
+	Title          string    `json:"title"`
+	Description    string    `json:"description"`
+	Status         string    `json:"status"`
+	Priority       string    `json:"priority"`
+	ReporterID     string    `json:"reporterId"`
+	AssigneeID     string    `json:"assigneeId"`
+	Reporter       *TaskUser `json:"reporter,omitempty"`
+	Assignee       *TaskUser `json:"assignee,omitempty"`
+	DeletedAt      string    `json:"deletedAt,omitempty"`
+}
+
 type CommentCreatedEvent struct {
 	CommentID       string    `json:"commentId"`
 	TaskID          string    `json:"taskId"`
@@ -83,4 +102,17 @@ type CommentDeletedEvent struct {
 	OrganizationID string    `json:"organizationId"`
 	UserID         string    `json:"userId"`
 	User           *TaskUser `json:"user,omitempty"`
+}
+
+type UserEvent struct {
+	UserID    string   `json:"userId"`
+	Email     string   `json:"email"`
+	FirstName string   `json:"firstName"`
+	LastName  string   `json:"lastName"`
+	Status    string   `json:"status"`
+	UserType  string   `json:"userType"`
+	Roles     []string `json:"roles,omitempty"`
+	CreatedAt string   `json:"createdAt,omitempty"`
+	UpdatedAt string   `json:"updatedAt,omitempty"`
+	DeletedAt string   `json:"deletedAt,omitempty"`
 }

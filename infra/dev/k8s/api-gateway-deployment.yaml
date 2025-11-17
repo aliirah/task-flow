@@ -64,6 +64,13 @@ spec:
               value: "task-service:50054"
             - name: NOTIFICATION_SERVICE_ADDR
               value: "notification-service:50055"
+            - name: SEARCH_SERVICE_URL
+              value: "http://search-service:8080"
+            - name: SEARCH_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: search-service-env
+                  key: SEARCH_INTERNAL_TOKEN
 ---
 apiVersion: v1
 kind: Service
