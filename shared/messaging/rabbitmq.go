@@ -3,6 +3,7 @@ package messaging
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 
@@ -261,7 +262,27 @@ func (r *RabbitMQ) declareAndBindQueue(queueName string, messageTypes []string, 
 		args,      // arguments with DLX config
 	)
 	if err != nil {
-		log.Fatal(err)
+		var amqpErr *amqp.Error
+		if errors.As(err, &amqpErr) && amqpErr.Code == 406 {
+			log.Printf("Queue %s exists with incompatible arguments, deleting and recreating with DLQ settings", queueName)
+			if _, delErr := r.Channel.QueueDelete(queueName, false, false, false); delErr != nil {
+				return fmt.Errorf("failed to delete queue %s: %w", queueName, delErr)
+			}
+
+			q, err = r.Channel.QueueDeclare(
+				queueName,
+				true,
+				false,
+				false,
+				false,
+				args,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to redeclare queue %s after delete: %w", queueName, err)
+			}
+		} else {
+			return fmt.Errorf("failed to declare queue %s: %w", queueName, err)
+		}
 	}
 
 	for _, msg := range messageTypes {
