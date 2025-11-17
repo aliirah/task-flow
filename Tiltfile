@@ -249,6 +249,50 @@ local_resource(
   labels="seeders", trigger_mode=TRIGGER_MODE_MANUAL, auto_init=False)
 ## End Seeders ##
 
+## K6 Load Tests ##
+local_resource(
+  'k6-http',
+  './run.sh http-scenarios.js',
+  dir='loadtests/k6',
+  deps=[
+    './loadtests/k6/http-scenarios.js',
+    './loadtests/k6/lib/helpers.js',
+    './loadtests/k6/run.sh',
+  ],
+  labels="loadtests",
+  trigger_mode=TRIGGER_MODE_MANUAL,
+  auto_init=False,
+  resource_deps=['api-gateway'])
+
+local_resource(
+  'k6-search',
+  './run.sh search-only.js',
+  dir='loadtests/k6',
+  deps=[
+    './loadtests/k6/search-only.js',
+    './loadtests/k6/lib/helpers.js',
+    './loadtests/k6/run.sh',
+  ],
+  labels="loadtests",
+  trigger_mode=TRIGGER_MODE_MANUAL,
+  auto_init=False,
+  resource_deps=['api-gateway'])
+
+local_resource(
+  'k6-ws',
+  './run.sh ws-notifications.js',
+  dir='loadtests/k6',
+  deps=[
+    './loadtests/k6/ws-notifications.js',
+    './loadtests/k6/lib/helpers.js',
+    './loadtests/k6/run.sh',
+  ],
+  labels="loadtests",
+  trigger_mode=TRIGGER_MODE_MANUAL,
+  auto_init=False,
+  resource_deps=['api-gateway'])
+## End K6 Load Tests ##
+
 ### Web Client Frontend ###
 docker_build(
   'task-flow/web-client',
