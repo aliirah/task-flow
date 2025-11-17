@@ -340,10 +340,7 @@ export function GlobalSearch({
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className="border-transparent bg-slate-100 text-[11px] font-medium uppercase text-slate-600"
-                        >
+                        <Badge className="border-transparent bg-slate-100 text-[11px] font-medium uppercase text-slate-600">
                           {meta.label}
                         </Badge>
                       </div>
