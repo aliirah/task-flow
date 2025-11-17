@@ -64,12 +64,7 @@ export function notificationSockets(data) {
     socket.on('message', (msg) => {
       receivedMessages += 1;
       wsMessages.add(1);
-      try {
-        const parsed = JSON.parse(msg);
-        if (!parsed || typeof parsed.type === 'undefined') {
-          wsErrors.add(1);
-        }
-      } catch (err) {
+      if (!decodeWsMessage(msg)) {
         wsErrors.add(1);
       }
     });
@@ -136,4 +131,21 @@ function buildContext(data) {
     userId: data.userId,
     assigneeId: data.assigneeId,
   };
+}
+function decodeWsMessage(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      return null;
+    }
+    if (typeof parsed.type !== 'undefined') {
+      return parsed;
+    }
+    if (parsed.data && typeof parsed.data === 'object' && typeof parsed.data.type !== 'undefined') {
+      return parsed.data;
+    }
+  } catch (_) {
+    return null;
+  }
+  return null;
 }
