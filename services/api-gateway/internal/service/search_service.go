@@ -51,6 +51,9 @@ func (s *SearchService) Search(ctx context.Context, query string, types []string
 
 	results := make([]contracts.SearchResult, 0, len(resp.Results))
 	for _, r := range resp.Results {
+		if r == nil {
+			continue
+		}
 		results = append(results, contracts.SearchResult{
 			ID:             r.Id,
 			Type:           r.Type,

@@ -20,7 +20,6 @@ import (
 	"github.com/aliirah/task-flow/services/search-service/internal/reindexer"
 	searchsvc "github.com/aliirah/task-flow/services/search-service/internal/search"
 	"github.com/aliirah/task-flow/shared/env"
-	"github.com/aliirah/task-flow/shared/grpcutil/jsoncodec"
 	log "github.com/aliirah/task-flow/shared/logging"
 	"github.com/aliirah/task-flow/shared/messaging"
 	"github.com/aliirah/task-flow/shared/metrics"
@@ -96,8 +95,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	jsoncodec.Register()
-
 	grpcAddr := env.GetString("SEARCH_GRPC_ADDR", ":9091")
 	lis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
@@ -106,7 +103,6 @@ func main() {
 	}
 
 	grpcSrv := grpc.NewServer(
-		grpc.ForceServerCodec(jsoncodec.Codec()),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.UnaryInterceptor(metrics.UnaryServerInterceptor()),
 	)

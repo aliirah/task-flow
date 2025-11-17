@@ -7,9 +7,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { notificationApi } from '@/lib/api/notification'
 import type { Notification } from '@/lib/types/api'
 import { useRouter } from 'next/navigation'
+import { useAuthStore } from '@/store/auth'
 
 export function NotificationBell() {
   const router = useRouter()
+  const accessToken = useAuthStore((state) => state.accessToken)
   const [isOpen, setIsOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -23,6 +25,10 @@ export function NotificationBell() {
 
   // Fetch unread count (only for initial load and after mark as read)
   const fetchUnreadCount = useCallback(async (retries = 2) => {
+    if (!accessToken) {
+      setUnreadCount(0)
+      return
+    }
     try {
       const response = await notificationApi.getUnreadCount()
       console.log('[NotificationBell] Fetched unread count:', response.data.count)
@@ -36,10 +42,17 @@ export function NotificationBell() {
       }
       console.error('[NotificationBell] Failed to fetch unread count:', error)
     }
-  }, [])
+  }, [accessToken])
 
   // Fetch notifications
   const fetchNotifications = useCallback(async (pageNum = 1, unreadOnly = false, append = false, retries = 2) => {
+    if (!accessToken) {
+      if (!append) {
+        setNotifications([])
+        setHasMore(false)
+      }
+      return
+    }
     if (isFetchingRef.current) return
     
     isFetchingRef.current = true
@@ -96,26 +109,33 @@ export function NotificationBell() {
       setLoading(false)
       isFetchingRef.current = false
     }
-  }, [])
+  }, [accessToken])
 
   // Initial fetch on mount only
   useEffect(() => {
+    if (!accessToken) {
+      initialFetchDone.current = false
+      setNotifications([])
+      setUnreadCount(0)
+      setHasMore(false)
+      return
+    }
     if (!initialFetchDone.current) {
       initialFetchDone.current = true
       console.log('[NotificationBell] Initial fetch - unreadOnly: false')
       fetchUnreadCount()
       fetchNotifications(1, false, false)
     }
-  }, [fetchUnreadCount, fetchNotifications])
+  }, [accessToken, fetchUnreadCount, fetchNotifications])
 
   // Refetch when filter changes
   useEffect(() => {
-    if (initialFetchDone.current) {
+    if (initialFetchDone.current && accessToken) {
       console.log('[NotificationBell] Filter changed - showUnreadOnly:', showUnreadOnly)
       setPage(1)
       fetchNotifications(1, showUnreadOnly, false)
     }
-  }, [showUnreadOnly, fetchNotifications])
+  }, [showUnreadOnly, fetchNotifications, accessToken])
 
   // Infinite scroll handler
   const handleScroll = useCallback(() => {

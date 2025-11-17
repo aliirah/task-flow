@@ -10,6 +10,7 @@ import (
 )
 
 type Server struct {
+	searchpb.UnimplementedSearchServiceServer
 	searchSvc *search.Service
 }
 
@@ -45,9 +46,9 @@ func convertToProtoResponse(resp *contracts.SearchResponse) *searchpb.SearchResp
 	if resp == nil {
 		return &searchpb.SearchResponse{}
 	}
-	results := make([]searchpb.SearchResult, 0, len(resp.Results))
+	results := make([]*searchpb.SearchResult, 0, len(resp.Results))
 	for _, r := range resp.Results {
-		results = append(results, searchpb.SearchResult{
+		results = append(results, &searchpb.SearchResult{
 			Id:             r.ID,
 			Type:           r.Type,
 			Title:          r.Title,

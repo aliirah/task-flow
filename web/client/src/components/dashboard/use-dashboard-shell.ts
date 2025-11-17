@@ -38,6 +38,7 @@ export function useDashboardShellLogic() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [sidebarHydrated, setSidebarHydrated] = useState(false)
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -71,6 +72,7 @@ export function useDashboardShellLogic() {
 
   useEffect(() => {
     setMobileSidebarOpen(false)
+    setMobileSearchOpen(false)
   }, [currentPath])
 
   useEffect(() => {
@@ -493,6 +495,8 @@ export function useDashboardShellLogic() {
     setSidebarCollapsed,
     mobileSidebarOpen,
     setMobileSidebarOpen,
+    mobileSearchOpen,
+    setMobileSearchOpen,
     orgMenuOpen,
     setOrgMenuOpen,
     userMenuOpen,

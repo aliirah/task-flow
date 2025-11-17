@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package search.v1;
+
+option go_package = "github.com/aliirah/task-flow/shared/proto/search/v1;searchpb";
+
+message SearchRequest {
+  string query = 1;
+  repeated string types = 2;
+  int32 limit = 3;
+}
+
+message SearchResult {
+  string id = 1;
+  string type = 2;
+  string title = 3;
+  string summary = 4;
+  string content = 5;
+  string organization_id = 6;
+  string task_id = 7;
+  string user_id = 8;
+  string email = 9;
+  double score = 10;
+  map<string, string> metadata = 11;
+}
+
+message SearchResponse {
+  int64 total = 1;
+  repeated SearchResult results = 2;
+}
+
+message SuggestRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+
+message SuggestResponse {
+  repeated string results = 1;
+}
+
+service SearchService {
+  rpc Search(SearchRequest) returns (SearchResponse);
+  rpc Suggest(SuggestRequest) returns (SuggestResponse);
+}

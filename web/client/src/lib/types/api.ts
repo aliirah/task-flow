@@ -187,3 +187,28 @@ export interface NotificationListResponse {
 export interface UnreadCountResponse {
   count: number
 }
+
+export type SearchResultType = 'task' | 'comment' | 'user'
+
+export interface SearchResult {
+  id: string
+  type: SearchResultType
+  title: string
+  summary?: string
+  content?: string
+  organizationId?: string
+  taskId?: string
+  userId?: string
+  email?: string
+  score?: number
+  metadata?: Record<string, string>
+}
+
+export interface SearchResponse {
+  total: number
+  results: SearchResult[]
+}
+
+export interface SearchSuggestResponse {
+  results: string[]
+}

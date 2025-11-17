@@ -10,7 +10,6 @@ import (
 
 	"github.com/aliirah/task-flow/services/search-service/internal/reindexer"
 	"github.com/aliirah/task-flow/services/search-service/internal/search"
-	"github.com/aliirah/task-flow/shared/contracts"
 )
 
 type Handler struct {

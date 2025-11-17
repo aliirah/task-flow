@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Layers,
   Menu,
+  Search as SearchIcon,
   UserCheck,
 } from 'lucide-react'
 
@@ -20,6 +21,7 @@ import { UserMenu } from '@/components/dashboard/user-menu'
 import { NotificationBell } from '@/components/notifications/notification-bell'
 import { DashboardContext } from '@/components/dashboard/context'
 import { useDashboardShellLogic } from '@/components/dashboard/use-dashboard-shell'
+import { GlobalSearch } from '@/components/search/global-search'
 
 export { useDashboard } from '@/components/dashboard/context'
 
@@ -48,6 +50,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
     setOrgMenuOpen,
     userMenuOpen,
     setUserMenuOpen,
+    mobileSearchOpen,
+    setMobileSearchOpen,
     orgQuery,
     setOrgQuery,
     orgMenuRef,
@@ -120,7 +124,20 @@ export function DashboardShell({ children }: DashboardShellProps) {
                   onCreate={() => router.push('/dashboard/organizations/new')}
                 />
 
+                <div className="hidden flex-1 items-center md:flex md:pl-4">
+                  <GlobalSearch />
+                </div>
+
                 <div className="ml-auto flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-full border border-slate-200 bg-white shadow-sm md:hidden"
+                    onClick={() => setMobileSearchOpen(true)}
+                    aria-label="Open search"
+                  >
+                    <SearchIcon className="size-5 text-slate-600" />
+                  </Button>
                   <NotificationBell />
                   <UserMenu
                     ref={userMenuRef}
@@ -159,6 +176,20 @@ export function DashboardShell({ children }: DashboardShellProps) {
             />
           </MobileSidebar>
         </div>
+
+        <Modal
+          open={mobileSearchOpen}
+          onClose={() => setMobileSearchOpen(false)}
+          title="Search the workspace"
+          description="Find tasks, comments, and teammates in one place."
+          className="max-w-2xl"
+        >
+          <GlobalSearch
+            variant="modal"
+            autoFocus
+            onNavigate={() => setMobileSearchOpen(false)}
+          />
+        </Modal>
 
         <Modal
           open={logoutConfirmOpen}
