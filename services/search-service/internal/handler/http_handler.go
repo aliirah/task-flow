@@ -46,9 +46,16 @@ func (h *Handler) handleSearch(c *gin.Context) {
 		}
 	}
 
+	orgID := strings.TrimSpace(c.Query("organizationId"))
+	if orgID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "organizationId is required"})
+		return
+	}
+	userID := strings.TrimSpace(c.Query("userId"))
+
 	docTypes := search.ParseDocumentTypes(strings.Split(c.Query("types"), ","))
 
-	results, err := h.search.Search(c.Request.Context(), query, docTypes, limit, "", "")
+	results, err := h.search.Search(c.Request.Context(), query, docTypes, limit, orgID, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -71,7 +78,14 @@ func (h *Handler) handleSuggest(c *gin.Context) {
 		}
 	}
 
-	results, err := h.search.Suggest(c.Request.Context(), query, limit, "", "")
+	orgID := strings.TrimSpace(c.Query("organizationId"))
+	if orgID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "organizationId is required"})
+		return
+	}
+	userID := strings.TrimSpace(c.Query("userId"))
+
+	results, err := h.search.Suggest(c.Request.Context(), query, limit, orgID, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

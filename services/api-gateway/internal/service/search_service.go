@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -99,20 +100,33 @@ func (s *SearchService) Search(ctx context.Context, query string, types []string
 }
 
 func (s *SearchService) Suggest(ctx context.Context, query string, limit int, organizationID, userID string) ([]string, error) {
-	if s.rpcClient == nil {
-		return nil, fmt.Errorf("search client not configured")
+	if limit <= 0 {
+		limit = 8
 	}
 
-	resp, err := s.rpcClient.Suggest(ctx, &searchpb.SuggestRequest{
-		Query:          query,
-		Limit:          int32(limit),
-		OrganizationId: organizationID,
-		UserId:         userID,
-	})
+	resp, err := s.Search(ctx, query, nil, limit*3, organizationID, userID)
 	if err != nil {
 		return nil, err
 	}
-	return resp.Results, nil
+
+	results := make([]string, 0, limit)
+	seen := make(map[string]struct{})
+	for _, item := range resp.Results {
+		candidate := deriveSuggestion(item)
+		if candidate == "" {
+			continue
+		}
+		if _, exists := seen[candidate]; exists {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		results = append(results, candidate)
+		if len(results) >= limit {
+			break
+		}
+	}
+
+	return results, nil
 }
 
 func (s *SearchService) TriggerReindex(ctx context.Context, types []string) error {
@@ -163,4 +177,34 @@ func (s *SearchService) userBelongsToOrg(ctx context.Context, userID, organizati
 		}
 	}
 	return false
+}
+
+var htmlStripper = regexp.MustCompile(`<[^>]*>`)
+
+func deriveSuggestion(item contracts.SearchResult) string {
+	switch item.Type {
+	case contracts.SearchTypeUser:
+		if item.Email != "" {
+			return strings.TrimSpace(item.Email)
+		}
+		return strings.TrimSpace(item.Title)
+	default:
+		if item.Title != "" {
+			return strings.TrimSpace(item.Title)
+		}
+		if item.Summary != "" {
+			return strings.TrimSpace(stripHTML(item.Summary))
+		}
+		if item.Content != "" {
+			return strings.TrimSpace(stripHTML(item.Content))
+		}
+		return ""
+	}
+}
+
+func stripHTML(value string) string {
+	if value == "" {
+		return ""
+	}
+	return strings.TrimSpace(htmlStripper.ReplaceAllString(value, " "))
 }
