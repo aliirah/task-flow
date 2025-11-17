@@ -3,6 +3,8 @@ package reindexer
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/aliirah/task-flow/services/search-service/internal/search"
 	taskpb "github.com/aliirah/task-flow/shared/proto/task/v1"
@@ -149,8 +151,8 @@ func (r *Reindexer) reindexComments(ctx context.Context, tasks map[string]*taskp
 					ID:             comment.Id,
 					Type:           search.DocumentTypeComment,
 					Title:          fmt.Sprintf("Comment on %s", task.Title),
-					Summary:        comment.Content,
-					Content:        comment.Content,
+					Summary:        plainText(comment.Content),
+					Content:        plainText(comment.Content),
 					OrganizationID: task.OrganizationId,
 					TaskID:         taskID,
 					UserID:         comment.UserId,
@@ -216,4 +218,14 @@ func (r *Reindexer) reindexUsers(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+var htmlTagRegex = regexp.MustCompile(`<[^>]*>`)
+
+func plainText(value string) string {
+	if value == "" {
+		return ""
+	}
+	text := htmlTagRegex.ReplaceAllString(value, " ")
+	return strings.TrimSpace(strings.Join(strings.Fields(text), " "))
 }

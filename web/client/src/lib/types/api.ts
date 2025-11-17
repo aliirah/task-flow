@@ -202,6 +202,7 @@ export interface SearchResult {
   email?: string
   score?: number
   metadata?: Record<string, string>
+  userMemberships?: string[]
 }
 
 export interface SearchResponse {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aliirah/task-flow/shared/contracts"
+	organizationpb "github.com/aliirah/task-flow/shared/proto/organization/v1"
 	searchpb "github.com/aliirah/task-flow/shared/proto/search/v1"
 )
 
@@ -18,14 +19,20 @@ type SearchService struct {
 	httpClient    *http.Client
 	reindexURL    string
 	internalToken string
+	orgService    OrganizationMembershipService
 }
 
-func NewSearchService(rpcClient searchpb.SearchServiceClient, baseURL, internalToken string) *SearchService {
+type OrganizationMembershipService interface {
+	ListUserMemberships(ctx context.Context, req *organizationpb.ListUserMembershipsRequest) (*organizationpb.ListUserMembershipsResponse, error)
+}
+
+func NewSearchService(rpcClient searchpb.SearchServiceClient, orgService OrganizationMembershipService, baseURL, internalToken string) *SearchService {
 	if baseURL == "" {
 		baseURL = "http://search-service:8080"
 	}
 	return &SearchService{
-		rpcClient: rpcClient,
+		rpcClient:  rpcClient,
+		orgService: orgService,
 		httpClient: &http.Client{
 			Timeout: 8 * time.Second,
 		},
@@ -34,15 +41,17 @@ func NewSearchService(rpcClient searchpb.SearchServiceClient, baseURL, internalT
 	}
 }
 
-func (s *SearchService) Search(ctx context.Context, query string, types []string, limit int) (*contracts.SearchResponse, error) {
+func (s *SearchService) Search(ctx context.Context, query string, types []string, limit int, organizationID, userID string) (*contracts.SearchResponse, error) {
 	if s.rpcClient == nil {
 		return nil, fmt.Errorf("search client not configured")
 	}
 
 	req := &searchpb.SearchRequest{
-		Query: query,
-		Types: types,
-		Limit: int32(limit),
+		Query:          query,
+		Types:          types,
+		Limit:          int32(limit),
+		OrganizationId: organizationID,
+		UserId:         userID,
 	}
 	resp, err := s.rpcClient.Search(ctx, req)
 	if err != nil {
@@ -50,9 +59,23 @@ func (s *SearchService) Search(ctx context.Context, query string, types []string
 	}
 
 	results := make([]contracts.SearchResult, 0, len(resp.Results))
+	membershipCache := map[string]bool{}
 	for _, r := range resp.Results {
 		if r == nil {
 			continue
+		}
+		if r.GetType() == contracts.SearchTypeUser && organizationID != "" && s.orgService != nil {
+			if allowed, ok := membershipCache[r.GetId()]; ok {
+				if !allowed {
+					continue
+				}
+			} else {
+				allowed := s.userBelongsToOrg(ctx, r.GetId(), organizationID)
+				membershipCache[r.GetId()] = allowed
+				if !allowed {
+					continue
+				}
+			}
 		}
 		results = append(results, contracts.SearchResult{
 			ID:             r.Id,
@@ -75,14 +98,16 @@ func (s *SearchService) Search(ctx context.Context, query string, types []string
 	}, nil
 }
 
-func (s *SearchService) Suggest(ctx context.Context, query string, limit int) ([]string, error) {
+func (s *SearchService) Suggest(ctx context.Context, query string, limit int, organizationID, userID string) ([]string, error) {
 	if s.rpcClient == nil {
 		return nil, fmt.Errorf("search client not configured")
 	}
 
 	resp, err := s.rpcClient.Suggest(ctx, &searchpb.SuggestRequest{
-		Query: query,
-		Limit: int32(limit),
+		Query:          query,
+		Limit:          int32(limit),
+		OrganizationId: organizationID,
+		UserId:         userID,
 	})
 	if err != nil {
 		return nil, err
@@ -117,4 +142,25 @@ func (s *SearchService) TriggerReindex(ctx context.Context, types []string) erro
 		return fmt.Errorf("reindex returned %s", res.Status)
 	}
 	return nil
+}
+
+func (s *SearchService) userBelongsToOrg(ctx context.Context, userID, organizationID string) bool {
+	if userID == "" || organizationID == "" || s.orgService == nil {
+		return false
+	}
+
+	ctx = withOutgoingAuth(ctx)
+	resp, err := s.orgService.ListUserMemberships(ctx, &organizationpb.ListUserMembershipsRequest{
+		UserId: userID,
+	})
+	if err != nil {
+		return false
+	}
+
+	for _, m := range resp.GetMemberships() {
+		if m.GetOrganizationId() == organizationID {
+			return true
+		}
+	}
+	return false
 }

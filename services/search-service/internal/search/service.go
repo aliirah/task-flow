@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -194,7 +195,7 @@ func (s *Service) DeleteDocument(ctx context.Context, docType DocumentType, id s
 	return nil
 }
 
-func (s *Service) Search(ctx context.Context, query string, types []DocumentType, limit int) (*contracts.SearchResponse, error) {
+func (s *Service) Search(ctx context.Context, query string, types []DocumentType, limit int, organizationID, userID string) (*contracts.SearchResponse, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
@@ -221,6 +222,8 @@ func (s *Service) Search(ctx context.Context, query string, types []DocumentType
 		},
 	}
 
+	boolQuery := body["query"].(map[string]interface{})["bool"].(map[string]interface{})
+	filters := make([]interface{}, 0, 1)
 	if len(types) > 0 {
 		typeStrings := make([]string, 0, len(types))
 		for _, t := range types {
@@ -229,15 +232,16 @@ func (s *Service) Search(ctx context.Context, query string, types []DocumentType
 			}
 		}
 		if len(typeStrings) > 0 {
-			boolQuery := body["query"].(map[string]interface{})["bool"].(map[string]interface{})
-			boolQuery["filter"] = []interface{}{
-				map[string]interface{}{
-					"terms": map[string]interface{}{
-						"type": typeStrings,
-					},
+			filters = append(filters, map[string]interface{}{
+				"terms": map[string]interface{}{
+					"type": typeStrings,
 				},
-			}
+			})
 		}
+	}
+
+	if len(filters) > 0 {
+		boolQuery["filter"] = filters
 	}
 
 	payload, _ := json.Marshal(body)
@@ -280,6 +284,11 @@ func (s *Service) Search(ctx context.Context, query string, types []DocumentType
 		if hl, ok := hit.Highlight["content"]; ok && len(hl) > 0 {
 			summary = strings.Join(hl, " ... ")
 		}
+		if organizationID != "" && doc.Type != DocumentTypeUser {
+			if doc.OrganizationID == "" || doc.OrganizationID != organizationID {
+				continue
+			}
+		}
 		resultItem := contracts.SearchResult{
 			ID:             doc.ID,
 			Type:           string(doc.Type),
@@ -301,53 +310,30 @@ func (s *Service) Search(ctx context.Context, query string, types []DocumentType
 	return response, nil
 }
 
-func (s *Service) Suggest(ctx context.Context, query string, limit int) ([]string, error) {
+func (s *Service) Suggest(ctx context.Context, query string, limit int, organizationID, userID string) ([]string, error) {
 	if limit <= 0 || limit > 20 {
 		limit = 8
 	}
 
-	body := map[string]interface{}{
-		"suggest": map[string]interface{}{
-			"autocomplete": map[string]interface{}{
-				"prefix": query,
-				"completion": map[string]interface{}{
-					"field":           "suggest",
-					"size":            limit,
-					"skip_duplicates": true,
-				},
-			},
-		},
-	}
-	payload, _ := json.Marshal(body)
-	res, err := s.performRequest(ctx, http.MethodPost, fmt.Sprintf("%s/%s/_search", s.endpoint, s.indexName), payload)
+	resp, err := s.Search(ctx, query, nil, limit*3, organizationID, userID)
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
 
-	if res.StatusCode >= 300 {
-		bodyBytes, _ := io.ReadAll(res.Body)
-		return nil, fmt.Errorf("suggest error: %s", string(bodyBytes))
-	}
-
-	var parsed struct {
-		Suggest map[string][]struct {
-			Options []struct {
-				Text string `json:"text"`
-			} `json:"options"`
-		} `json:"suggest"`
-	}
-	if err := json.NewDecoder(res.Body).Decode(&parsed); err != nil {
-		return nil, err
-	}
-
-	options := parsed.Suggest["autocomplete"]
-	results := make([]string, 0, len(options))
-	for _, option := range options {
-		for _, opt := range option.Options {
-			if opt.Text != "" {
-				results = append(results, opt.Text)
-			}
+	results := make([]string, 0, limit)
+	seen := make(map[string]struct{})
+	for _, item := range resp.Results {
+		candidate := deriveSuggestionCandidate(item)
+		if candidate == "" {
+			continue
+		}
+		if _, exists := seen[candidate]; exists {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		results = append(results, candidate)
+		if len(results) >= limit {
+			break
 		}
 	}
 	return results, nil
@@ -381,7 +367,30 @@ func (s *Service) defaultSuggest(doc Document) []string {
 		suggestions = append(suggestions, doc.Email)
 	}
 	if doc.Summary != "" {
-		suggestions = append(suggestions, doc.Summary)
+		suggestions = append(suggestions, stripHTMLTags(doc.Summary))
 	}
 	return suggestions
+}
+
+var htmlTagRe = regexp.MustCompile(`<[^>]*>`)
+
+func stripHTMLTags(value string) string {
+	return strings.TrimSpace(htmlTagRe.ReplaceAllString(value, " "))
+}
+
+func deriveSuggestionCandidate(item contracts.SearchResult) string {
+	candidate := strings.TrimSpace(item.Title)
+	if item.Type == contracts.SearchTypeUser && item.Email != "" {
+		candidate = item.Email
+	}
+	if candidate == "" && item.Email != "" {
+		candidate = item.Email
+	}
+	if candidate == "" && item.Summary != "" {
+		candidate = stripHTMLTags(item.Summary)
+	}
+	if candidate == "" && item.Content != "" {
+		candidate = stripHTMLTags(item.Content)
+	}
+	return strings.TrimSpace(candidate)
 }

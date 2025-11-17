@@ -16,6 +16,7 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { useDashboard } from '@/components/dashboard/context'
 import { useAuthStore } from '@/store/auth'
 
 type GlobalSearchProps = {
@@ -55,7 +56,11 @@ export function GlobalSearch({
   const debouncedQuery = useDebounce(query, 400)
   const trimmedQuery = query.trim()
   const accessToken = useAuthStore((state) => state.accessToken)
+  const currentUser = useAuthStore((state) => state.user)
   const isAuthenticated = Boolean(accessToken)
+  const { selectedOrganizationId } = useDashboard()
+  const organizationId = selectedOrganizationId ?? ''
+  const canSearch = isAuthenticated && Boolean(organizationId)
 
   useEffect(() => {
     if (autoFocus) {
@@ -87,7 +92,7 @@ export function GlobalSearch({
 
   useEffect(() => {
     const normalized = debouncedQuery.trim()
-    if (!isAuthenticated) {
+    if (!canSearch) {
       setSuggestions([])
       return
     }
@@ -101,7 +106,7 @@ export function GlobalSearch({
     let cancelled = false
     setSuggestLoading(true)
     searchApi
-      .suggest({ query: normalized, limit: 6 })
+      .suggest({ query: normalized, limit: 6, organizationId, userId: currentUser?.id })
       .then((resp) => {
         if (cancelled) return
         setSuggestions(resp.data?.results ?? [])
@@ -120,11 +125,11 @@ export function GlobalSearch({
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery, isAuthenticated])
+  }, [debouncedQuery, canSearch, organizationId])
 
   useEffect(() => {
     const normalized = debouncedQuery.trim()
-    if (!isAuthenticated) {
+    if (!canSearch) {
       setResults([])
       setError(null)
       return
@@ -139,7 +144,7 @@ export function GlobalSearch({
     setResultsLoading(true)
     setError(null)
     searchApi
-      .search({ query: normalized, limit: 8 })
+      .search({ query: normalized, limit: 8, organizationId, userId: currentUser?.id })
       .then((resp) => {
         if (cancelled) return
         setResults(resp.data?.results ?? [])
@@ -159,13 +164,15 @@ export function GlobalSearch({
     return () => {
       cancelled = true
     }
-  }, [debouncedQuery, isAuthenticated])
+  }, [debouncedQuery, canSearch, organizationId])
 
-  const placeholder = isAuthenticated
-    ? 'Search tasks, comments, users...'
-    : 'Sign in to search the workspace'
+  const placeholder = !isAuthenticated
+    ? 'Sign in to search the workspace'
+    : !organizationId
+    ? 'Select an organization to search'
+    : 'Search tasks, comments, users...'
   const showPanel =
-    isAuthenticated &&
+    canSearch &&
     (variant === 'modal' || open) &&
     (trimmedQuery.length >= MIN_QUERY_LENGTH ||
       results.length > 0 ||
@@ -180,17 +187,23 @@ export function GlobalSearch({
     )
   }, [suggestions, trimmedQuery])
 
+  useEffect(() => {
+    setResults([])
+    setSuggestions([])
+    setError(null)
+  }, [organizationId])
+
   const handleResultClick = (result: SearchResult) => {
     if (result.type === 'user') {
-      if (result.email) {
-        window.open(`mailto:${result.email}`, '_self')
-      }
-    } else if (result.type === 'task') {
+      return
+    }
+
+    if (result.type === 'task') {
       router.push(`/dashboard/tasks/${result.id}`)
     } else if (result.type === 'comment') {
       const taskId = result.taskId ?? result.metadata?.taskId
       if (taskId) {
-        router.push(`/dashboard/tasks/${taskId}?commentId=${result.id}`)
+        router.push(`/dashboard/tasks/${taskId}#comment-${result.id}`)
       }
     }
 
@@ -233,21 +246,23 @@ export function GlobalSearch({
               handleSubmit()
             }
           }}
-          disabled={!isAuthenticated}
+          disabled={!canSearch}
         />
         {(resultsLoading || suggestLoading) && (
           <Loader2 className="absolute right-3 size-4 animate-spin text-slate-400" />
         )}
       </div>
 
-      {!isAuthenticated ? (
+      {!canSearch ? (
         <div
           className={cn(
             'mt-3 rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 text-sm text-slate-500',
             variant === 'inline' ? 'absolute left-0 right-0 z-30' : 'relative'
           )}
         >
-          Sign in to search across tasks, comments, and teammates.
+          {!isAuthenticated
+            ? 'Sign in to search across tasks, comments, and teammates.'
+            : 'Select an organization to search across its tasks, comments, and teammates.'}
         </div>
       ) : null}
 
@@ -302,11 +317,22 @@ export function GlobalSearch({
             {results.map((result) => {
               const meta = TYPE_META[result.type]
               const Icon = meta.icon
+              const summaryText = getSummaryText(result.summary)
+              const showSummary = summaryText && summaryText !== result.email
+              const clickable = result.type !== 'user'
+              const Wrapper: any = clickable ? 'button' : 'div'
               return (
-                <button
+                <Wrapper
                   key={`${result.type}-${result.id}`}
-                  onClick={() => handleResultClick(result)}
-                  className="w-full rounded-2xl border border-slate-100 bg-white px-4 py-3 text-left transition hover:border-slate-200 hover:shadow-md"
+                  onClick={
+                    clickable
+                      ? () => handleResultClick(result)
+                      : undefined
+                  }
+                  className={cn(
+                    'w-full rounded-2xl border border-slate-100 bg-white px-4 py-3 text-left',
+                    clickable ? 'transition hover:border-slate-200 hover:shadow-md' : ''
+                  )}
                 >
                   <div className="flex items-start gap-3">
                     <div className="rounded-full bg-slate-100 p-2 text-slate-500">
@@ -320,26 +346,21 @@ export function GlobalSearch({
                         >
                           {meta.label}
                         </Badge>
-                        {result.score ? (
-                          <span className="text-xs text-slate-400">
-                            {(result.score * 100).toFixed(0)}% match
-                          </span>
-                        ) : null}
                       </div>
                       <p className="truncate text-sm font-semibold text-slate-900">
                         {result.title}
                       </p>
-                      {result.summary ? (
+                      {showSummary ? (
                         <p className="mt-1 line-clamp-2 text-sm text-slate-500">
-                          {result.summary}
+                          {summaryText}
                         </p>
                       ) : null}
-                      {result.type === 'user' && result.email ? (
+                      {result.email && (!showSummary || result.type === 'user') ? (
                         <p className="mt-1 text-sm text-slate-500">{result.email}</p>
                       ) : null}
                     </div>
                   </div>
-                </button>
+                </Wrapper>
               )
             })}
           </div>
@@ -347,4 +368,21 @@ export function GlobalSearch({
       )}
     </div>
   )
+}
+
+const tagStripper = /<[^>]*>/g
+const htmlEntities: Record<string, string> = {
+  '&nbsp;': ' ',
+  '&amp;': '&',
+}
+
+function getSummaryText(value?: string): string {
+  if (!value) {
+    return ''
+  }
+  let text = value.replace(tagStripper, ' ')
+  Object.entries(htmlEntities).forEach(([entity, replacement]) => {
+    text = text.replaceAll(entity, replacement)
+  })
+  return text.replace(/\s+/g, ' ').trim()
 }

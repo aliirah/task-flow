@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/aliirah/task-flow/services/api-gateway/internal/service"
+	"github.com/aliirah/task-flow/shared/authctx"
 	"github.com/aliirah/task-flow/shared/contracts"
 	"github.com/aliirah/task-flow/shared/rest"
 )
@@ -29,8 +30,18 @@ func (h *SearchHandler) Search(c *gin.Context) {
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	types := filterTypes(strings.Split(c.Query("types"), ","))
+	organizationID := strings.TrimSpace(c.Query("organizationId"))
+	if organizationID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "organizationId is required"})
+		return
+	}
+	userCtx, _ := authctx.UserFromGin(c)
+	userID := strings.TrimSpace(c.Query("userId"))
+	if userID == "" {
+		userID = userCtx.ID
+	}
 
-	response, err := h.service.Search(c.Request.Context(), query, types, limit)
+	response, err := h.service.Search(c.Request.Context(), query, types, limit, organizationID, userID)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
@@ -47,7 +58,18 @@ func (h *SearchHandler) Suggest(c *gin.Context) {
 	}
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "8"))
-	results, err := h.service.Suggest(c.Request.Context(), query, limit)
+	organizationID := strings.TrimSpace(c.Query("organizationId"))
+	if organizationID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "organizationId is required"})
+		return
+	}
+	userCtx, _ := authctx.UserFromGin(c)
+	userID := strings.TrimSpace(c.Query("userId"))
+	if userID == "" {
+		userID = userCtx.ID
+	}
+
+	results, err := h.service.Suggest(c.Request.Context(), query, limit, organizationID, userID)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return

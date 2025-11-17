@@ -23,7 +23,7 @@ func (s *Server) Search(ctx context.Context, req *searchpb.SearchRequest) (*sear
 		return nil, fmt.Errorf("missing request")
 	}
 	docTypes := search.ParseDocumentTypes(req.Types)
-	resp, err := s.searchSvc.Search(ctx, req.Query, docTypes, int(req.Limit))
+	resp, err := s.searchSvc.Search(ctx, req.Query, docTypes, int(req.Limit), req.OrganizationId, req.UserId)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func (s *Server) Suggest(ctx context.Context, req *searchpb.SuggestRequest) (*se
 	if req == nil {
 		return nil, fmt.Errorf("missing request")
 	}
-	results, err := s.searchSvc.Suggest(ctx, req.Query, int(req.Limit))
+	results, err := s.searchSvc.Suggest(ctx, req.Query, int(req.Limit), req.OrganizationId, req.UserId)
 	if err != nil {
 		return nil, err
 	}

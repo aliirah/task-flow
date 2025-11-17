@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -95,6 +96,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	if shouldAutoReindex() {
+		go func() {
+			typesEnv := strings.TrimSpace(env.GetString("SEARCH_AUTO_REINDEX_TYPES", "task,comment,user"))
+			docTypes := searchsvc.ParseDocumentTypes(strings.Split(typesEnv, ","))
+			log.Infof("Auto reindex enabled, starting initial sync for types=%v", docTypes)
+			if err := reindexerSvc.Reindex(ctx, docTypes); err != nil {
+				log.Error(fmt.Errorf("auto reindex failed: %w", err))
+			} else {
+				log.Info("Auto reindex completed successfully")
+			}
+		}()
+	}
+
 	grpcAddr := env.GetString("SEARCH_GRPC_ADDR", ":9091")
 	lis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
@@ -178,4 +192,9 @@ func dialGrpcClients(ctx context.Context) (*taskClientWrapper, *userClientWrappe
 			client: userpb.NewUserServiceClient(userConn),
 			conn:   userConn,
 		}, nil
+}
+
+func shouldAutoReindex() bool {
+	value := strings.TrimSpace(env.GetString("SEARCH_AUTO_REINDEX", "false"))
+	return strings.EqualFold(value, "true") || value == "1"
 }

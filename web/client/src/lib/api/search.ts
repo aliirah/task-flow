@@ -15,17 +15,21 @@ const buildQuery = (params: Record<string, string | undefined>) => {
 }
 
 export const searchApi = {
-  search: (params: { query: string; types?: string[]; limit?: number }) => {
+  search: (params: { query: string; organizationId: string; userId?: string; types?: string[]; limit?: number }) => {
     const query = buildQuery({
       q: params.query,
+      organizationId: params.organizationId,
+      userId: params.userId,
       types: params.types?.length ? params.types.join(',') : undefined,
       limit: params.limit ? String(params.limit) : undefined,
     })
     return apiClient<SearchResponse>(`/api/search${query}`)
   },
-  suggest: (params: { query: string; limit?: number }) => {
+  suggest: (params: { query: string; organizationId: string; userId?: string; limit?: number }) => {
     const query = buildQuery({
       q: params.query,
+      organizationId: params.organizationId,
+      userId: params.userId,
       limit: params.limit ? String(params.limit) : undefined,
     })
     return apiClient<SearchSuggestResponse>(`/api/search/suggest${query}`)

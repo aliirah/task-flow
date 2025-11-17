@@ -8,6 +8,8 @@ message SearchRequest {
   string query = 1;
   repeated string types = 2;
   int32 limit = 3;
+  string organization_id = 4;
+  string user_id = 5;
 }
 
 message SearchResult {
@@ -32,6 +34,8 @@ message SearchResponse {
 message SuggestRequest {
   string query = 1;
   int32 limit = 2;
+  string organization_id = 3;
+  string user_id = 4;
 }
 
 message SuggestResponse {

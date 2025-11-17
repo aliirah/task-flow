@@ -22,12 +22,14 @@ const (
 )
 
 type SearchRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
-	Types         []string               `protobuf:"bytes,2,rep,name=types,proto3" json:"types,omitempty"`
-	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Query          string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	Types          []string               `protobuf:"bytes,2,rep,name=types,proto3" json:"types,omitempty"`
+	Limit          int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	OrganizationId string                 `protobuf:"bytes,4,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
+	UserId         string                 `protobuf:"bytes,5,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *SearchRequest) Reset() {
@@ -79,6 +81,20 @@ func (x *SearchRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *SearchRequest) GetOrganizationId() string {
+	if x != nil {
+		return x.OrganizationId
+	}
+	return ""
+}
+
+func (x *SearchRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
 }
 
 type SearchResult struct {
@@ -258,11 +274,13 @@ func (x *SearchResponse) GetResults() []*SearchResult {
 }
 
 type SuggestRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Query         string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
-	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Query          string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	Limit          int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	OrganizationId string                 `protobuf:"bytes,3,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
+	UserId         string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *SuggestRequest) Reset() {
@@ -307,6 +325,20 @@ func (x *SuggestRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *SuggestRequest) GetOrganizationId() string {
+	if x != nil {
+		return x.OrganizationId
+	}
+	return ""
+}
+
+func (x *SuggestRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
 }
 
 type SuggestResponse struct {
@@ -357,11 +389,13 @@ var File_search_v1_search_proto protoreflect.FileDescriptor
 
 const file_search_v1_search_proto_rawDesc = "" +
 	"\n" +
-	"\x16search/v1/search.proto\x12\tsearch.v1\"Q\n" +
+	"\x16search/v1/search.proto\x12\tsearch.v1\"\x93\x01\n" +
 	"\rSearchRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x14\n" +
 	"\x05types\x18\x02 \x03(\tR\x05types\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\x05R\x05limit\"\x83\x03\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12'\n" +
+	"\x0forganization_id\x18\x04 \x01(\tR\x0eorganizationId\x12\x17\n" +
+	"\auser_id\x18\x05 \x01(\tR\x06userId\"\x83\x03\n" +
 	"\fSearchResult\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x14\n" +
@@ -380,10 +414,12 @@ const file_search_v1_search_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"Y\n" +
 	"\x0eSearchResponse\x12\x14\n" +
 	"\x05total\x18\x01 \x01(\x03R\x05total\x121\n" +
-	"\aresults\x18\x02 \x03(\v2\x17.search.v1.SearchResultR\aresults\"<\n" +
+	"\aresults\x18\x02 \x03(\v2\x17.search.v1.SearchResultR\aresults\"~\n" +
 	"\x0eSuggestRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\x05R\x05limit\"+\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12'\n" +
+	"\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\x12\x17\n" +
+	"\auser_id\x18\x04 \x01(\tR\x06userId\"+\n" +
 	"\x0fSuggestResponse\x12\x18\n" +
 	"\aresults\x18\x01 \x03(\tR\aresults2\x90\x01\n" +
 	"\rSearchService\x12=\n" +

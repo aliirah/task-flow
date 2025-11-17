@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/aliirah/task-flow/services/search-service/internal/search"
@@ -170,8 +171,8 @@ func mapCommentToDocument(commentID, taskID, orgID, content string, user *contra
 		ID:             commentID,
 		Type:           search.DocumentTypeComment,
 		Title:          title,
-		Summary:        content,
-		Content:        content,
+		Summary:        sanitizeContent(content),
+		Content:        sanitizeContent(content),
 		OrganizationID: orgID,
 		TaskID:         taskID,
 	}
@@ -190,7 +191,7 @@ func mapUserToDocument(event contracts.UserEvent) search.Document {
 		title = event.Email
 	}
 
-	return search.Document{
+	doc := search.Document{
 		ID:      event.UserID,
 		Type:    search.DocumentTypeUser,
 		Title:   title,
@@ -202,4 +203,21 @@ func mapUserToDocument(event contracts.UserEvent) search.Document {
 			"userType": event.UserType,
 		},
 	}
+	if len(event.Roles) > 0 {
+		if doc.Metadata == nil {
+			doc.Metadata = map[string]string{}
+		}
+		doc.Metadata["roles"] = strings.Join(event.Roles, ",")
+	}
+	return doc
+}
+
+var htmlStripper = regexp.MustCompile(`<[^>]*>`)
+
+func sanitizeContent(value string) string {
+	if value == "" {
+		return ""
+	}
+	text := htmlStripper.ReplaceAllString(value, " ")
+	return strings.TrimSpace(strings.Join(strings.Fields(text), " "))
 }

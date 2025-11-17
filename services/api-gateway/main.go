@@ -174,6 +174,7 @@ func main() {
 	notifSvc := gatewayservice.NewNotificationService(grpcClients.Notification)
 	searchSvc := gatewayservice.NewSearchService(
 		searchpb.NewSearchServiceClient(searchConn),
+		orgSvc,
 		env.GetString("SEARCH_SERVICE_URL", "http://search-service:8080"),
 		env.GetString("SEARCH_SERVICE_TOKEN", ""),
 	)
