@@ -47,7 +47,7 @@ func (h *Handler) handleSearch(c *gin.Context) {
 		}
 	}
 
-	docTypes := parseTypes(c.Query("types"))
+	docTypes := search.ParseDocumentTypes(strings.Split(c.Query("types"), ","))
 
 	results, err := h.search.Search(c.Request.Context(), query, docTypes, limit)
 	if err != nil {
@@ -105,7 +105,7 @@ func (h *Handler) handleReindex(c *gin.Context) {
 
 	var docTypes []search.DocumentType
 	if len(payload.Types) > 0 {
-		docTypes = parseTypes(strings.Join(payload.Types, ","))
+		docTypes = search.ParseDocumentTypes(payload.Types)
 	}
 
 	if err := h.reindexer.Reindex(c.Request.Context(), docTypes); err != nil {
@@ -114,24 +114,4 @@ func (h *Handler) handleReindex(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
-}
-
-func parseTypes(raw string) []search.DocumentType {
-	if raw == "" {
-		return nil
-	}
-
-	parts := strings.Split(raw, ",")
-	result := make([]search.DocumentType, 0, len(parts))
-	for _, part := range parts {
-		switch strings.TrimSpace(strings.ToLower(part)) {
-		case contracts.SearchTypeTask:
-			result = append(result, search.DocumentTypeTask)
-		case contracts.SearchTypeComment:
-			result = append(result, search.DocumentTypeComment)
-		case contracts.SearchTypeUser:
-			result = append(result, search.DocumentTypeUser)
-		}
-	}
-	return result
 }

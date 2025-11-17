@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -14,13 +15,16 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/aliirah/task-flow/services/search-service/internal/consumer"
+	grpcserver "github.com/aliirah/task-flow/services/search-service/internal/grpc"
 	"github.com/aliirah/task-flow/services/search-service/internal/handler"
 	"github.com/aliirah/task-flow/services/search-service/internal/reindexer"
 	searchsvc "github.com/aliirah/task-flow/services/search-service/internal/search"
 	"github.com/aliirah/task-flow/shared/env"
+	"github.com/aliirah/task-flow/shared/grpcutil/jsoncodec"
 	log "github.com/aliirah/task-flow/shared/logging"
 	"github.com/aliirah/task-flow/shared/messaging"
 	"github.com/aliirah/task-flow/shared/metrics"
+	searchpb "github.com/aliirah/task-flow/shared/proto/search/v1"
 	taskpb "github.com/aliirah/task-flow/shared/proto/task/v1"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"github.com/aliirah/task-flow/shared/tracing"
@@ -91,6 +95,30 @@ func main() {
 		log.Error(fmt.Errorf("failed to start consumers: %w", err))
 		os.Exit(1)
 	}
+
+	jsoncodec.Register()
+
+	grpcAddr := env.GetString("SEARCH_GRPC_ADDR", ":9091")
+	lis, err := net.Listen("tcp", grpcAddr)
+	if err != nil {
+		log.Error(fmt.Errorf("failed to listen on %s: %w", grpcAddr, err))
+		os.Exit(1)
+	}
+
+	grpcSrv := grpc.NewServer(
+		grpc.ForceServerCodec(jsoncodec.Codec()),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.UnaryInterceptor(metrics.UnaryServerInterceptor()),
+	)
+	searchpb.RegisterSearchServiceServer(grpcSrv, grpcserver.New(searchService))
+
+	go func() {
+		log.Infof("Search gRPC server listening on %s", grpcAddr)
+		if err := grpcSrv.Serve(lis); err != nil {
+			log.Error(fmt.Errorf("grpc server stopped: %w", err))
+			os.Exit(1)
+		}
+	}()
 
 	router := gin.Default()
 	router.Use(metrics.GinMiddleware("search-service"))

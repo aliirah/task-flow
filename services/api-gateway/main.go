@@ -10,6 +10,9 @@ import (
 	requestid "github.com/gin-contrib/requestid"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	gatewayevent "github.com/aliirah/task-flow/services/api-gateway/internal/event"
 	httphandler "github.com/aliirah/task-flow/services/api-gateway/internal/handler/http"
@@ -19,9 +22,11 @@ import (
 	"github.com/aliirah/task-flow/services/api-gateway/routes"
 	"github.com/aliirah/task-flow/shared/env"
 	grpcutil "github.com/aliirah/task-flow/shared/grpcutil"
+	"github.com/aliirah/task-flow/shared/grpcutil/jsoncodec"
 	log "github.com/aliirah/task-flow/shared/logging"
 	"github.com/aliirah/task-flow/shared/messaging"
 	"github.com/aliirah/task-flow/shared/metrics"
+	searchpb "github.com/aliirah/task-flow/shared/proto/search/v1"
 	"github.com/aliirah/task-flow/shared/tracing"
 	"go.uber.org/zap"
 )
@@ -83,6 +88,23 @@ func main() {
 		os.Exit(1)
 	}
 	defer grpcClients.Close()
+
+	jsoncodec.Register()
+	searchGrpcAddr := env.GetString("SEARCH_SERVICE_GRPC_ADDR", "search-service:9091")
+	searchConn, err := grpc.DialContext(
+		ctx,
+		searchGrpcAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(jsoncodec.Name)),
+	)
+	if err != nil {
+		log.Error(fmt.Errorf("failed to connect search service: %w", err))
+		os.Exit(1)
+	}
+	defer searchConn.Close()
+
+	searchClient := searchpb.NewSearchServiceClient(searchConn)
 
 	// RabbitMQ connection
 	fmt.Printf("Connecting to RabbitMQ at %s\n", rabbitMqURI)

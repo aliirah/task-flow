@@ -66,6 +66,8 @@ spec:
               value: "notification-service:50055"
             - name: SEARCH_SERVICE_URL
               value: "http://search-service:8080"
+            - name: SEARCH_SERVICE_GRPC_ADDR
+              value: "search-service:9091"
             - name: SEARCH_SERVICE_TOKEN
               valueFrom:
                 secretKeyRef:

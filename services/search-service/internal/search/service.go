@@ -21,6 +21,22 @@ const (
 	DocumentTypeComment DocumentType = DocumentType(contracts.SearchTypeComment)
 )
 
+// ParseDocumentTypes converts raw string values to supported document types.
+func ParseDocumentTypes(values []string) []DocumentType {
+	parsed := make([]DocumentType, 0, len(values))
+	for _, val := range values {
+		switch strings.ToLower(strings.TrimSpace(val)) {
+		case string(DocumentTypeUser):
+			parsed = append(parsed, DocumentTypeUser)
+		case string(DocumentTypeTask):
+			parsed = append(parsed, DocumentTypeTask)
+		case string(DocumentTypeComment):
+			parsed = append(parsed, DocumentTypeComment)
+		}
+	}
+	return parsed
+}
+
 type Document struct {
 	ID             string            `json:"id"`
 	Type           DocumentType      `json:"type"`
