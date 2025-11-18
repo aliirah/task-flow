@@ -2,7 +2,7 @@ import http from 'k6/http';
 import ws from 'k6/ws';
 import { check, sleep } from 'k6';
 import { Trend, Counter, Gauge } from 'k6/metrics';
-import { apiBase, wsBaseUrl, ensureTestContext, parseJSON, uniqueSuffix } from './lib/helpers.js';
+import { apiBase, wsBaseUrl, ensureTestContext, parseJSON, uniqueSuffix, unwrapApiResponse } from './lib/helpers.js';
 
 const API_BASE = apiBase();
 const WS_URL = wsBaseUrl();
@@ -106,7 +106,7 @@ function createTask(ctx) {
     tags: { name: 'task_create_ws' },
   });
   check(res, { 'ws task create 201': (r) => r.status === 201 });
-  return parseJSON(res);
+  return unwrapApiResponse(res) || {};
 }
 
 function triggerActivity(ctx, taskId) {
