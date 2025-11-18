@@ -88,7 +88,6 @@ export function CommentItem({
       }
       
       if (isNaN(date.getTime())) {
-        console.warn('Invalid date format:', comment.createdAt)
         return 'just now'
       }
       

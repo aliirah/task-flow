@@ -31,12 +31,10 @@ export function NotificationBell() {
     }
     try {
       const response = await notificationApi.getUnreadCount()
-      console.log('[NotificationBell] Fetched unread count:', response.data.count)
       setUnreadCount(response.data.count)
     } catch (error: any) {
       // Retry on connection errors
       if (retries > 0 && error?.message?.includes('connection')) {
-        console.log('[NotificationBell] Connection error, retrying...', retries)
         await new Promise(resolve => setTimeout(resolve, 1000))
         return fetchUnreadCount(retries - 1)
       }
@@ -68,22 +66,6 @@ export function NotificationBell() {
       })
       
       const newNotifications = response.data.items || []
-      const unreadInResponse = newNotifications.filter(n => !n.isRead).length
-      console.log('[NotificationBell] Fetched notifications:', {
-        page: pageNum,
-        count: newNotifications.length,
-        unreadOnly,
-        unreadInResponse,
-        hasMore: response.data.hasMore,
-        notifications: newNotifications.map(n => ({ 
-          id: n.id, 
-          title: n.title, 
-          isRead: n.isRead,
-          isReadType: typeof n.isRead,
-          rawIsRead: JSON.stringify(n.isRead)
-        }))
-      })
-      
       if (append) {
         setNotifications((prev) => [...prev, ...newNotifications])
       } else {
@@ -95,7 +77,6 @@ export function NotificationBell() {
     } catch (error: any) {
       // Retry on connection errors
       if (retries > 0 && error?.message?.includes('connection')) {
-        console.log('[NotificationBell] Connection error, retrying...', retries)
         isFetchingRef.current = false
         await new Promise(resolve => setTimeout(resolve, 1000))
         return fetchNotifications(pageNum, unreadOnly, append, retries - 1)
@@ -122,7 +103,6 @@ export function NotificationBell() {
     }
     if (!initialFetchDone.current) {
       initialFetchDone.current = true
-      console.log('[NotificationBell] Initial fetch - unreadOnly: false')
       fetchUnreadCount()
       fetchNotifications(1, false, false)
     }
@@ -131,7 +111,6 @@ export function NotificationBell() {
   // Refetch when filter changes
   useEffect(() => {
     if (initialFetchDone.current && accessToken) {
-      console.log('[NotificationBell] Filter changed - showUnreadOnly:', showUnreadOnly)
       setPage(1)
       fetchNotifications(1, showUnreadOnly, false)
     }
@@ -183,7 +162,6 @@ export function NotificationBell() {
     try {
       // Mark as read if unread
       if (!notification.isRead) {
-        console.log('[NotificationBell] Marking notification as read:', notification.id)
         await notificationApi.markAsRead(notification.id)
         
         // Update local state immediately
@@ -191,7 +169,6 @@ export function NotificationBell() {
           const updated = prev.map((n) =>
             n.id === notification.id ? { ...n, isRead: true } : n
           )
-          console.log('[NotificationBell] Updated notifications:', updated.find(n => n.id === notification.id))
           return updated
         })
         
@@ -211,17 +188,14 @@ export function NotificationBell() {
   // Mark all as read
   const handleMarkAllAsRead = async () => {
     try {
-      console.log('[NotificationBell] Marking all as read')
       await notificationApi.markAllAsRead()
       
       setNotifications((prev) => {
         const updated = prev.map((n) => ({ ...n, isRead: true }))
-        console.log('[NotificationBell] Updated all notifications to read')
         return updated
       })
       
       setUnreadCount(0)
-      console.log('[NotificationBell] Set unread count to 0')
       await fetchUnreadCount()
     } catch (error) {
       console.error('Failed to mark all as read:', error)
@@ -230,15 +204,6 @@ export function NotificationBell() {
 
   // Public method to add/update notification (called from WebSocket)
   const addNotification = useCallback(async (notification: Notification) => {
-    console.log('[NotificationBell] 📬 WebSocket notification received:', {
-      id: notification.id,
-      title: notification.title,
-      isRead: notification.isRead,
-      isReadType: typeof notification.isRead,
-      rawNotification: notification,
-      currentShowUnreadOnly: showUnreadOnly
-    })
-    
     setNotifications((prev) => {
       // Check if notification already exists (update case)
       const existingIndex = prev.findIndex(n => n.id === notification.id)
@@ -248,16 +213,9 @@ export function NotificationBell() {
         const updated = [...prev]
         const oldNotification = updated[existingIndex]
         updated[existingIndex] = notification
-        
-        console.log('[NotificationBell] Updated existing notification:', {
-          oldIsRead: oldNotification.isRead,
-          newIsRead: notification.isRead
-        })
-        
         return updated
       } else {
         // Add new notification at the beginning
-        console.log('[NotificationBell] Adding new notification, isRead:', notification.isRead)
         return [notification, ...prev]
       }
     })

@@ -10,6 +10,7 @@ import (
 	"github.com/aliirah/task-flow/services/task-service/internal/models"
 	"github.com/aliirah/task-flow/shared/authctx"
 	"github.com/aliirah/task-flow/shared/contracts"
+	log "github.com/aliirah/task-flow/shared/logging"
 	"github.com/aliirah/task-flow/shared/messaging"
 	organizationpb "github.com/aliirah/task-flow/shared/proto/organization/v1"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
@@ -150,8 +151,7 @@ func (s *Service) CreateTask(ctx context.Context, input CreateTaskInput, initiat
 			}
 		}
 		if err := s.notifPublisher.PublishTaskDeleted(ctx, task.OrganizationID.String(), initiator.ID, recipientStrs, taskData); err != nil {
-			// Log error but don't fail the operation
-			fmt.Printf("failed to publish task deleted notification: %v\n", err)
+			log.S().Errorw("failed to publish task deleted notification", "error", err, "taskId", task.ID.String())
 		}
 	}
 
@@ -479,8 +479,7 @@ func (s *Service) UpdateTask(ctx context.Context, id uuid.UUID, input UpdateTask
 				}
 			}
 			if err := s.notifPublisher.PublishTaskUpdated(ctx, task.OrganizationID.String(), initiator.ID, recipientStrs, taskData); err != nil {
-				// Log error but don't fail the operation
-				fmt.Printf("failed to publish task updated notification: %v\n", err)
+				log.S().Errorw("failed to publish task updated notification", "error", err, "taskId", task.ID.String())
 			}
 		}
 	}
@@ -521,7 +520,7 @@ func (s *Service) DeleteTask(ctx context.Context, id uuid.UUID, initiator authct
 
 	if s.publisher != nil {
 		if err := s.publisher.TaskDeleted(ctx, task, reporter, assignee); err != nil {
-			fmt.Printf("failed to publish task deleted event: %v\n", err)
+			log.S().Errorw("failed to publish task deleted event", "error", err, "taskId", task.ID.String())
 		}
 	}
 
@@ -572,8 +571,7 @@ func (s *Service) DeleteTask(ctx context.Context, id uuid.UUID, initiator authct
 			}
 		}
 		if err := s.notifPublisher.PublishTaskDeleted(ctx, task.OrganizationID.String(), initiator.ID, recipientStrs, taskData); err != nil {
-			// Log error but don't fail the operation
-			fmt.Printf("failed to publish task deleted notification: %v\n", err)
+			log.S().Errorw("failed to publish task deleted notification", "error", err, "taskId", task.ID.String())
 		}
 	}
 

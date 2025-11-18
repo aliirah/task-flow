@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/aliirah/task-flow/shared/contracts"
+	"github.com/aliirah/task-flow/shared/logging"
 	"github.com/aliirah/task-flow/shared/messaging"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -23,8 +24,8 @@ func NewNotificationConsumer(rabbitmq *messaging.RabbitMQ, connMgr *messaging.Co
 }
 
 func (c *NotificationConsumer) Listen() error {
-	fmt.Println("[NotificationConsumer] Starting to listen for notification WebSocket distribution...")
-	
+	logging.S().Info("notification consumer listening for ws distribution")
+
 	// Declare the queue if it doesn't exist
 	_, err := c.rabbitmq.Channel.QueueDeclare(
 		"notification-ws-distribution", // queue name
@@ -54,18 +55,18 @@ func (c *NotificationConsumer) Listen() error {
 	go func() {
 		for msg := range msgs {
 			if err := c.handle(context.Background(), msg); err != nil {
-				fmt.Printf("[NotificationConsumer] Error handling message: %v\n", err)
+				logging.S().Errorw("notification consumer failed to handle message", "error", err)
 			}
 			msg.Ack(false)
 		}
 	}()
 
-	fmt.Println("[NotificationConsumer] Successfully started")
+	logging.S().Info("notification consumer started")
 	return nil
 }
 
 func (c *NotificationConsumer) handle(ctx context.Context, msg amqp.Delivery) error {
-	fmt.Printf("[NotificationConsumer] 📬 Received WebSocket distribution message\n")
+	logging.S().Infow("notification consumer received message")
 
 	// Parse the message
 	var wsDistMsg struct {
@@ -74,14 +75,15 @@ func (c *NotificationConsumer) handle(ctx context.Context, msg amqp.Delivery) er
 	}
 
 	if err := json.Unmarshal(msg.Body, &wsDistMsg); err != nil {
-		fmt.Printf("[NotificationConsumer] ❌ Failed to unmarshal message: %v\n", err)
+		logging.S().Errorw("notification consumer failed to unmarshal message", "error", err)
 		return fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 
-	fmt.Printf("[NotificationConsumer] 🔔 Distributing notification to user %s: %s (isRead=%v)\n", 
-		wsDistMsg.UserID, 
-		wsDistMsg.Notification["title"], 
-		wsDistMsg.Notification["isRead"])
+	logging.S().Infow("notification consumer distributing notification",
+		"userId", wsDistMsg.UserID,
+		"title", wsDistMsg.Notification["title"],
+		"isRead", wsDistMsg.Notification["isRead"],
+	)
 
 	// Create WebSocket message
 	wsMsg := contracts.WSMessage{
@@ -91,10 +93,10 @@ func (c *NotificationConsumer) handle(ctx context.Context, msg amqp.Delivery) er
 
 	// Send to specific user
 	if err := c.connMgr.SendToUser(wsDistMsg.UserID, wsMsg); err != nil {
-		fmt.Printf("[NotificationConsumer] ❌ Failed to send to user %s: %v\n", wsDistMsg.UserID, err)
+		logging.S().Errorw("notification consumer failed to send to user", "userId", wsDistMsg.UserID, "error", err)
 		return err
 	}
 
-	fmt.Printf("[NotificationConsumer] ✅ Successfully sent notification to user %s\n", wsDistMsg.UserID)
+	logging.S().Infow("notification consumer sent notification", "userId", wsDistMsg.UserID)
 	return nil
 }

@@ -24,9 +24,6 @@ export async function apiClient<T>(endpoint: string, options: RequestInit = {}):
   }
 
   try {
-    if (options.method === 'POST' && endpoint.includes('/tasks')) {
-      console.log('[apiClient] POST request:', { endpoint, body: options.body, headers: defaultHeaders })
-    }
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers: defaultHeaders,

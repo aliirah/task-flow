@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/aliirah/task-flow/shared/logging"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -54,7 +56,20 @@ func HandleGRPCError(c *gin.Context, err error, opts ...GRPCErrorOption) bool {
 		cfg.FallbackMessage = fmt.Sprintf("%s unavailable", cfg.Namespace)
 	}
 
+	logger := logging.FromContext(c.Request.Context())
+
 	if st, ok := status.FromError(err); ok {
+		logFields := []zap.Field{
+			zap.String("namespace", cfg.Namespace),
+			zap.String("grpc_code", st.Code().String()),
+			zap.String("grpc_message", st.Message()),
+		}
+		if st.Code() == codes.Internal || st.Code() == codes.Unavailable || st.Code() == codes.DeadlineExceeded {
+			logger.Error("grpc downstream error", logFields...)
+		} else {
+			logger.Warn("grpc downstream error", logFields...)
+		}
+
 		switch st.Code() {
 		case codes.InvalidArgument, codes.FailedPrecondition, codes.OutOfRange:
 			Error(c, http.StatusBadRequest, st.Message(),
@@ -88,6 +103,7 @@ func HandleGRPCError(c *gin.Context, err error, opts ...GRPCErrorOption) bool {
 		return true
 	}
 
+	logger.Error("grpc downstream error", zap.String("namespace", cfg.Namespace), zap.Error(err))
 	Error(c, http.StatusBadGateway, cfg.FallbackMessage,
 		WithErrorCode(fmt.Sprintf("%s.unavailable", cfg.Namespace)),
 		WithErrorDetails(err.Error()))

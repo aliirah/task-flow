@@ -20,16 +20,15 @@ func NewNotificationHandler(svc service.NotificationService) *NotificationHandle
 }
 
 func (h *NotificationHandler) List(c *gin.Context) {
-	user, ok := authctx.UserFromGin(c)
-	if !ok || user.ID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "debug": "user not found in context"})
+	userID, ok := getUserID(c)
+	if !ok {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	page := clampPositive(c.DefaultQuery("page", "1"), 1)
+	limit := clampPositive(c.DefaultQuery("limit", "20"), 20)
 	isReadParam := c.Query("is_read")
-	
+
 	var isRead *bool
 	if isReadParam != "" {
 		val := isReadParam == "true"
@@ -37,7 +36,7 @@ func (h *NotificationHandler) List(c *gin.Context) {
 	}
 
 	filter := service.NotificationFilter{
-		UserID: user.ID,
+		UserID: userID,
 		IsRead: isRead,
 		Page:   page,
 		Limit:  limit,
@@ -54,13 +53,12 @@ func (h *NotificationHandler) List(c *gin.Context) {
 }
 
 func (h *NotificationHandler) GetUnreadCount(c *gin.Context) {
-	user, ok := authctx.UserFromGin(c)
-	if !ok || user.ID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "debug": "user not found in context"})
+	userID, ok := getUserID(c)
+	if !ok {
 		return
 	}
 
-	count, err := h.service.GetUnreadCount(c.Request.Context(), user.ID)
+	count, err := h.service.GetUnreadCount(c.Request.Context(), userID)
 	if rest.HandleGRPCError(c, err, rest.WithNamespace("notification")) {
 		return
 	}
@@ -69,19 +67,19 @@ func (h *NotificationHandler) GetUnreadCount(c *gin.Context) {
 }
 
 func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
-	user, _ := authctx.UserFromGin(c)
-	if user.ID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	userID, ok := getUserID(c)
+	if !ok {
 		return
 	}
 
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "notification id is required"})
+		rest.Error(c, http.StatusBadRequest, "notification id is required",
+			rest.WithErrorCode("notification.id_required"))
 		return
 	}
 
-	err := h.service.MarkAsRead(c.Request.Context(), user.ID, id)
+	err := h.service.MarkAsRead(c.Request.Context(), userID, id)
 	if rest.HandleGRPCError(c, err, rest.WithNamespace("notification")) {
 		return
 	}
@@ -90,13 +88,12 @@ func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 }
 
 func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
-	user, _ := authctx.UserFromGin(c)
-	if user.ID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	userID, ok := getUserID(c)
+	if !ok {
 		return
 	}
 
-	err := h.service.MarkAllAsRead(c.Request.Context(), user.ID)
+	err := h.service.MarkAllAsRead(c.Request.Context(), userID)
 	if rest.HandleGRPCError(c, err, rest.WithNamespace("notification")) {
 		return
 	}
@@ -105,22 +102,40 @@ func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
 }
 
 func (h *NotificationHandler) Delete(c *gin.Context) {
-	user, _ := authctx.UserFromGin(c)
-	if user.ID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	userID, ok := getUserID(c)
+	if !ok {
 		return
 	}
 
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "notification id is required"})
+		rest.Error(c, http.StatusBadRequest, "notification id is required",
+			rest.WithErrorCode("notification.id_required"))
 		return
 	}
 
-	err := h.service.Delete(c.Request.Context(), user.ID, id)
+	err := h.service.Delete(c.Request.Context(), userID, id)
 	if rest.HandleGRPCError(c, err, rest.WithNamespace("notification")) {
 		return
 	}
 
 	rest.Ok(c, gin.H{"message": "notification deleted"})
+}
+
+func getUserID(c *gin.Context) (string, bool) {
+	user, ok := authctx.UserFromGin(c)
+	if !ok || user.ID == "" {
+		rest.Error(c, http.StatusUnauthorized, "unauthorized",
+			rest.WithErrorCode("auth.unauthorized"))
+		return "", false
+	}
+	return user.ID, true
+}
+
+func clampPositive(raw string, fallback int) int {
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		return fallback
+	}
+	return value
 }

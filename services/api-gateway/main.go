@@ -102,20 +102,20 @@ func main() {
 	defer searchConn.Close()
 
 	// RabbitMQ connection
-	fmt.Printf("Connecting to RabbitMQ at %s\n", rabbitMqURI)
+	log.Infof("Connecting to RabbitMQ at %s", rabbitMqURI)
 	rabbitmq, err := messaging.NewRabbitMQ(rabbitMqURI)
 	if err != nil {
 		log.Error(fmt.Errorf("failed to connect RabbitMQ: %w", err))
 		os.Exit(1)
 	}
 	defer rabbitmq.Close()
-	fmt.Println("Successfully connected to RabbitMQ")
+	log.Info("Successfully connected to RabbitMQ")
 
 	// Initialize connection manager for WebSocket connections
 	connMgr := messaging.NewConnectionManager()
 
 	// Initialize task event consumer
-	fmt.Println("Setting up task event consumer...")
+	log.Info("Setting up task event consumer...")
 	taskEventConsumer := gatewayevent.NewTaskConsumer(rabbitmq, connMgr)
 
 	// Start listening for task events
@@ -125,10 +125,10 @@ func main() {
 			os.Exit(1)
 		}
 	}()
-	fmt.Println("Task event consumer successfully initialized")
+	log.Info("Task event consumer successfully initialized")
 
 	// Initialize comment event consumer
-	fmt.Println("Setting up comment event consumer...")
+	log.Info("Setting up comment event consumer...")
 	commentEventConsumer := gatewayevent.NewCommentConsumer(rabbitmq, connMgr)
 
 	// Start listening for comment events
@@ -138,10 +138,10 @@ func main() {
 			os.Exit(1)
 		}
 	}()
-	fmt.Println("Comment event consumer successfully initialized")
+	log.Info("Comment event consumer successfully initialized")
 
 	// Initialize notification event consumer
-	fmt.Println("Setting up notification event consumer...")
+	log.Info("Setting up notification event consumer...")
 	notificationEventConsumer := gatewayevent.NewNotificationConsumer(rabbitmq, connMgr)
 
 	// Start listening for notification messages
@@ -151,7 +151,7 @@ func main() {
 			os.Exit(1)
 		}
 	}()
-	fmt.Println("Notification event consumer successfully initialized")
+	log.Info("Notification event consumer successfully initialized")
 
 	// Initialize router with metrics middleware
 	router := gin.Default()

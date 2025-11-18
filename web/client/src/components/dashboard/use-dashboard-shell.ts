@@ -202,54 +202,38 @@ export function useDashboardShellLogic() {
 
     const connect = () => {
       const wsUrl = buildWsUrl(`/api/ws?token=${encodeURIComponent(accessToken)}`)
-      console.debug('[dashboard-shell] opening websocket', wsUrl)
       socket = new WebSocket(wsUrl)
 
       socket.onclose = () => {
         if (stop) {
           return
         }
-        console.debug('[dashboard-shell] websocket closed, scheduling retry')
         retryTimer = setTimeout(connect, 5000)
       }
 
       socket.onerror = () => {
-        console.warn('[dashboard-shell] websocket error, closing socket')
         socket?.close()
       }
 
       socket.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data)
-          console.log('[WS] 📩 Received WebSocket message:', message)
           
           if (!message?.type) {
-            console.warn('[WS] ⚠️ Message missing type field')
             return
           }
           
           if (message.type === 'connection.established') {
-            console.log('[WS] ✅ Connection established')
             return
           }
 
           // Handle notification events
           if (message.type === 'notification.created' && message.data) {
-            console.log('[WS] 🔔 Notification received:', {
-              id: message.data.id,
-              title: message.data.title,
-              isRead: message.data.isRead,
-              isReadType: typeof message.data.isRead
-            })
-            
             // Call the global notification handler if available
             if (typeof window !== 'undefined') {
               const addNotification = (window as unknown as { __addNotification?: (data: unknown) => void }).__addNotification
               if (typeof addNotification === 'function') {
-                console.log('[WS] 🔔 Calling addNotification handler')
                 addNotification(message.data)
-              } else {
-                console.warn('[WS] ⚠️ No addNotification handler found')
               }
             }
             
@@ -267,23 +251,12 @@ export function useDashboardShellLogic() {
             message.type === 'task.event.updated'
           
           if (isTaskEvent && message.data) {
-            console.log('[WS] 📋 Task event received:', {
-              type: message.type,
-              taskId: message.data.taskId,
-              title: message.data.title,
-              triggeredBy: message.data.triggeredById,
-              currentUser: userRef.current?.id
-            })
-            
             const senderId = message.data.triggeredById ?? message.data.reporterId ?? null
             if (senderId && senderId === userRef.current?.id) {
-              console.log('[WS] ⏭️ Skipping - user triggered this event')
               return
             }
             
             const taskEvent = message as TaskEventMessage
-            const listenerCount = taskEventListenersRef.current.size
-            console.log('[WS] 📡 Broadcasting to', listenerCount, 'task listeners')
             
             taskEventListenersRef.current.forEach((listener) => {
               try {
@@ -302,22 +275,11 @@ export function useDashboardShellLogic() {
             message.type === 'comment.event.deleted'
           
           if (isCommentEvent && message.data) {
-            console.log('[WS] 💬 Comment event received:', {
-              type: message.type,
-              commentId: message.data.commentId,
-              taskId: message.data.taskId,
-              userId: message.data.userId,
-              currentUser: userRef.current?.id
-            })
-            
             if (message.data.userId === userRef.current?.id) {
-              console.log('[WS] ⏭️ Skipping - user triggered this comment event')
               return
             }
             
             const commentEvent = message as CommentEventMessage
-            const listenerCount = commentEventListenersRef.current.size
-            console.log('[WS] 📡 Broadcasting to', listenerCount, 'comment listeners')
             
             commentEventListenersRef.current.forEach((listener) => {
               try {
@@ -329,7 +291,6 @@ export function useDashboardShellLogic() {
             return
           }
           
-          console.log('[WS] ℹ️ Unhandled message type:', message.type)
           // Note: Removed toast.success call here - notifications will be shown via NotificationBell instead
         } catch {
           // ignore parse errors

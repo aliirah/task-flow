@@ -65,8 +65,6 @@ export function CommentList({ taskId, currentUserId, users }: CommentListProps) 
         return
       }
 
-      console.log('[CommentList] Processing comment event:', event.type, event.data.commentId)
-
       const toUser = (payload?: CommentEventMessage['data']['user']) =>
         payload
           ? {
@@ -204,7 +202,6 @@ export function CommentList({ taskId, currentUserId, users }: CommentListProps) 
   // Handlers
   const handleCreate = async (content: string, mentionedUsers: string[]) => {
     try {
-      console.log('[CommentList] Creating comment with mentions:', mentionedUsers)
       const response = await commentApi.create(taskId, { content, mentionedUsers })
       if (response.data) {
         setComments((prev) => [response.data, ...(prev || [])])

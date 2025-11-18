@@ -2,11 +2,11 @@ package messaging
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"sync"
 
 	"github.com/aliirah/task-flow/shared/contracts"
+	"github.com/aliirah/task-flow/shared/logging"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
@@ -64,7 +64,7 @@ func (cm *ConnectionManager) Add(userID string, conn *websocket.Conn) string {
 	}
 	cm.userIndex[userID][connID] = struct{}{}
 
-	log.Printf("Added connection %s for user %s", connID, userID)
+	logging.S().Infow("websocket connection added", "connectionId", connID, "userId", userID)
 	return connID
 }
 
@@ -141,11 +141,9 @@ func (cm *ConnectionManager) BroadcastToOrg(orgID string, message contracts.WSMe
 		return nil
 	}
 
-	log.Printf("[TODO-remove] broadcasting %s to org %s (%d connections)", message.Type, orgID, len(connIDs))
-
 	for connID := range connIDs {
 		if err := cm.write(connID, message); err != nil {
-			log.Printf("broadcast error to org %s conn %s: %v", orgID, connID, err)
+			logging.S().Warnw("websocket broadcast failed", "orgId", orgID, "connectionId", connID, "error", err)
 			cm.Remove(connID)
 		}
 	}

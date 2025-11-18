@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/aliirah/task-flow/shared/contracts"
+	"github.com/aliirah/task-flow/shared/logging"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -30,15 +31,18 @@ func (p *NotificationPublisher) PublishNotification(ctx context.Context, event *
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] Publishing notification to exchange=%s, routingKey=%s, recipients=%v\n", 
-		EventExchange, event.EventType, event.Recipients)
-	
+	logging.S().Infow("publishing notification",
+		"exchange", EventExchange,
+		"eventType", event.EventType,
+		"recipients", event.Recipients,
+	)
+
 	err = p.rmq.Channel.PublishWithContext(
 		ctx,
-		EventExchange,      // exchange
-		event.EventType,    // routing key
-		false,              // mandatory
-		false,              // immediate
+		EventExchange,   // exchange
+		event.EventType, // routing key
+		false,           // mandatory
+		false,           // immediate
 		amqp.Publishing{
 			ContentType:  "application/json",
 			Body:         body,
@@ -49,7 +53,7 @@ func (p *NotificationPublisher) PublishNotification(ctx context.Context, event *
 		return fmt.Errorf("failed to publish notification: %w", err)
 	}
 
-	fmt.Printf("[DEBUG] Successfully published notification to RabbitMQ\n")
+	logging.S().Infow("published notification to rabbitmq", "eventType", event.EventType)
 	return nil
 }
 

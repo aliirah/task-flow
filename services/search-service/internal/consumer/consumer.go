@@ -9,6 +9,7 @@ import (
 
 	"github.com/aliirah/task-flow/services/search-service/internal/search"
 	"github.com/aliirah/task-flow/shared/contracts"
+	log "github.com/aliirah/task-flow/shared/logging"
 	"github.com/aliirah/task-flow/shared/messaging"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -32,19 +33,19 @@ func (c *Consumer) Start() error {
 
 	go func() {
 		if err := c.rabbit.ConsumeMessages(messaging.TaskSearchEventsQueue, c.handleTaskEvent); err != nil {
-			fmt.Printf("task event consumer stopped: %v\n", err)
+			log.S().Errorw("task search consumer stopped", "error", err)
 		}
 	}()
 
 	go func() {
 		if err := c.rabbit.ConsumeMessages(messaging.CommentSearchEventsQueue, c.handleCommentEvent); err != nil {
-			fmt.Printf("comment event consumer stopped: %v\n", err)
+			log.S().Errorw("comment search consumer stopped", "error", err)
 		}
 	}()
 
 	go func() {
 		if err := c.rabbit.ConsumeMessages(messaging.UserEventsQueue, c.handleUserEvent); err != nil {
-			fmt.Printf("user event consumer stopped: %v\n", err)
+			log.S().Errorw("user search consumer stopped", "error", err)
 		}
 	}()
 

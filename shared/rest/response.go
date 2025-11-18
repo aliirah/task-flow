@@ -147,7 +147,7 @@ func respond(c *gin.Context, httpStatus int, status string, data interface{}, er
 }
 
 func logHTTPError(c *gin.Context, status int, err *ResponseError) {
-	if status < 500 {
+	if status < 400 {
 		return
 	}
 	fields := []zap.Field{
@@ -181,5 +181,9 @@ func logHTTPError(c *gin.Context, status int, err *ResponseError) {
 	}
 
 	logger := logging.FromContext(c.Request.Context())
-	logger.Error("http error response", fields...)
+	if status >= 500 {
+		logger.Error("http error response", fields...)
+	} else {
+		logger.Warn("http client error response", fields...)
+	}
 }

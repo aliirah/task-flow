@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -16,16 +15,8 @@ import (
 // identity details to the request context.
 func JWTAuth(authSvc service.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Debug logging for notification endpoints
-		if strings.Contains(c.Request.URL.Path, "notification") {
-			fmt.Printf("[JWT-DEBUG] Middleware called for: %s %s\n", c.Request.Method, c.Request.URL.Path)
-		}
-		
 		authHeader := c.GetHeader("Authorization")
 		if !strings.HasPrefix(authHeader, "Bearer ") {
-			if strings.Contains(c.Request.URL.Path, "notification") {
-				fmt.Printf("[JWT-DEBUG] NO BEARER TOKEN! Header: '%s'\n", authHeader)
-			}
 			rest.Error(c, http.StatusUnauthorized, "missing or invalid authorization token",
 				rest.WithErrorCode("auth.invalid_token"))
 			c.Abort()
@@ -61,17 +52,9 @@ func JWTAuth(authSvc service.AuthService) gin.HandlerFunc {
 			UserType:  resp.GetUser().GetUserType(),
 		}
 
-		if strings.Contains(c.Request.URL.Path, "notification") {
-			fmt.Printf("[JWT-DEBUG] User authenticated! ID=%s Email=%s\n", user.ID, user.Email)
-		}
-
 		ctx := logging.ContextWithFields(c.Request.Context(), user.Fields()...)
 		c.Request = c.Request.WithContext(ctx)
 		authctx.AttachToGin(c, user)
-
-		if strings.Contains(c.Request.URL.Path, "notification") {
-			fmt.Printf("[JWT-DEBUG] User attached to Gin context successfully\n")
-		}
 
 		c.Next()
 	}

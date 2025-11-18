@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/aliirah/task-flow/services/user-service/internal/event"
 	"github.com/aliirah/task-flow/services/user-service/internal/models"
+	log "github.com/aliirah/task-flow/shared/logging"
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"gorm.io/gorm"
@@ -83,7 +83,7 @@ func (s *UserService) Create(ctx context.Context, input CreateUserInput) (*model
 
 	if s.publisher != nil {
 		if err := s.publisher.UserCreated(ctx, createdUser); err != nil {
-			fmt.Printf("failed to publish user created event: %v\n", err)
+			log.S().Errorw("failed to publish user created event", "error", err, "userId", createdUser.ID.String())
 		}
 	}
 
@@ -152,7 +152,7 @@ func (s *UserService) Update(ctx context.Context, id uuid.UUID, input UpdateUser
 
 	if s.publisher != nil {
 		if err := s.publisher.UserUpdated(ctx, updatedUser); err != nil {
-			fmt.Printf("failed to publish user updated event: %v\n", err)
+			log.S().Errorw("failed to publish user updated event", "error", err, "userId", updatedUser.ID.String())
 		}
 	}
 
@@ -171,7 +171,7 @@ func (s *UserService) Delete(ctx context.Context, id uuid.UUID) error {
 
 	if s.publisher != nil {
 		if err := s.publisher.UserDeleted(ctx, user); err != nil {
-			fmt.Printf("failed to publish user deleted event: %v\n", err)
+			log.S().Errorw("failed to publish user deleted event", "error", err, "userId", user.ID.String())
 		}
 	}
 

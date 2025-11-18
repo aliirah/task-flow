@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/aliirah/task-flow/shared/contracts"
+	"github.com/aliirah/task-flow/shared/logging"
 	"github.com/aliirah/task-flow/shared/messaging"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -26,24 +27,24 @@ func NewCommentConsumer(rabbitmq *messaging.RabbitMQ, connMgr *messaging.Connect
 
 // Listen starts consuming comment events and broadcasting them via WebSocket
 func (cc *CommentConsumer) Listen() error {
-	fmt.Println("[CommentConsumer] Starting to listen for comment events...")
+	logging.S().Info("comment consumer listening for events")
 	return cc.rabbitmq.ConsumeMessages(messaging.CommentEventsQueue, cc.handle)
 }
 
 func (cc *CommentConsumer) handle(ctx context.Context, msg amqp.Delivery) error {
-	fmt.Printf("[CommentConsumer] Received message with routing key: %s\n", msg.RoutingKey)
+	logging.S().Infow("comment consumer received message", "routingKey", msg.RoutingKey)
 
 	// Parse the AMQP message wrapper
 	var amqpMsg contracts.AmqpMessage
 	if err := json.Unmarshal(msg.Body, &amqpMsg); err != nil {
-		fmt.Printf("[CommentConsumer] Failed to unmarshal AMQP message: %v\n", err)
+		logging.S().Errorw("comment consumer failed to unmarshal message", "error", err)
 		return fmt.Errorf("failed to unmarshal AMQP message: %w", err)
 	}
 
-	fmt.Printf("[CommentConsumer] Event type: %s, OrgID: %s\n", amqpMsg.EventType, amqpMsg.OrganizationID)
+	logging.S().Infow("comment event received", "eventType", amqpMsg.EventType, "orgId", amqpMsg.OrganizationID)
 
 	if amqpMsg.OrganizationID == "" {
-		fmt.Printf("[CommentConsumer] No organization ID in event, skipping broadcast\n")
+		logging.S().Warn("comment consumer skipping event with empty organization id")
 		return nil
 	}
 
@@ -53,32 +54,32 @@ func (cc *CommentConsumer) handle(ctx context.Context, msg amqp.Delivery) error 
 	case contracts.CommentEventCreated:
 		var event contracts.CommentCreatedEvent
 		if err := json.Unmarshal(amqpMsg.Data, &event); err != nil {
-			fmt.Printf("[CommentConsumer] Failed to parse CommentCreatedEvent: %v\n", err)
+			logging.S().Errorw("comment consumer failed to parse created event", "error", err)
 			return nil
 		}
 		eventData = event
-		fmt.Printf("[CommentConsumer] Comment created on task %s (%s)\n", event.TaskID, event.CommentID)
+		logging.S().Infow("comment created event", "taskId", event.TaskID, "commentId", event.CommentID)
 
 	case contracts.CommentEventUpdated:
 		var event contracts.CommentUpdatedEvent
 		if err := json.Unmarshal(amqpMsg.Data, &event); err != nil {
-			fmt.Printf("[CommentConsumer] Failed to parse CommentUpdatedEvent: %v\n", err)
+			logging.S().Errorw("comment consumer failed to parse updated event", "error", err)
 			return nil
 		}
 		eventData = event
-		fmt.Printf("[CommentConsumer] Comment updated on task %s (%s)\n", event.TaskID, event.CommentID)
+		logging.S().Infow("comment updated event", "taskId", event.TaskID, "commentId", event.CommentID)
 
 	case contracts.CommentEventDeleted:
 		var event contracts.CommentDeletedEvent
 		if err := json.Unmarshal(amqpMsg.Data, &event); err != nil {
-			fmt.Printf("[CommentConsumer] Failed to parse CommentDeletedEvent: %v\n", err)
+			logging.S().Errorw("comment consumer failed to parse deleted event", "error", err)
 			return nil
 		}
 		eventData = event
-		fmt.Printf("[CommentConsumer] Comment deleted on task %s (%s)\n", event.TaskID, event.CommentID)
+		logging.S().Infow("comment deleted event", "taskId", event.TaskID, "commentId", event.CommentID)
 
 	default:
-		fmt.Printf("[CommentConsumer] Unknown event type: %s\n", amqpMsg.EventType)
+		logging.S().Warnw("comment consumer received unknown event type", "eventType", amqpMsg.EventType)
 		return nil
 	}
 
@@ -90,10 +91,10 @@ func (cc *CommentConsumer) handle(ctx context.Context, msg amqp.Delivery) error 
 
 	// Broadcast to all connections in the organization
 	if err := cc.connMgr.BroadcastToOrg(amqpMsg.OrganizationID, wsMsg); err != nil {
-		fmt.Printf("[CommentConsumer] Failed to broadcast to org %s: %v\n", amqpMsg.OrganizationID, err)
+		logging.S().Errorw("comment consumer failed to broadcast", "orgId", amqpMsg.OrganizationID, "error", err)
 		return err
 	}
 
-	fmt.Printf("[CommentConsumer] Successfully broadcasted %s to organization %s\n", amqpMsg.EventType, amqpMsg.OrganizationID)
+	logging.S().Infow("comment consumer broadcasted event", "eventType", amqpMsg.EventType, "orgId", amqpMsg.OrganizationID)
 	return nil
 }

@@ -3,14 +3,15 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/aliirah/task-flow/services/task-service/internal/models"
 	"github.com/aliirah/task-flow/shared/contracts"
+	log "github.com/aliirah/task-flow/shared/logging"
 	userpb "github.com/aliirah/task-flow/shared/proto/user/v1"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -114,18 +115,18 @@ func (s *Service) CreateComment(ctx context.Context, input CreateCommentInput) (
 	// Publish WebSocket event
 	go func() {
 		if err := s.commentPublisher.CommentCreated(context.Background(), comment, &task, user); err != nil {
-			fmt.Printf("Failed to publish comment created event: %v\n", err)
+			log.S().Errorw("failed to publish comment created event", "error", err, "commentId", comment.ID.String(), "taskId", task.ID.String())
 		}
 	}()
 
 	// Publish notification events
-	fmt.Printf("[DEBUG] CreateComment: Publishing notifications with mentions=%v\n", mentions)
+	log.L().Debug("publishing comment notifications", zap.String("commentId", comment.ID.String()), zap.Int("mentionCount", len(mentions)))
 	go s.publishCommentNotifications(context.Background(), &task, comment, nil, mentions)
 
 	// Update task mentioned users
 	go func() {
 		if err := s.UpdateTaskMentionedUsers(context.Background(), input.TaskID); err != nil {
-			fmt.Printf("Failed to update task mentioned users: %v\n", err)
+			log.S().Errorw("failed to update task mentioned users", "error", err, "taskId", input.TaskID.String())
 		}
 	}()
 
@@ -254,7 +255,7 @@ func (s *Service) UpdateComment(ctx context.Context, id uuid.UUID, input UpdateC
 		// Publish WebSocket event
 		go func() {
 			if err := s.commentPublisher.CommentUpdated(context.Background(), comment, comment.Task, user); err != nil {
-				fmt.Printf("Failed to publish comment updated event: %v\n", err)
+				log.S().Errorw("failed to publish comment updated event", "error", err, "commentId", comment.ID.String(), "taskId", comment.TaskID.String())
 			}
 		}()
 	}
@@ -285,7 +286,7 @@ func (s *Service) UpdateComment(ctx context.Context, id uuid.UUID, input UpdateC
 	// Update task mentioned users
 	go func() {
 		if err := s.UpdateTaskMentionedUsers(context.Background(), comment.TaskID); err != nil {
-			fmt.Printf("Failed to update task mentioned users: %v\n", err)
+			log.S().Errorw("failed to update task mentioned users", "error", err, "taskId", comment.TaskID.String())
 		}
 	}()
 
@@ -334,7 +335,7 @@ func (s *Service) DeleteComment(ctx context.Context, id uuid.UUID, userID uuid.U
 	if organizationID != "" {
 		go func() {
 			if err := s.commentPublisher.CommentDeleted(context.Background(), commentID, taskID, organizationID, userID.String(), user); err != nil {
-				fmt.Printf("Failed to publish comment deleted event: %v\n", err)
+				log.S().Errorw("failed to publish comment deleted event", "error", err, "commentId", commentID, "taskId", taskID)
 			}
 		}()
 	}
@@ -342,7 +343,7 @@ func (s *Service) DeleteComment(ctx context.Context, id uuid.UUID, userID uuid.U
 	// Update task mentioned users
 	go func() {
 		if err := s.UpdateTaskMentionedUsers(context.Background(), comment.TaskID); err != nil {
-			fmt.Printf("Failed to update task mentioned users: %v\n", err)
+			log.S().Errorw("failed to update task mentioned users", "error", err, "taskId", comment.TaskID.String())
 		}
 	}()
 
@@ -364,10 +365,10 @@ func (s *Service) GetReplies(ctx context.Context, parentCommentID uuid.UUID) ([]
 // publishCommentNotifications publishes comment notification events
 func (s *Service) publishCommentNotifications(ctx context.Context, task *models.Task, comment *models.Comment, oldMentions, newMentions []string) {
 	if s.notifPublisher == nil {
-		fmt.Printf("[ERROR] notifPublisher is nil! Cannot publish notifications\n")
+		log.S().Error("notification publisher is nil, cannot publish comment notifications")
 		return
 	}
-	fmt.Printf("[DEBUG] publishCommentNotifications called with %d new mentions\n", len(newMentions))
+	log.L().Debug("publishCommentNotifications invoked", zap.Int("newMentionCount", len(newMentions)), zap.String("commentId", comment.ID.String()))
 
 	// Fetch author details
 	var author *userpb.User
@@ -427,37 +428,31 @@ func (s *Service) publishCommentNotifications(ctx context.Context, task *models.
 			},
 		}
 		if err := s.notifPublisher.PublishCommentCreated(ctx, task.OrganizationID.String(), comment.UserID.String(), recipientStrs, commentData); err != nil {
-			fmt.Printf("failed to publish comment created notification: %v\n", err)
+			log.S().Errorw("failed to publish comment created notification", "error", err, "commentId", comment.ID.String(), "taskId", task.ID.String())
 		}
 	}
 
 	// Publish mention notifications
-	fmt.Printf("[DEBUG] publishCommentNotifications: Processing mentions=%v\n", newMentions)
 	mentionedUserIDs := []uuid.UUID{}
 	for _, userIDStr := range newMentions {
 		// Parse user ID directly (frontend sends user IDs, not usernames)
 		userID, err := uuid.Parse(userIDStr)
 		if err != nil {
-			fmt.Printf("[DEBUG] Failed to parse user ID: %s, error: %v\n", userIDStr, err)
+			log.S().Warnw("invalid mentioned user id", "value", userIDStr, "error", err)
 			continue
 		}
-		
+
 		// Skip if user is the comment author
 		if userID == comment.UserID {
-			fmt.Printf("[DEBUG] Skipping mention - user is comment author: %s\n", userID)
 			continue
 		}
-		
+
 		// Don't send mention notification if already in recipients (avoid duplicate)
 		if !recipientSet[userID] {
-			fmt.Printf("[DEBUG] Adding mentioned user: %s\n", userID)
 			mentionedUserIDs = append(mentionedUserIDs, userID)
-		} else {
-			fmt.Printf("[DEBUG] Skipping mention - already in recipients: %s\n", userID)
 		}
 	}
 
-	fmt.Printf("[DEBUG] Final mentionedUserIDs count: %d\n", len(mentionedUserIDs))
 	if len(mentionedUserIDs) > 0 {
 		// Convert UUIDs to strings
 		mentionedStrs := make([]string, len(mentionedUserIDs))
@@ -479,11 +474,8 @@ func (s *Service) publishCommentNotifications(ctx context.Context, task *models.
 			},
 			MentionedUsers: newMentions,
 		}
-		fmt.Printf("[DEBUG] Publishing comment mention notification to %d users: %v\n", len(mentionedStrs), mentionedStrs)
 		if err := s.notifPublisher.PublishCommentMention(ctx, task.OrganizationID.String(), comment.UserID.String(), mentionedStrs, commentData); err != nil {
-			fmt.Printf("[ERROR] failed to publish comment mention notification: %v\n", err)
-		} else {
-			fmt.Printf("[DEBUG] Successfully published comment mention notification\n")
+			log.S().Errorw("failed to publish comment mention notification", "error", err, "commentId", comment.ID.String(), "taskId", task.ID.String())
 		}
 	}
 }
@@ -511,7 +503,7 @@ func (s *Service) publishCommentUpdateNotifications(ctx context.Context, task *m
 		if err != nil {
 			continue
 		}
-		
+
 		// Skip if user is the comment author
 		if userID != comment.UserID {
 			mentionedUserIDs = append(mentionedUserIDs, userID)
@@ -540,7 +532,7 @@ func (s *Service) publishCommentUpdateNotifications(ctx context.Context, task *m
 			MentionedUsers: newMentions,
 		}
 		if err := s.notifPublisher.PublishCommentMention(ctx, task.OrganizationID.String(), comment.UserID.String(), mentionedStrs, commentData); err != nil {
-			fmt.Printf("failed to publish comment mention notification: %v\n", err)
+			log.S().Errorw("failed to publish comment mention notification", "error", err, "commentId", comment.ID.String(), "taskId", task.ID.String())
 		}
 	}
 }
