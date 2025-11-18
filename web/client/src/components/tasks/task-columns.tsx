@@ -82,9 +82,6 @@ export const createTaskColumns = (
             >
               {task.title}
             </Link>
-            {task.description && (
-              <p className="text-xs text-slate-500">{task.description}</p>
-            )}
           </div>
         )
       },

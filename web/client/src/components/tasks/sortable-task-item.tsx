@@ -104,10 +104,6 @@ export function SortableTaskItem({
             </Badge>
           </div>
 
-          {task.description && (
-            <p className="text-xs text-slate-500 truncate">{task.description}</p>
-          )}
-
           <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
             {task.assignee && (
               <div className="flex items-center gap-1">
