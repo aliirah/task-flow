@@ -1,0 +1,55 @@
+%% Task Flow - Service Architecture
+flowchart LR
+    subgraph Client
+        WEB[Next.js Web Client]
+    end
+
+    subgraph Gateway
+        APIGW[API Gateway\n(REST + WebSocket)]
+    end
+
+    subgraph Services
+        AUTH[Auth Service]
+        USER[User Service]
+        ORG[Organization Service]
+        TASK[Task Service]
+        SEARCH[Search Service]
+        NOTIF[Notification Service]
+    end
+
+    subgraph Infra
+        RABBIT[(RabbitMQ)]
+        SEARCHIDX[(Elasticsearch)]
+        DB_AUTH[(Postgres - Auth)]
+        DB_USER[(Postgres - User)]
+        DB_ORG[(Postgres - Org)]
+        DB_TASK[(Postgres - Task)]
+        DB_NOTIF[(Postgres - Notification)]
+    end
+
+    WEB <-->|HTTP/WebSocket| APIGW
+
+    APIGW -->|gRPC| AUTH
+    APIGW -->|gRPC| USER
+    APIGW -->|gRPC| ORG
+    APIGW -->|gRPC| TASK
+    APIGW -->|gRPC| NOTIF
+    APIGW -->|gRPC| SEARCH
+
+    AUTH --> DB_AUTH
+    USER --> DB_USER
+    ORG --> DB_ORG
+    TASK --> DB_TASK
+    NOTIF --> DB_NOTIF
+    SEARCH --> SEARCHIDX
+
+    TASK -->|events| RABBIT
+    USER -->|events| RABBIT
+    NOTIF -->|event fan-out| RABBIT
+    SEARCH -->|consumes events| RABBIT
+    APIGW -->|WebSocket fan-out| WEB
+
+    classDef svc fill:#DDEBFF,stroke:#0F62FE;
+    classDef db fill:#FFF4E0,stroke:#FF832B;
+    class AUTH,USER,ORG,TASK,SEARCH,NOTIF svc;
+    class DB_AUTH,DB_USER,DB_ORG,DB_TASK,DB_NOTIF,SEARCHIDX db;

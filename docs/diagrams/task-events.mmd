@@ -1,0 +1,26 @@
+%% Task Flow - Task Creation & Notification Event Flow
+sequenceDiagram
+    participant Client as Web Client
+    participant APIGW as API Gateway
+    participant TaskSvc as Task Service
+    participant Rabbit as RabbitMQ
+    participant SearchSvc as Search Service
+    participant NotifSvc as Notification Service
+    participant WS as WebSocket Clients
+
+    Client->>APIGW: REST CreateTask
+    APIGW->>TaskSvc: gRPC CreateTask
+    TaskSvc-->>Client: Task created response
+
+    Note over TaskSvc,Rabbit: Publish task.event.created
+    TaskSvc->>Rabbit: task.event.created
+
+    Rabbit-->>SearchSvc: task event
+    SearchSvc->>SearchSvc: Upsert document
+
+    Rabbit-->>NotifSvc: task event
+    NotifSvc->>Rabbit: notification.created
+    Rabbit-->>APIGW: notification.created
+    APIGW->>WS: WebSocket push (notification)
+
+    Note over APIGW: Clients receive live updates
