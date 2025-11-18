@@ -35,7 +35,7 @@ Tilt builds every service, deploys to Minikube, and streams logs at [http://loca
 
 | Component | URL |
 | --------- | --- |
-| Web client | http://localhost:3000 |
+| Web client | http://localhost:3005 |
 | API gateway | http://localhost:8081 |
 | RabbitMQ UI | http://localhost:15672 (guest/guest) |
 
